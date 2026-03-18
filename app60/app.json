@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "app60",
+    "slug": "app60",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "app60",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "br.ufpr.app60",
+      "infoPlist": {
+        "NSMotionUsageDescription": "O app usa acelerômetro e giroscópio para avaliar testes funcionais.",
+        "NSCameraUsageDescription": "A câmera poderá ser usada em versões futuras para registro e documentação.",
+        "NSMicrophoneUsageDescription": "O microfone poderá ser usado em versões futuras para gravações/observações."
+      }
+    },
+    "android": {
+      "package": "br.ufpr.app60",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": ["android.permission.INTERNET"],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "@react-native-community/datetimepicker",
+      "expo-dev-client",
+      "expo-sharing"
+    ],
+    "extra": {
+      "appName": "app60",
+      "supabaseUrl": "https://rddcnbqlgusbfkdziqve.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkZGNuYnFsZ3VzYmZrZHppcXZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0MjA1NDUsImV4cCI6MjA4ODk5NjU0NX0.eVvGw1mnQnZmLjDRFXLS5lNLG5Wle547FLY6XeSES1M"
+    }
+  }
+}
