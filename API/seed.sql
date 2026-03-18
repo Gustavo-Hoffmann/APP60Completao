@@ -1,0 +1,11 @@
+-- preencher depois que o primeiro usuário auth for criado manualmente
+-- exemplo:
+
+-- insert into public.profiles (id, name, email, role, is_active)
+-- values (
+--   '0f4af634-3aeb-426b-95e6-55c88cb6a84b',
+--   'TavinGod',
+--   'gustavohoffmann11@gmail.com',
+--   'ADMIN',
+--   true
+-- );
