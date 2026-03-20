@@ -6,6 +6,30 @@ export type ParticipantBlockScores = {
   Mobilidade: number;
 };
 
+export type TwoMstSession = {
+  sessao: number;
+  date: string;
+  repeticoes: number;
+  cadencia: number;
+  velAngularMedia: number;
+  cvVelocidade: number;
+  tempoMedioCiclo: number;
+  cvTempoCiclo: number;
+  velMaxima: number;
+  velMinima: number;
+};
+
+export type SignalPoint = {
+  time: string;
+  value: number;
+};
+
+export type ParticipantTestSummary = {
+  has2MST?: boolean;
+  twoMstSessions?: TwoMstSession[];
+  twoMstSignals?: Record<number, SignalPoint[]>;
+};
+
 export type Participant = {
   id: string;
   name: string;
@@ -23,4 +47,5 @@ export type Participant = {
   ivcfScore?: number;
   ivcfClass?: "Robusto" | "Pré-Frágil" | "Frágil";
   blocks?: ParticipantBlockScores;
+  tests?: ParticipantTestSummary;
 };

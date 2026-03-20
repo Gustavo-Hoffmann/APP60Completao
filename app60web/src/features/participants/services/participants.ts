@@ -1,4 +1,5 @@
 import { supabase } from "../../../lib/supabase/client";
+import { mariaSilvaMock } from "../../../mocks/participants";
 import type { Participant } from "../../../types/participant";
 
 type ParticipantRow = {
@@ -33,8 +34,12 @@ function calcAgeFromDate(date?: string | null) {
 }
 
 function formatCpf(value?: string | null) {
-  const d = String(value ?? "").replace(/\D/g, "").slice(0, 11);
+  const d = String(value ?? "")
+    .replace(/\D/g, "")
+    .slice(0, 11);
+
   if (!d) return "";
+
   return d
     .replace(/^(\d{3})(\d)/, "$1.$2")
     .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
@@ -60,23 +65,14 @@ function mapParticipant(row: ParticipantRow): Participant {
 }
 
 export function getFallbackParticipant(): Participant {
-  return {
-    id: "example-maria-silva",
-    name: "Maria Silva",
-    cpf: "123.456.789-00",
-    age: 68,
-    sex: "Feminino",
-    createdByUserId: "example",
-    professorId: "example-prof",
-    ivcfClass: "Frágil",
-  };
+  return mariaSilvaMock;
 }
 
 export async function listParticipants(): Promise<Participant[]> {
   const { data, error } = await supabase
     .from("participants")
     .select(
-      "id, full_name, cpf, birth_date, sex, created_by, owner_student_id, owner_professor_id, city, state, created_at, updated_at"
+      "id, full_name, cpf, birth_date, sex, created_by, owner_student_id, owner_professor_id, city, state, created_at, updated_at",
     )
     .order("full_name", { ascending: true });
 
@@ -85,18 +81,21 @@ export async function listParticipants(): Promise<Participant[]> {
   }
 
   const real = (data ?? []).map((row) => mapParticipant(row as ParticipantRow));
-  return [getFallbackParticipant(), ...real];
+
+  const hasMariaMockAlready = real.some((participant) => participant.id === mariaSilvaMock.id);
+
+  return hasMariaMockAlready ? real : [mariaSilvaMock, ...real];
 }
 
 export async function getParticipantById(id: string): Promise<Participant | null> {
-  if (id === "example-maria-silva") {
-    return getFallbackParticipant();
+  if (id === mariaSilvaMock.id) {
+    return mariaSilvaMock;
   }
 
   const { data, error } = await supabase
     .from("participants")
     .select(
-      "id, full_name, cpf, birth_date, sex, created_by, owner_student_id, owner_professor_id, city, state, created_at, updated_at"
+      "id, full_name, cpf, birth_date, sex, created_by, owner_student_id, owner_professor_id, city, state, created_at, updated_at",
     )
     .eq("id", id)
     .maybeSingle();

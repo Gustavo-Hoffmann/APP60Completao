@@ -45,7 +45,6 @@ type Answers = {
   q14_calfCm?: string;
   q14_walk4mSeconds?: number | null;
 
-  // SEMPRE manual
   q14_weightKg?: string;
   q14_height?: string;
 
@@ -302,7 +301,9 @@ const Checkbox = ({
         if (!disabled) onToggle();
       }}
     >
-      <View style={[styles.checkBox, checked && styles.checkBoxChecked]}>{checked ? <Text style={styles.checkMark}>✓</Text> : null}</View>
+      <View style={[styles.checkBox, checked && styles.checkBoxChecked]}>
+        {checked ? <Text style={styles.checkMark}>✓</Text> : null}
+      </View>
       <Text style={styles.checkText}>{label}</Text>
     </TouchableOpacity>
   );
@@ -318,7 +319,6 @@ export function IVCF20Screen({ navigation, route }: any) {
   const [patient, setPatient] = useState<Patient | null>(participant ? participantToPatient(participant) : null);
   const [answers, setAnswers] = useState<Answers>({});
 
-  // deixa o header do stack no mesmo padrão (some com a “faixa branca feia”)
   useEffect(() => {
     navigation?.setOptions?.({
       headerStyle: { backgroundColor: theme.colors.primary },
@@ -386,8 +386,7 @@ export function IVCF20Screen({ navigation, route }: any) {
       if (walkTimerRef.current) clearInterval(walkTimerRef.current);
       walkTimerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walkRunning]);
+  }, [walkRunning, walkElapsedMs]);
 
   const walkSeconds = useMemo(() => {
     if (walkElapsedMs <= 0) return null;
@@ -396,7 +395,6 @@ export function IVCF20Screen({ navigation, route }: any) {
 
   useEffect(() => {
     setAnswers((prev) => ({ ...prev, q14_walk4mSeconds: walkSeconds }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walkSeconds]);
 
   const resetWalkTimer = () => {
@@ -551,7 +549,9 @@ export function IVCF20Screen({ navigation, route }: any) {
     const ok = validateBlock(blockIndex);
     if (!ok) return;
 
-    if (blocks[blockIndex].key === "mobilidade" && walkRunning) setWalkRunning(false);
+    if (blocks[blockIndex].key === "mobilidade" && walkRunning) {
+      setWalkRunning(false);
+    }
 
     if (blockIndex < blocks.length - 1) {
       setBlockIndex((i) => i + 1);
@@ -561,10 +561,11 @@ export function IVCF20Screen({ navigation, route }: any) {
       const cls = classifyIVCF(scored.total);
 
       navigation.navigate(Routes.IVCF20Result, {
+        participant,
         participantId,
-        participantName: patient?.name ?? "",
+        participantName: patient?.name ?? participant?.name ?? "",
         patientId: participantId,
-        patientName: patient?.name ?? "",
+        patientName: patient?.name ?? participant?.name ?? "",
         scoreTotal: scored.total,
         classification: cls,
         blockScores: scored.blockScores,
@@ -584,7 +585,6 @@ export function IVCF20Screen({ navigation, route }: any) {
     const progress = `${blockIndex + 1}/${blocks.length}`;
     return (
       <View style={styles.hero}>
-        {/* “high-tech”: padrão no fundo */}
         <View style={styles.heroPattern} pointerEvents="none">
           <View style={styles.heroRingA} />
           <View style={styles.heroRingB} />
@@ -940,7 +940,6 @@ export function IVCF20Screen({ navigation, route }: any) {
   const canFinish = blockIndex === blocks.length - 1;
 
   return (
-    // ✅ edges só bottom = remove a “faixa branca” extra em cima
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.card }} edges={["bottom"]}>
       <View style={styles.container}>
         {renderHeader()}
@@ -973,8 +972,8 @@ export default IVCF20Screen;
 function makeStyles(theme: any) {
   const COLORS = {
     primary: theme.colors.primary,
-    page: theme.colors.card,     // fundo azul-claro (light) / card dark (dark)
-    surface: theme.colors.bg,    // card branco (light) / bg dark (dark)
+    page: theme.colors.card,
+    surface: theme.colors.bg,
     text: theme.colors.text,
     muted: theme.colors.muted,
     border: theme.colors.border,
@@ -985,11 +984,10 @@ function makeStyles(theme: any) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.page },
 
-    // HERO header “high-tech”
     hero: {
       backgroundColor: COLORS.primary,
       paddingHorizontal: SPACING.lg,
-      paddingTop: SPACING.lg,       // sem SafeArea top = sem faixa branca
+      paddingTop: SPACING.lg,
       paddingBottom: SPACING.xl,
       borderBottomLeftRadius: 24,
       borderBottomRightRadius: 24,
@@ -1050,7 +1048,6 @@ function makeStyles(theme: any) {
       paddingTop: 0,
     },
 
-    // Card “encaixado” (sobrepõe o hero)
     card: {
       marginHorizontal: SPACING.lg,
       marginTop: -18,

@@ -1,12 +1,14 @@
 import { ClipboardList, Users } from "lucide-react";
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { StatCard } from "../../../components/ui/StatCard";
-import { participantsMock } from "../../../mocks/participants";
+import { mariaSilvaMock } from "../../../mocks/participants";
 
 export function QuestionnairesPage() {
-  const total = participantsMock.length;
-  const fragile = participantsMock.filter((p) => p.ivcfClass === "Frágil").length;
-  const preFragile = participantsMock.filter((p) => p.ivcfClass === "Pré-Frágil").length;
+  const participants = [mariaSilvaMock];
+
+  const total = participants.length;
+  const fragile = participants.filter((p) => p.ivcfClass === "Frágil").length;
+  const preFragile = participants.filter((p) => p.ivcfClass === "Pré-Frágil").length;
 
   return (
     <div>
@@ -47,7 +49,7 @@ export function QuestionnairesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {participantsMock.map((participant) => (
+              {participants.map((participant) => (
                 <tr key={participant.id}>
                   <td className="px-6 py-4 font-medium text-slate-800">
                     {participant.name}

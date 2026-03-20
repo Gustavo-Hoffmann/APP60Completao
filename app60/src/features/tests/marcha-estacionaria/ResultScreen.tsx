@@ -54,13 +54,13 @@ type AnalysisResult = {
 
 const DEG = 180 / Math.PI;
 const DT = 1 / 60;
-const REC_WIN = 122.0;
+const REC_WIN = 124.0;
 const TREND_THRESH = 11.46;
-const SAVGOL_WINDOW = 31;
+const SAVGOL_WINDOW = 131;
 const SAVGOL_POLY = 5;
 const PEAK_HEIGHT_POS = 70.0;
 const PEAK_HEIGHT_NEG = 70.0;
-const PEAK_DISTANCE = 30;
+const PEAK_DISTANCE = 10;
 
 type NormRow = Record<number, number>;
 type SexKey = "M" | "F";
@@ -523,7 +523,7 @@ function analyze2MST(
 
   const n = rows.length;
   const time = Array.from({ length: n }, (_, i) => i * DT);
-  const gxDeg = rows.map((r) => Number(r[4] ?? 0) * DEG);
+  const gxDeg = rows.map((r) => Number(r[7] ?? 0) * DEG);
 
   const maxSec = Math.min(last(time) ?? REC_WIN, REC_WIN);
   const validEndIdx = time.findIndex((t) => t > maxSec);

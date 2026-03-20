@@ -1,12 +1,36 @@
-import React, { useEffect, useMemo } from "react";
-import { ScrollView, View, useWindowDimensions, StyleSheet } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ScrollView,
+  View,
+  useWindowDimensions,
+  StyleSheet,
+  Alert,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path, Line, Circle, Text as SvgText } from "react-native-svg";
 
 import { T } from "../../components/Themed";
+import { ThemedButton } from "../../components/ThemedButton";
 import { useTheme } from "../../contexts/ThemeContext";
+import type { Participant } from "../../models/types";
+import {
+  getNextSessionNumber,
+  uploadIvcf20ResultToSupabase,
+  type Ivcf20CategoryScore,
+  type Ivcf20Classification,
+} from "../../services/tests/uploadTestJson";
 
 type ClsKey = "robusto" | "prefragil" | "fragil";
+
+type RouteParams = {
+  participant?: Participant;
+  participantName?: string;
+  scoreTotal?: number;
+  classification?: Ivcf20Classification;
+  blockScores?: Ivcf20CategoryScore[];
+  answers?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
+};
 
 const badgeColor = (key: ClsKey) => {
   if (key === "robusto") return "#2ECC71";
@@ -14,7 +38,6 @@ const badgeColor = (key: ClsKey) => {
   return "#E74C3C";
 };
 
-// máximos por domínio (pra normalizar)
 const DOMAIN_META = [
   { key: "idade", label: "Idade", max: 3 },
   { key: "percepcao", label: "Saúde", max: 1 },
@@ -45,12 +68,11 @@ function hexToRgba(hex: string, a: number) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
-// escala por % do máximo (normalizado)
 function riskColor(v01: number) {
   const v = clamp01(v01);
-  if (v < 0.34) return "#2ECC71"; // bom/excelente
-  if (v < 0.67) return "#F39C12"; // intermediário
-  return "#E74C3C"; // ruim/péssimo
+  if (v < 0.34) return "#2ECC71";
+  if (v < 0.67) return "#F39C12";
+  return "#E74C3C";
 }
 
 function riskLabel(v01: number) {
@@ -67,7 +89,6 @@ function polar(cx: number, cy: number, r: number, a: number) {
 function wedgePath(cx: number, cy: number, r: number, a0: number, a1: number) {
   const p0 = polar(cx, cy, r, a0);
   const p1 = polar(cx, cy, r, a1);
-  // slice angle < π (10 domínios), então largeArcFlag = 0
   return `M ${cx} ${cy} L ${p0.x} ${p0.y} A ${r} ${r} 0 0 1 ${p1.x} ${p1.y} Z`;
 }
 
@@ -77,14 +98,12 @@ function PizzaDomainsChart({
   size,
   gridColor,
   baseFill,
-  textColor,
 }: {
-  values: number[]; // 0..1
+  values: number[];
   labels: string[];
   size: number;
   gridColor: string;
   baseFill: string;
-  textColor: string;
 }) {
   const n = Math.max(3, values.length);
   const cx = size / 2;
@@ -92,9 +111,7 @@ function PizzaDomainsChart({
   const R = size / 2 - 46;
 
   const slice = (Math.PI * 2) / n;
-  const pad = slice * 0.10; // “gap” entre fatias
-
-  // ângulos centrados nos rótulos, começando no topo
+  const pad = slice * 0.1;
   const centerAngles = Array.from({ length: n }, (_, i) => -Math.PI / 2 + i * slice);
 
   const levels = 4;
@@ -102,12 +119,18 @@ function PizzaDomainsChart({
 
   return (
     <Svg width={size} height={size}>
-      {/* rings */}
       {rings.map((rr, idx) => (
-        <Circle key={`ring-${idx}`} cx={cx} cy={cy} r={rr} fill="transparent" stroke={gridColor} strokeWidth={1} />
+        <Circle
+          key={`ring-${idx}`}
+          cx={cx}
+          cy={cy}
+          r={rr}
+          fill="transparent"
+          stroke={gridColor}
+          strokeWidth={1}
+        />
       ))}
 
-      {/* fatias base (vazias) */}
       {centerAngles.map((ac, i) => {
         const a0 = ac - slice / 2 + pad / 2;
         const a1 = ac + slice / 2 - pad / 2;
@@ -121,21 +144,27 @@ function PizzaDomainsChart({
         );
       })}
 
-      {/* separadores */}
       {centerAngles.map((ac, i) => {
         const x = cx + R * Math.cos(ac - slice / 2);
         const y = cy + R * Math.sin(ac - slice / 2);
-        return <Line key={`sep-${i}`} x1={cx} y1={cy} x2={x} y2={y} stroke={gridColor} strokeWidth={1} />;
+        return (
+          <Line
+            key={`sep-${i}`}
+            x1={cx}
+            y1={cy}
+            x2={x}
+            y2={y}
+            stroke={gridColor}
+            strokeWidth={1}
+          />
+        );
       })}
 
-      {/* fatias preenchidas (pizza) */}
       {centerAngles.map((ac, i) => {
         const v = clamp01(values[i] ?? 0);
         const col = riskColor(v);
-
         const a0 = ac - slice / 2 + pad / 2;
         const a1 = ac + slice / 2 - pad / 2;
-
         const rr = Math.max(2, R * v);
 
         return (
@@ -149,17 +178,14 @@ function PizzaDomainsChart({
         );
       })}
 
-      {/* miolo */}
       <Circle cx={cx} cy={cy} r={4} fill={gridColor} />
 
-      {/* labels */}
       {centerAngles.map((ac, i) => {
         const v = clamp01(values[i] ?? 0);
         const col = riskColor(v);
 
         const lx = cx + (R + 18) * Math.cos(ac);
         const ly = cy + (R + 18) * Math.sin(ac);
-
         const c = Math.cos(ac);
         const anchor = c > 0.25 ? "start" : c < -0.25 ? "end" : "middle";
 
@@ -184,8 +210,19 @@ function PizzaDomainsChart({
 export function IVCF20ResultScreen({ route, navigation }: any) {
   const { theme } = useTheme();
   const { width } = useWindowDimensions();
+  const [uploading, setUploading] = useState(false);
+  const [nextSessionNumber, setNextSessionNumber] = useState<number | null>(null);
 
-  const { participantName, scoreTotal, classification, blockScores } = route?.params ?? {};
+  const {
+    participant,
+    participantName,
+    scoreTotal,
+    classification,
+    blockScores,
+    answers,
+    meta,
+  } = (route?.params ?? {}) as RouteParams;
+
   const cls = classification ?? { label: "—", key: "robusto" as ClsKey };
   const clsColor = useMemo(() => badgeColor(cls.key), [cls.key]);
 
@@ -195,37 +232,108 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
       headerTintColor: "#fff",
       headerTitleStyle: { color: "#fff", fontWeight: "900" },
       headerShadowVisible: false,
+      title: "Resultado IVCF-20",
     });
   }, [navigation, theme.colors.primary]);
 
-  const blocksArr = Array.isArray(blockScores) ? blockScores : [];
+  useEffect(() => {
+    let alive = true;
+
+    async function loadNextSession() {
+      try {
+        if (!participant?.id) return;
+        const s = await getNextSessionNumber(String(participant.id), "IVCF20");
+        if (alive) setNextSessionNumber(s);
+      } catch {
+        if (alive) setNextSessionNumber(null);
+      }
+    }
+
+    loadNextSession();
+
+    return () => {
+      alive = false;
+    };
+  }, [participant?.id]);
+
+  const blocksArr = useMemo(() => {
+    const arr = Array.isArray(blockScores) ? blockScores : [];
+
+    return DOMAIN_META.map((metaItem) => {
+      const found = arr.find((b: any) => String(b?.key) === metaItem.key);
+      return {
+        key: metaItem.key,
+        label: String(found?.label ?? metaItem.label),
+        score: Number(found?.score ?? 0),
+        max_score: Number(found?.max_score ?? metaItem.max),
+      };
+    });
+  }, [blockScores]);
 
   const chart = useMemo(() => {
-    const byKey = new Map<string, number>();
-    blocksArr.forEach((b: any) => byKey.set(String(b.key), Number(b.score ?? 0)));
-
-    const labels = DOMAIN_META.map((d) => d.label);
-    const values = DOMAIN_META.map((d) => clamp01((byKey.get(d.key) ?? 0) / d.max));
-    const raw = DOMAIN_META.map((d) => ({
+    const labels = blocksArr.map((d) => d.label);
+    const values = blocksArr.map((d) => clamp01(d.score / d.max_score));
+    const raw = blocksArr.map((d) => ({
       ...d,
-      score: byKey.get(d.key) ?? 0,
-      v01: clamp01((byKey.get(d.key) ?? 0) / d.max),
+      v01: clamp01(d.score / d.max_score),
     }));
 
     return { labels, values, raw };
   }, [blocksArr]);
 
+  const handleUploadCloud = async () => {
+    try {
+      if (uploading) return;
+
+      if (!participant?.id) {
+        Alert.alert(
+          "Erro no upload",
+          "O participante não foi enviado para a tela de resultado. Passe o objeto participant na navegação."
+        );
+        return;
+      }
+
+      setUploading(true);
+
+      const sessionNumberToUse =
+        nextSessionNumber ?? (await getNextSessionNumber(String(participant.id), "IVCF20"));
+
+      const sent = await uploadIvcf20ResultToSupabase({
+        participant,
+        sessionNumber: sessionNumberToUse,
+        scoreTotal: Number(scoreTotal ?? 0),
+        classification: cls,
+        blockScores: blocksArr,
+        answers,
+        meta,
+      });
+
+      setNextSessionNumber(sent.sessionNumber + 1);
+
+      Alert.alert(
+        "Upload concluído",
+        `☁️ Questionário enviado com sucesso.\nParticipante: ${
+          participant?.name ?? participantName ?? "—"
+        }\nSessão: S${sent.sessionNumber}\nCaminho: ${sent.path}`
+      );
+    } catch (e: any) {
+      Alert.alert("Erro no upload", e?.message ?? "Falha ao enviar questionário para a nuvem.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const size = Math.min(360, Math.max(290, width - 36));
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
-  const gridColor = theme.mode === "light" ? "rgba(20,60,120,0.14)" : "rgba(255,255,255,0.14)";
-  const baseFill = theme.mode === "light" ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.06)";
-  const textColor = theme.mode === "light" ? "rgba(0,0,0,0.75)" : "rgba(255,255,255,0.85)";
+  const gridColor =
+    theme.mode === "light" ? "rgba(20,60,120,0.14)" : "rgba(255,255,255,0.14)";
+  const baseFill =
+    theme.mode === "light" ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.06)";
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.card }} edges={["bottom"]}>
       <View style={styles.container}>
-        {/* HERO */}
         <View style={styles.hero}>
           <View style={styles.heroPattern} pointerEvents="none">
             <View style={styles.heroRingA} />
@@ -234,44 +342,71 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
           </View>
 
           <T style={styles.heroTitle}>Resultado IVCF-20</T>
-          <T style={styles.heroSub}>{participantName ?? ""}</T>
+          <T style={styles.heroSub}>{participant?.name ?? participantName ?? ""}</T>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
-          {/* TOTAL */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 24 }}
+        >
           <View style={[styles.card, { marginTop: -18 }]}>
             <T style={{ color: theme.colors.muted }}>Score total</T>
 
-            <View style={{ marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <T style={{ fontSize: 46, fontWeight: "900" }}>{scoreTotal ?? 0}</T>
+            <View
+              style={{
+                marginTop: 10,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <T style={{ fontSize: 46, fontWeight: "900" }}>{Number(scoreTotal ?? 0)}</T>
 
               <View style={[styles.badge, { backgroundColor: clsColor }]}>
                 <T style={{ color: "#111", fontWeight: "900" }}>{cls.label}</T>
               </View>
             </View>
 
-            <T style={styles.smallHint}>Quanto maior o score, maior a vulnerabilidade clínico-funcional.</T>
+            <T style={styles.smallHint}>
+              Quanto maior o score, maior a vulnerabilidade clínico-funcional.
+            </T>
+
+            <View style={styles.metaRow}>
+              <T style={styles.metaPill}>
+                Participante: {participant?.name ?? participantName ?? "—"}
+              </T>
+
+              <T style={styles.metaPill}>
+                Sessão: {nextSessionNumber ? `S${nextSessionNumber}` : "—"}
+              </T>
+            </View>
           </View>
 
-          {/* TEIA PIZZA */}
           <T style={styles.sectionTitle}>Mapa de domínios (pizza)</T>
 
           <View style={styles.card}>
-            <T style={styles.hintText}>Cada fatia enche do centro para fora conforme (score ÷ máximo do domínio).</T>
+            <T style={styles.hintText}>
+              Cada fatia enche do centro para fora conforme (score ÷ máximo do domínio).
+            </T>
 
-            {/* legenda */}
             <View style={styles.legendRow}>
-              <View style={[styles.legendPill, { borderColor: hexToRgba("#2ECC71", 0.6) }]}>
+              <View
+                style={[styles.legendPill, { borderColor: hexToRgba("#2ECC71", 0.6) }]}
+              >
                 <View style={[styles.legendDot, { backgroundColor: "#2ECC71" }]} />
                 <T style={styles.legendText}>Bom/Excelente</T>
               </View>
 
-              <View style={[styles.legendPill, { borderColor: hexToRgba("#F39C12", 0.6) }]}>
+              <View
+                style={[styles.legendPill, { borderColor: hexToRgba("#F39C12", 0.6) }]}
+              >
                 <View style={[styles.legendDot, { backgroundColor: "#F39C12" }]} />
                 <T style={styles.legendText}>Intermediário</T>
               </View>
 
-              <View style={[styles.legendPill, { borderColor: hexToRgba("#E74C3C", 0.6) }]}>
+              <View
+                style={[styles.legendPill, { borderColor: hexToRgba("#E74C3C", 0.6) }]}
+              >
                 <View style={[styles.legendDot, { backgroundColor: "#E74C3C" }]} />
                 <T style={styles.legendText}>Ruim/Péssimo</T>
               </View>
@@ -284,11 +419,9 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
                 size={size}
                 gridColor={gridColor}
                 baseFill={baseFill}
-                textColor={textColor}
               />
             </View>
 
-            {/* top 3 piores */}
             <View style={{ marginTop: 12 }}>
               {chart.raw
                 .slice()
@@ -305,11 +438,10 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
             </View>
           </View>
 
-          {/* LISTA */}
           <T style={styles.sectionTitle}>Score por domínio</T>
 
           <View style={styles.card}>
-            {blocksArr.map((b: any, i: number) => (
+            {blocksArr.map((b, i) => (
               <View
                 key={b.key}
                 style={{
@@ -321,9 +453,18 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
                 }}
               >
                 <T>{b.label}</T>
-                <T style={{ fontWeight: "900" }}>{b.score}</T>
+                <T style={{ fontWeight: "900" }}>
+                  {b.score} / {b.max_score}
+                </T>
               </View>
             ))}
+          </View>
+
+          <View style={styles.card}>
+            <ThemedButton
+              title={uploading ? "☁️ Enviando..." : "☁️ Enviar JSON para nuvem"}
+              onPress={handleUploadCloud}
+            />
           </View>
         </ScrollView>
       </View>
@@ -412,7 +553,8 @@ function makeStyles(theme: any) {
       paddingHorizontal: 10,
       borderRadius: 999,
       borderWidth: 1,
-      backgroundColor: theme.mode === "light" ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.06)",
+      backgroundColor:
+        theme.mode === "light" ? "rgba(0,0,0,0.02)" : "rgba(255,255,255,0.06)",
     },
     legendDot: { width: 10, height: 10, borderRadius: 6 },
     legendText: { color: theme.colors.muted, fontWeight: "900", fontSize: 12 },
@@ -424,6 +566,24 @@ function makeStyles(theme: any) {
       paddingVertical: 8,
       borderTopWidth: 1,
       borderTopColor: theme.colors.border,
+    },
+
+    metaRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 12,
+    },
+    metaPill: {
+      fontSize: 12,
+      fontWeight: "800",
+      color: theme.colors.primary,
+      backgroundColor:
+        theme.mode === "light" ? "rgba(11,99,246,0.10)" : "rgba(255,255,255,0.08)",
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      overflow: "hidden",
     },
   });
 }

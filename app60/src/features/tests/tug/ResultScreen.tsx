@@ -220,9 +220,9 @@ function analyzeTug(result: NativeImuStopResult) {
   const time = rows.map((r) => (Number(r[0] ?? 0) - t0) / 1000);
 
   const gyroNorm = rows.map((r) => {
-    const gx = Number(r[4] ?? 0) * DEG;
-    const gy = Number(r[5] ?? 0) * DEG;
-    const gz = Number(r[6] ?? 0) * DEG;
+    const gx = Number(r[7] ?? 0) * DEG;
+    const gy = Number(r[8] ?? 0) * DEG;
+    const gz = Number(r[9] ?? 0) * DEG;
     return Math.sqrt(gx * gx + gy * gy + gz * gz);
   });
 

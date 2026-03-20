@@ -58,7 +58,7 @@ const DT = 1 / 60;
 const SAVGOL_WINDOW = 15;
 const SAVGOL_POLY = 3;
 const MIN_PERIOD_FALLBACK_SEC = 1.6;
-const WINDOW_SEC = 30.5;
+const WINDOW_SEC = 32;
 
 const NORM_30STS: Record<SexKey, Record<string, NormStats>> = {
   F: {
@@ -458,8 +458,8 @@ function analyzeSL30(
   const rows = result?.samples ?? [];
   if (!rows || rows.length < 10) return null;
 
-  const rawTime = rows.map((r) => Number(r?.[0] ?? 0) / 1000);
-  const gxRawDeg = rows.map((r) => Number(r?.[4] ?? 0) * DEG);
+  const rawTime = rows.map((r) => Number(r?.[1] ?? 0) / 1000);
+  const gxRawDeg = rows.map((r) => Number(r?.[7] ?? 0) * DEG);
 
   const series = sanitizeSeries(rawTime, gxRawDeg.map((v) => -v));
   if (series.time.length < 10) return null;
