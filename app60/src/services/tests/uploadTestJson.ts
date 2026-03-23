@@ -7,8 +7,10 @@ import type { NativeImuStopResult } from "../sensors/nativeImu";
 
 const BUCKET = "test-data";
 const SAMPLING_HZ = 60;
+const MAX_SESSION_INSERT_RETRIES = 6;
 
 export type SupportedTestType = "MARCHA" | "TUG" | "LOS" | "SL30S" | "UTT" | "IVCF20";
+type SensorCsvTestType = Exclude<SupportedTestType, "IVCF20">;
 
 export type Ivcf20Classification = {
   key: "robusto" | "prefragil" | "fragil";
@@ -67,8 +69,6 @@ export type Ivcf20JsonPayload = {
   };
 };
 
-type SensorCsvTestType = Exclude<SupportedTestType, "IVCF20">;
-
 type NativeImuStatsLike = {
   n?: number;
   hzMean?: number;
@@ -106,6 +106,16 @@ type NativeImuLikeResult = NativeImuStopResult & {
   tug?: NativeImuTugLike;
 };
 
+type ReservedSessionRow = {
+  id: string;
+  session_number: number;
+};
+
+type UploadedSessionResult = {
+  sessionNumber: number;
+  path: string;
+};
+
 const IVCF20_DOMAIN_META: Record<Ivcf20CategoryKey, { label: string; max_score: number }> = {
   idade: { label: "Idade", max_score: 3 },
   percepcao: { label: "Saúde", max_score: 1 },
@@ -126,7 +136,7 @@ function safeSlug(s: string) {
     .replace(/[^a-zA-Z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .toLowerCase()
-    .slice(0, 40);
+    .slice(0, 48);
 }
 
 function fileStamp() {
@@ -152,37 +162,9 @@ function asFiniteNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function normalizeSensorRow(row: unknown): number[] {
-  const arr = Array.isArray(row) ? row : [];
-  return [
-    asFiniteNumber(arr[0]),  // wall_t_ms
-    asFiniteNumber(arr[1]),  // row_t_ms
-
-    asFiniteNumber(arr[2]),  // acc_t_ms
-    asFiniteNumber(arr[3]),  // ax
-    asFiniteNumber(arr[4]),  // ay
-    asFiniteNumber(arr[5]),  // az
-
-    asFiniteNumber(arr[6]),  // gyro_t_ms
-    asFiniteNumber(arr[7]),  // gx
-    asFiniteNumber(arr[8]),  // gy
-    asFiniteNumber(arr[9]),  // gz
-
-    asFiniteNumber(arr[10]), // user_acc_t_ms
-    asFiniteNumber(arr[11]), // user_ax
-    asFiniteNumber(arr[12]), // user_ay
-    asFiniteNumber(arr[13]), // user_az
-
-    asFiniteNumber(arr[14]), // grav_t_ms
-    asFiniteNumber(arr[15]), // grav_x
-    asFiniteNumber(arr[16]), // grav_y
-    asFiniteNumber(arr[17]), // grav_z
-
-    asFiniteNumber(arr[18]), // att_t_ms
-    asFiniteNumber(arr[19]), // roll
-    asFiniteNumber(arr[20]), // pitch
-    asFiniteNumber(arr[21]), // yaw
-  ];
+function round3(value: unknown): number {
+  const n = asFiniteNumber(value, 0);
+  return Math.round(n * 1000) / 1000;
 }
 
 function escapeCsvValue(value: unknown): string {
@@ -193,9 +175,37 @@ function escapeCsvValue(value: unknown): string {
   return s;
 }
 
-function round3(value: unknown): number {
-  const n = asFiniteNumber(value, 0);
-  return Math.round(n * 1000) / 1000;
+function normalizeSensorRow(row: unknown): number[] {
+  const arr = Array.isArray(row) ? row : [];
+  return [
+    asFiniteNumber(arr[0]),
+    asFiniteNumber(arr[1]),
+
+    asFiniteNumber(arr[2]),
+    asFiniteNumber(arr[3]),
+    asFiniteNumber(arr[4]),
+    asFiniteNumber(arr[5]),
+
+    asFiniteNumber(arr[6]),
+    asFiniteNumber(arr[7]),
+    asFiniteNumber(arr[8]),
+    asFiniteNumber(arr[9]),
+
+    asFiniteNumber(arr[10]),
+    asFiniteNumber(arr[11]),
+    asFiniteNumber(arr[12]),
+    asFiniteNumber(arr[13]),
+
+    asFiniteNumber(arr[14]),
+    asFiniteNumber(arr[15]),
+    asFiniteNumber(arr[16]),
+    asFiniteNumber(arr[17]),
+
+    asFiniteNumber(arr[18]),
+    asFiniteNumber(arr[19]),
+    asFiniteNumber(arr[20]),
+    asFiniteNumber(arr[21]),
+  ];
 }
 
 function getResultSampleCount(result: NativeImuLikeResult): number {
@@ -247,7 +257,7 @@ function buildSensorMetadataLines(
 
   const lines: string[] = [
     "# app=app60",
-    `# schema_version=2`,
+    "# schema_version=2",
     `# test_type=${testType}`,
     `# participant_id=${String(participant?.id ?? "")}`,
     `# participant_name=${String(participant?.name ?? "")}`,
@@ -339,42 +349,108 @@ function buildSensorCsv(
   return `${metadata}\n${header}\n${body}${body ? "\n" : ""}`;
 }
 
-function buildCsvFilename(
+function buildLocalSensorCsvFilename(
   testType: SensorCsvTestType,
   participant: Participant,
   sessionNumber: number
 ) {
-  const pid = participant?.id ? safeSlug(String(participant.id)) : "sem_participante";
-  const pname = participant?.name ? safeSlug(participant.name) : "sem_nome";
+  const pidShort = safeSlug(String(participant?.id ?? "sem_participante")).slice(0, 12);
+  const pname = safeSlug(participant?.name ?? "sem_nome");
   const stamp = fileStamp();
+  return `${safeSlug(testType)}_${pname}_${pidShort}_S${sessionNumber}_${stamp}.csv`;
+}
 
-  switch (testType) {
-    case "MARCHA":
-      return `app60_marcha_${pid}_${pname}_S${sessionNumber}_${stamp}.csv`;
-    case "TUG":
-      return `app60_tug_${pid}_${pname}_S${sessionNumber}_${stamp}.csv`;
-    case "SL30S":
-      return `app60_sl30s_${pid}_${pname}_S${sessionNumber}_${stamp}.csv`;
-    case "LOS":
-      return `app60_los_${pid}_${pname}_S${sessionNumber}_${stamp}.csv`;
-    case "UTT":
-      return `app60_utt_${pid}_${pname}_S${sessionNumber}_${stamp}.csv`;
-    default:
-      return `app60_teste_${pid}_${pname}_S${sessionNumber}_${stamp}.csv`;
+function buildLocalIvcf20Filename(participant: Participant, sessionNumber: number) {
+  const pidShort = safeSlug(String(participant?.id ?? "sem_participante")).slice(0, 12);
+  const pname = safeSlug(participant?.name ?? "sem_nome");
+  const stamp = fileStamp();
+  return `ivcf20_${pname}_${pidShort}_S${sessionNumber}_${stamp}.json`;
+}
+
+function buildSessionRawPath(
+  testType: SupportedTestType,
+  participantId: string,
+  sessionNumber: number,
+  ext: "csv" | "json"
+) {
+  return `raw/${testType}/${participantId}/S${sessionNumber}/raw.${ext}`;
+}
+
+function buildPlaceholderRawPath(
+  testType: SupportedTestType,
+  participantId: string
+) {
+  const stamp = fileStamp();
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `uploading/${testType}/${participantId}/${stamp}_${rand}.tmp`;
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  const code = String((error as { code?: unknown })?.code ?? "");
+  const message = String((error as { message?: unknown })?.message ?? "").toLowerCase();
+
+  return (
+    code === "23505" ||
+    message.includes("duplicate key") ||
+    message.includes("already exists") ||
+    message.includes("unique constraint")
+  );
+}
+
+function toOptionalText(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const s = String(value).trim();
+  return s.length ? s : null;
+}
+
+function toOptionalInt(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+function normalizeSexForSession(value: unknown): string | null {
+  const s = toOptionalText(value)?.toUpperCase();
+  if (!s) return null;
+  if (["M", "MALE", "MASC", "MASCULINO"].includes(s)) return "M";
+  if (["F", "FEMALE", "FEM", "FEMININO"].includes(s)) return "F";
+  return s;
+}
+
+function getParticipantSessionFields(participant: Participant) {
+  const p = participant as Participant & {
+    sex?: unknown;
+    sexo?: unknown;
+    age?: unknown;
+    idade?: unknown;
+  };
+
+  return {
+    participant_name: toOptionalText(participant?.name),
+    sex: normalizeSexForSession(p.sex ?? p.sexo),
+    age: toOptionalInt(p.age ?? p.idade),
+  };
+}
+
+async function removeFromStorageIfExists(path: string) {
+  try {
+    await supabase.storage.from(BUCKET).remove([path]);
+  } catch {
+    // segue o baile
   }
 }
 
-function buildIvcf20Filename(participant: Participant, sessionNumber: number) {
-  const pid = participant?.id ? safeSlug(String(participant.id)) : "sem_participante";
-  const pname = participant?.name ? safeSlug(participant.name) : "sem_nome";
-  const stamp = fileStamp();
-  return `app60_ivcf20_${pid}_${pname}_S${sessionNumber}_${stamp}.json`;
+async function deleteSessionIfExists(sessionId: string) {
+  try {
+    await supabase.from("test_sessions").delete().eq("id", sessionId);
+  } catch {
+    // segue o baile
+  }
 }
 
 async function saveTextToCache(
   content: string,
-  filename: string,
-  mime: "text/csv" | "application/json"
+  filename: string
 ): Promise<{ uri: string; filename: string; content: string }> {
   const baseDir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
 
@@ -391,46 +467,169 @@ async function saveTextToCache(
   return { uri, filename, content };
 }
 
-async function uploadCsvToSupabase(
-  testType: SensorCsvTestType,
-  csvContent: string,
-  participant: Participant,
-  sessionNumber: number,
-  performedAt: string
-): Promise<{
-  sessionNumber: number;
-  path: string;
-}> {
+export async function getNextSessionNumber(
+  participantId: string,
+  testType: SupportedTestType = "MARCHA"
+): Promise<number> {
   const dbTestType = getDbTestType(testType);
-  const path = `raw/${testType}/${participant.id}/S${sessionNumber}/raw.csv`;
-  const binary = new TextEncoder().encode(csvContent);
 
-  const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, binary, {
-    contentType: "text/csv",
-    upsert: false,
-  });
+  const { data, error } = await supabase
+    .from("test_sessions")
+    .select("session_number")
+    .eq("participant_id", participantId)
+    .eq("test_type", dbTestType)
+    .order("session_number", { ascending: false })
+    .limit(1);
 
-  if (uploadError) throw uploadError;
+  if (error) throw error;
 
-  const { error: insertError } = await supabase.from("test_sessions").insert({
-    participant_id: participant.id,
-    test_type: dbTestType,
-    session_number: sessionNumber,
-    raw_file_path: path,
-    platform: Platform.OS,
-    sampling_hz: SAMPLING_HZ,
-    performed_at: performedAt,
-  });
+  const currentMax = data?.[0]?.session_number ?? 0;
+  return currentMax + 1;
+}
 
-  if (insertError) {
-    await supabase.storage.from(BUCKET).remove([path]);
-    throw insertError;
+async function reserveTestSessionWithRetry(args: {
+  testType: SupportedTestType;
+  participant: Participant;
+  sessionNumber: number;
+  samplingHz: number;
+  performedAt: string;
+}): Promise<ReservedSessionRow> {
+  const dbTestType = getDbTestType(args.testType);
+  const participantFields = getParticipantSessionFields(args.participant);
+  let nextSessionNumber = args.sessionNumber;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < MAX_SESSION_INSERT_RETRIES; attempt += 1) {
+    const { data, error } = await supabase
+      .from("test_sessions")
+      .insert({
+        participant_id: args.participant.id,
+        test_type: dbTestType,
+        session_number: nextSessionNumber,
+        raw_bucket: BUCKET,
+        raw_file_path: buildPlaceholderRawPath(args.testType, String(args.participant.id)),
+        processing_status: "uploading",
+        processing_error: null,
+        platform: Platform.OS,
+        sampling_hz: args.samplingHz,
+        performed_at: args.performedAt,
+        participant_name: participantFields.participant_name,
+        sex: participantFields.sex,
+        age: participantFields.age,
+      })
+      .select("id, session_number")
+      .single();
+
+    if (!error && data) {
+      return data as ReservedSessionRow;
+    }
+
+    lastError = error;
+
+    if (!isUniqueViolation(error)) {
+      throw error;
+    }
+
+    nextSessionNumber = await getNextSessionNumber(String(args.participant.id), args.testType);
   }
 
-  return {
-    sessionNumber,
-    path,
-  };
+  throw lastError ?? new Error("Não foi possível reservar a sessão.");
+}
+
+async function finalizeReservedSession(args: {
+  sessionId: string;
+  path: string;
+  performedAt: string;
+}) {
+  const { error } = await supabase
+    .from("test_sessions")
+    .update({
+      raw_bucket: BUCKET,
+      raw_file_path: args.path,
+      processing_status: "pending",
+      processing_error: null,
+      performed_at: args.performedAt,
+    })
+    .eq("id", args.sessionId);
+
+  if (error) throw error;
+}
+
+async function failReservedSession(sessionId: string, message: string) {
+  try {
+    await supabase
+      .from("test_sessions")
+      .update({
+        processing_status: "error",
+        processing_error: message.slice(0, 4000),
+      })
+      .eq("id", sessionId);
+  } catch {
+    // sem escândalo
+  }
+}
+
+async function uploadCsvToSupabase(
+  testType: SensorCsvTestType,
+  result: NativeImuStopResult,
+  participant: Participant
+): Promise<UploadedSessionResult> {
+  const performedAt = new Date().toISOString();
+  const firstGuessSessionNumber = await getNextSessionNumber(String(participant.id), testType);
+
+  const reserved = await reserveTestSessionWithRetry({
+    testType,
+    participant,
+    sessionNumber: firstGuessSessionNumber,
+    samplingHz: SAMPLING_HZ,
+    performedAt,
+  });
+
+  const finalSessionNumber = reserved.session_number;
+  const csv = buildSensorCsv(
+    testType,
+    result as NativeImuLikeResult,
+    participant,
+    finalSessionNumber,
+    performedAt
+  );
+
+  const path = buildSessionRawPath(
+    testType,
+    String(participant.id),
+    finalSessionNumber,
+    "csv"
+  );
+
+  const binary = new TextEncoder().encode(csv);
+
+  try {
+    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, binary, {
+      contentType: "text/csv",
+      upsert: false,
+    });
+
+    if (uploadError) throw uploadError;
+
+    await finalizeReservedSession({
+      sessionId: reserved.id,
+      path,
+      performedAt,
+    });
+
+    return {
+      sessionNumber: finalSessionNumber,
+      path,
+    };
+  } catch (error) {
+    await removeFromStorageIfExists(path);
+    await failReservedSession(
+      reserved.id,
+      error instanceof Error ? error.message : "Falha no upload do CSV."
+    );
+    await deleteSessionIfExists(reserved.id);
+    throw error;
+  }
 }
 
 export function buildIvcf20CategoriesFromBlockScores(
@@ -507,7 +706,7 @@ export function buildIvcf20JsonPayload(
     session_label: `S${data.sessionNumber}`,
     performed_at: performedAt.toISOString(),
     platform: Platform.OS,
-    sampling_hz: 60,
+    sampling_hz: SAMPLING_HZ,
     questionnaire: {
       score_total: Number(data.scoreTotal ?? 0),
       classification: data.classification,
@@ -517,6 +716,19 @@ export function buildIvcf20JsonPayload(
       meta: data.meta,
     },
   };
+}
+
+async function saveSensorCsvToCache(
+  testType: SensorCsvTestType,
+  result: NativeImuLikeResult,
+  participant: Participant,
+  sessionNumber = 1
+): Promise<{ uri: string; filename: string; csv: string }> {
+  const performedAt = new Date().toISOString();
+  const csv = buildSensorCsv(testType, result, participant, sessionNumber, performedAt);
+  const filename = buildLocalSensorCsvFilename(testType, participant, sessionNumber);
+  const saved = await saveTextToCache(csv, filename);
+  return { uri: saved.uri, filename: saved.filename, csv };
 }
 
 export async function saveIvcf20JsonToCache(data: {
@@ -530,25 +742,16 @@ export async function saveIvcf20JsonToCache(data: {
   meta?: Record<string, unknown>;
 }): Promise<{ uri: string; filename: string; payload: Ivcf20JsonPayload }> {
   const payload = buildIvcf20JsonPayload(data);
-  const filename = buildIvcf20Filename(data.participant, data.sessionNumber);
+  const filename = buildLocalIvcf20Filename(data.participant, data.sessionNumber);
   const json = JSON.stringify(payload, null, 2);
-  const saved = await saveTextToCache(json, filename, "application/json");
+  const saved = await saveTextToCache(json, filename);
   return { uri: saved.uri, filename: saved.filename, payload };
 }
 
-async function saveSensorCsvToCache(
-  testType: SensorCsvTestType,
-  result: NativeImuLikeResult,
-  participant: Participant,
-  sessionNumber = 1
-): Promise<{ uri: string; filename: string; csv: string }> {
-  const performedAt = new Date().toISOString();
-  const csv = buildSensorCsv(testType, result, participant, sessionNumber, performedAt);
-  const filename = buildCsvFilename(testType, participant, sessionNumber);
-  const saved = await saveTextToCache(csv, filename, "text/csv");
-  return { uri: saved.uri, filename: saved.filename, csv };
-}
-
+/**
+ * Mantidos por compatibilidade com as telas atuais.
+ * Apesar do nome antigo "Json", os testes de sensor salvam CSV.
+ */
 export async function saveMarchaJsonToCache(
   result: NativeImuStopResult,
   participant: Participant,
@@ -589,24 +792,44 @@ export async function saveUttJsonToCache(
   return saveSensorCsvToCache("UTT", result as NativeImuLikeResult, participant, sessionNumber);
 }
 
-export async function getNextSessionNumber(
-  participantId: string,
-  testType: SupportedTestType = "MARCHA"
-): Promise<number> {
-  const dbTestType = getDbTestType(testType);
+export async function saveMarchaCsvToCache(
+  result: NativeImuStopResult,
+  participant: Participant,
+  sessionNumber = 1
+) {
+  return saveMarchaJsonToCache(result, participant, sessionNumber);
+}
 
-  const { data, error } = await supabase
-    .from("test_sessions")
-    .select("session_number")
-    .eq("participant_id", participantId)
-    .eq("test_type", dbTestType)
-    .order("session_number", { ascending: false })
-    .limit(1);
+export async function saveTugCsvToCache(
+  result: NativeImuStopResult,
+  participant: Participant,
+  sessionNumber = 1
+) {
+  return saveTugJsonToCache(result, participant, sessionNumber);
+}
 
-  if (error) throw error;
+export async function saveSl30sCsvToCache(
+  result: NativeImuStopResult,
+  participant: Participant,
+  sessionNumber = 1
+) {
+  return saveSl30sJsonToCache(result, participant, sessionNumber);
+}
 
-  const currentMax = data?.[0]?.session_number ?? 0;
-  return currentMax + 1;
+export async function saveLosCsvToCache(
+  result: NativeImuStopResult,
+  participant: Participant,
+  sessionNumber = 1
+) {
+  return saveLosJsonToCache(result, participant, sessionNumber);
+}
+
+export async function saveUttCsvToCache(
+  result: NativeImuStopResult,
+  participant: Participant,
+  sessionNumber = 1
+) {
+  return saveUttJsonToCache(result, participant, sessionNumber);
 }
 
 async function uploadSensorCsvResultToSupabase(
@@ -614,17 +837,7 @@ async function uploadSensorCsvResultToSupabase(
   result: NativeImuStopResult,
   participant: Participant
 ) {
-  const sessionNumber = await getNextSessionNumber(String(participant.id), testType);
-  const performedAt = new Date().toISOString();
-  const csv = buildSensorCsv(
-    testType,
-    result as NativeImuLikeResult,
-    participant,
-    sessionNumber,
-    performedAt
-  );
-
-  return uploadCsvToSupabase(testType, csv, participant, sessionNumber, performedAt);
+  return uploadCsvToSupabase(testType, result, participant);
 }
 
 export async function uploadMarchaJsonToSupabase(
@@ -662,41 +875,108 @@ export async function uploadUttJsonToSupabase(
   return uploadSensorCsvResultToSupabase("UTT", result, participant);
 }
 
+export async function uploadMarchaCsvToSupabase(
+  result: NativeImuStopResult,
+  participant: Participant
+) {
+  return uploadMarchaJsonToSupabase(result, participant);
+}
+
+export async function uploadTugCsvToSupabase(
+  result: NativeImuStopResult,
+  participant: Participant
+) {
+  return uploadTugJsonToSupabase(result, participant);
+}
+
+export async function uploadSl30sCsvToSupabase(
+  result: NativeImuStopResult,
+  participant: Participant
+) {
+  return uploadSl30sJsonToSupabase(result, participant);
+}
+
+export async function uploadLosCsvToSupabase(
+  result: NativeImuStopResult,
+  participant: Participant
+) {
+  return uploadLosJsonToSupabase(result, participant);
+}
+
+export async function uploadUttCsvToSupabase(
+  result: NativeImuStopResult,
+  participant: Participant
+) {
+  return uploadUttJsonToSupabase(result, participant);
+}
+
 async function uploadIvcf20JsonToSupabaseInternal(
   payload: Ivcf20JsonPayload,
   participant: Participant
 ) {
-  const path = `raw/IVCF20/${participant.id}/S${payload.session_number}/raw.json`;
-  const body = JSON.stringify(payload);
+  const performedAt = payload.performed_at || new Date().toISOString();
+
+  const firstGuessSessionNumber =
+    payload.session_number || (await getNextSessionNumber(String(participant.id), "IVCF20"));
+
+  const reserved = await reserveTestSessionWithRetry({
+    testType: "IVCF20",
+    participant,
+    sessionNumber: firstGuessSessionNumber,
+    samplingHz: payload.sampling_hz ?? SAMPLING_HZ,
+    performedAt,
+  });
+
+  const finalSessionNumber = reserved.session_number;
+  const finalPayload: Ivcf20JsonPayload = {
+    ...payload,
+    session_number: finalSessionNumber,
+    session_label: `S${finalSessionNumber}`,
+    participant_id: String(participant.id),
+    participant_name: participant.name,
+    platform: Platform.OS,
+    performed_at: performedAt,
+    sampling_hz: payload.sampling_hz ?? SAMPLING_HZ,
+  };
+
+  const path = buildSessionRawPath(
+    "IVCF20",
+    String(participant.id),
+    finalSessionNumber,
+    "json"
+  );
+
+  const body = JSON.stringify(finalPayload);
   const binary = new TextEncoder().encode(body);
 
-  const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, binary, {
-    contentType: "application/json",
-    upsert: false,
-  });
+  try {
+    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, binary, {
+      contentType: "application/json",
+      upsert: false,
+    });
 
-  if (uploadError) throw uploadError;
+    if (uploadError) throw uploadError;
 
-  const { error: insertError } = await supabase.from("test_sessions").insert({
-    participant_id: participant.id,
-    test_type: "IVCF_20",
-    session_number: payload.session_number,
-    raw_file_path: path,
-    platform: Platform.OS,
-    sampling_hz: payload.sampling_hz ?? SAMPLING_HZ,
-    performed_at: payload.performed_at,
-  });
+    await finalizeReservedSession({
+      sessionId: reserved.id,
+      path,
+      performedAt,
+    });
 
-  if (insertError) {
-    await supabase.storage.from(BUCKET).remove([path]);
-    throw insertError;
+    return {
+      sessionNumber: finalSessionNumber,
+      path,
+      payload: finalPayload,
+    };
+  } catch (error) {
+    await removeFromStorageIfExists(path);
+    await failReservedSession(
+      reserved.id,
+      error instanceof Error ? error.message : "Falha no upload do JSON."
+    );
+    await deleteSessionIfExists(reserved.id);
+    throw error;
   }
-
-  return {
-    sessionNumber: payload.session_number,
-    path,
-    payload,
-  };
 }
 
 export async function uploadIvcf20JsonToSupabase(
@@ -715,12 +995,12 @@ export async function uploadIvcf20ResultToSupabase(data: {
   meta?: Record<string, unknown>;
   sessionNumber?: number;
 }) {
-  const sessionNumber =
+  const guessedSessionNumber =
     data.sessionNumber ?? (await getNextSessionNumber(String(data.participant.id), "IVCF20"));
 
   const payload = buildIvcf20JsonPayload({
     participant: data.participant,
-    sessionNumber,
+    sessionNumber: guessedSessionNumber,
     scoreTotal: data.scoreTotal,
     classification: data.classification,
     blockScores: data.blockScores,

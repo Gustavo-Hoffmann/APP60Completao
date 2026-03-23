@@ -272,11 +272,14 @@ def process_marcha(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]
         sexo=meta["sexo"],
         idade=meta["idade"],
         sujeito=meta["sujeito"],
-        include_plot_payload=False,
+        include_plot_payload=True,
     )
 
     return {
         "metrics": result["metrics"],
+        "extra_payload": {
+            "plot_json": result.get("plot"),
+        },
     }
 
 

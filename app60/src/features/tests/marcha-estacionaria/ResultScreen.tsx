@@ -466,7 +466,7 @@ export default function MarchaEstacionariaResultScreen() {
 
         <View style={styles.buttonWrap}>
           <ThemedButton
-            title={`Compartilhar JSON${sessionNumber ? ` • S${sessionNumber}` : ""}`}
+            title={`Compartilhar CSV${sessionNumber ? ` • S${sessionNumber}` : ""}`}
             onPress={shareJson}
           />
         </View>

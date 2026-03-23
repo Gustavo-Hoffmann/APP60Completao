@@ -194,7 +194,7 @@ export function ParticipantDetailPage() {
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSession, setSelectedSession] = useState<number>(4);
+  const [selectedSession, setSelectedSession] = useState<number>(1);
   const [openedTest, setOpenedTest] = useState<"2MST" | null>(null);
 
   useEffect(() => {
@@ -225,6 +225,9 @@ export function ParticipantDetailPage() {
   const sessions = useMemo(() => participant?.tests?.twoMstSessions ?? [], [participant]);
   const selectedSignal = participant?.tests?.twoMstSignals?.[selectedSession] ?? [];
   const lastSession = sessions[sessions.length - 1];
+  const isDemoParticipant = participant?.id === "example-maria-silva";
+  const signalStart = selectedSignal[0]?.time ?? "0.0";
+  const signalEnd = selectedSignal[selectedSignal.length - 1]?.time ?? "0.0";
 
   useEffect(() => {
     if (lastSession?.sessao) {
@@ -281,9 +284,11 @@ export function ParticipantDetailPage() {
       <AppHeader
         title={participant.name}
         subtitle={
-          participant.id === "example-maria-silva"
+          isDemoParticipant
             ? "Perfil mockado para demo com marcha estacionária e métricas biomecânicas."
-            : "Dados detalhados do participante."
+            : has2Mst
+              ? "Dados detalhados do participante e testes processados."
+              : "Dados detalhados do participante."
         }
       />
 
@@ -302,7 +307,7 @@ export function ParticipantDetailPage() {
               <h1 className="text-3xl font-black tracking-tight text-slate-900">
                 {participant.name}
               </h1>
-              {participant.id === "example-maria-silva" ? (
+              {isDemoParticipant ? (
                 <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">
                   Sujeito exemplo
                 </span>
@@ -361,7 +366,9 @@ export function ParticipantDetailPage() {
                 title="2MST"
                 description={
                   has2Mst
-                    ? "Clique para abrir os dados mockados da marcha estacionária."
+                    ? isDemoParticipant
+                      ? "Clique para abrir os dados de demonstração da marcha estacionária."
+                      : "Clique para abrir os dados processados da marcha estacionária."
                     : "Sem dados detalhados no momento."
                 }
                 active={has2Mst}
@@ -431,7 +438,7 @@ export function ParticipantDetailPage() {
                     <div className="mt-2 text-3xl font-black text-slate-900">
                       {lastSession?.cadencia ?? "—"}
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">passos/min</p>
+                    <p className="mt-2 text-sm text-slate-500">ciclos/min</p>
                   </div>
                   <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-amber-700">
                     <BarChart3 size={20} />
@@ -509,7 +516,7 @@ export function ParticipantDetailPage() {
                 title="Cadência"
                 data={sessions}
                 dataKey="cadencia"
-                unit="passos/min"
+                unit="ciclos/min"
                 color="#f59e0b"
               />
               <TinyMetricChart
@@ -620,9 +627,9 @@ export function ParticipantDetailPage() {
                 </div>
 
                 <div className="mt-3 flex justify-between text-xs text-slate-400">
-                  <span>0s</span>
+                  <span>{signalStart}s</span>
                   <span>Tempo (s)</span>
-                  <span>120s</span>
+                  <span>{signalEnd}s</span>
                 </div>
               </Card>
             </section>
