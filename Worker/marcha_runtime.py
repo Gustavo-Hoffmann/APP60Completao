@@ -232,7 +232,7 @@ def process_marcha_csv(
     *,
     dt: float = 1 / 60,
     fs: float = 60.0,
-    corte_s: float = 10.0,
+    corte_s: float = 0.0,
     peak_mode: str = "height",
     peak_height: float = 70.0,
     peak_prom: float = 0.30,

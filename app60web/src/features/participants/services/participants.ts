@@ -1,6 +1,11 @@
 import { supabase } from "../../../lib/supabase/client";
 import { mariaSilvaMock } from "../../../mocks/participants";
-import type { Participant, SignalPoint, TwoMstSession } from "../../../types/participant";
+import type {
+  Participant,
+  SignalPoint,
+  TwoMstSession,
+  TwoMstStrategyLabel,
+} from "../../../types/participant";
 
 type ParticipantRow = {
   id: string;
@@ -26,11 +31,16 @@ type MarchaMetricsJson = {
   vel_max_deg_s?: number | null;
   vel_min_deg_s?: number | null;
   cadence_cycles_min?: number | null;
+  strategy?: string | null;
 };
 
 type MarchaPlotJson = {
   t_rel_s?: unknown;
   signal_deg_s?: unknown;
+  t_phone_peaks_s?: unknown;
+  y_phone_peaks_deg_s?: unknown;
+  t_pred_peaks_s?: unknown;
+  y_pred_peaks_deg_s?: unknown;
 };
 
 type TestSessionResultRow = {
@@ -121,6 +131,35 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
+function asNumberArray(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((v) => Number(v)).filter((v) => Number.isFinite(v));
+}
+
+function findNearestIndex(times: number[], target: number) {
+  let bestIndex = -1;
+  let bestDist = Number.POSITIVE_INFINITY;
+
+  for (let i = 0; i < times.length; i += 1) {
+    const dist = Math.abs(times[i] - target);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIndex = i;
+    }
+  }
+
+  return bestIndex;
+}
+
+function mapStrategyLabel(value: unknown): TwoMstStrategyLabel {
+  const normalized = String(value ?? "").trim().toLowerCase();
+
+  if (normalized === "ascending") return "Ascendente";
+  if (normalized === "descending") return "Descendente";
+  if (normalized === "constant") return "Constante";
+  return "Indefinida";
+}
+
 function mapParticipant(row: ParticipantRow): Participant {
   return {
     id: row.id,
@@ -140,7 +179,7 @@ function mapParticipant(row: ParticipantRow): Participant {
 }
 
 function mapTwoMstSession(row: TestSessionResultRow): TwoMstSession | null {
-  const sessionNumber = asNumber(row.session_number, NaN);
+  const sessionNumber = asNumber(row.session_number, Number.NaN);
   if (!Number.isFinite(sessionNumber)) return null;
 
   const metrics = asRecord(row.metrics_json) ?? {};
@@ -156,15 +195,16 @@ function mapTwoMstSession(row: TestSessionResultRow): TwoMstSession | null {
     cvTempoCiclo: round(asNumber(metrics["cv_time"]) * 100, 2),
     velMaxima: round(asNumber(metrics["vel_max_deg_s"]), 2),
     velMinima: round(asNumber(metrics["vel_min_deg_s"]), 2),
+    strategy: mapStrategyLabel(metrics["strategy"]),
   };
 }
 
 function mapSignalPoints(row: TestSessionResultRow): SignalPoint[] {
-  const plot = asRecord(row.plot_json);
+  const plot = asRecord(row.plot_json) as MarchaPlotJson | null;
   if (!plot) return [];
 
-  const tRel = Array.isArray(plot["t_rel_s"]) ? plot["t_rel_s"] : [];
-  const signal = Array.isArray(plot["signal_deg_s"]) ? plot["signal_deg_s"] : [];
+  const tRel = asNumberArray(plot.t_rel_s);
+  const signal = asNumberArray(plot.signal_deg_s);
   const n = Math.min(tRel.length, signal.length);
 
   if (!n) return [];
@@ -172,10 +212,32 @@ function mapSignalPoints(row: TestSessionResultRow): SignalPoint[] {
   const points: SignalPoint[] = [];
 
   for (let i = 0; i < n; i += 1) {
-    const time = round(asNumber(tRel[i]), 1).toFixed(1);
-    const value = round(asNumber(signal[i]), 2);
+    points.push({
+      time: Number(tRel[i].toFixed(3)),
+      value: Number(signal[i].toFixed(3)),
+      phonePeak: null,
+      predPeak: null,
+    });
+  }
 
-    points.push({ time, value });
+  const times = points.map((p) => p.time);
+
+  const tPhone = asNumberArray(plot.t_phone_peaks_s);
+  const yPhone = asNumberArray(plot.y_phone_peaks_deg_s);
+  for (let i = 0; i < Math.min(tPhone.length, yPhone.length); i += 1) {
+    const idx = findNearestIndex(times, tPhone[i]);
+    if (idx >= 0) {
+      points[idx].phonePeak = Number(yPhone[i].toFixed(3));
+    }
+  }
+
+  const tPred = asNumberArray(plot.t_pred_peaks_s);
+  const yPred = asNumberArray(plot.y_pred_peaks_deg_s);
+  for (let i = 0; i < Math.min(tPred.length, yPred.length); i += 1) {
+    const idx = findNearestIndex(times, tPred[i]);
+    if (idx >= 0) {
+      points[idx].predPeak = Number(yPred[i].toFixed(3));
+    }
   }
 
   return points;

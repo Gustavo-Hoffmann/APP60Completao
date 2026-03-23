@@ -151,6 +151,43 @@ function IvcfCard({
   );
 }
 
+function StrategyCard({ strategy }: { strategy?: TwoMstSession["strategy"] }) {
+  const isDefined = strategy && strategy !== "Indefinida";
+
+  const tone = isDefined
+    ? {
+        wrap: "border-blue-200 bg-blue-50",
+        icon: "border-blue-100 bg-white text-blue-700",
+        title: "text-blue-700",
+        value: "text-blue-800",
+        sub: "Estratégia identificada",
+      }
+    : {
+        wrap: "border-slate-200 bg-slate-100",
+        icon: "border-slate-200 bg-white text-slate-500",
+        title: "text-slate-500",
+        value: "text-slate-700",
+        sub: "Estratégia não definida",
+      };
+
+  return (
+    <Card className={`p-5 shadow-sm ${tone.wrap}`}>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className={`text-xs font-bold uppercase tracking-[0.18em] ${tone.title}`}>
+            Estratégia
+          </p>
+          <div className={`mt-2 text-2xl font-black ${tone.value}`}>{strategy ?? "—"}</div>
+          <p className="mt-2 text-sm text-slate-500">{tone.sub}</p>
+        </div>
+        <div className={`rounded-2xl border p-3 ${tone.icon}`}>
+          <BarChart3 size={20} />
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function TestCard({
   title,
   description,
@@ -226,8 +263,10 @@ export function ParticipantDetailPage() {
   const selectedSignal = participant?.tests?.twoMstSignals?.[selectedSession] ?? [];
   const lastSession = sessions[sessions.length - 1];
   const isDemoParticipant = participant?.id === "example-maria-silva";
-  const signalStart = selectedSignal[0]?.time ?? "0.0";
-  const signalEnd = selectedSignal[selectedSignal.length - 1]?.time ?? "0.0";
+  const signalStart = selectedSignal.length ? selectedSignal[0].time.toFixed(1) : "0.0";
+  const signalEnd = selectedSignal.length
+    ? selectedSignal[selectedSignal.length - 1].time.toFixed(1)
+    : "0.0";
 
   useEffect(() => {
     if (lastSession?.sessao) {
@@ -394,7 +433,7 @@ export function ParticipantDetailPage() {
               <h2 className="text-xl font-black text-slate-900">2MST — Marcha estacionária</h2>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-4">
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
               <Card className="p-5 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
@@ -462,6 +501,8 @@ export function ParticipantDetailPage() {
                   </div>
                 </div>
               </Card>
+
+              <StrategyCard strategy={lastSession?.strategy} />
             </section>
 
             <section>
@@ -597,22 +638,39 @@ export function ParticipantDetailPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={selectedSignal}>
                         <CartesianGrid stroke="#dbeafe" strokeDasharray="2 2" />
+
                         <XAxis
                           dataKey="time"
+                          type="number"
+                          domain={["dataMin", "dataMax"]}
                           tick={{ fill: "#64748b", fontSize: 10 }}
                           axisLine={false}
                           tickLine={false}
-                          minTickGap={30}
+                          tickFormatter={(value) => `${Number(value).toFixed(1)}`}
                         />
-                        <YAxis hide />
+
+                        <YAxis
+                          tick={{ fill: "#64748b", fontSize: 10 }}
+                          axisLine={false}
+                          tickLine={false}
+                          width={48}
+                        />
+
                         <Tooltip
                           contentStyle={{
                             borderRadius: 12,
                             border: "1px solid #e2e8f0",
                             boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
                           }}
-                          labelFormatter={(value) => `${value}s`}
+                          labelFormatter={(value) => `${Number(value).toFixed(2)} s`}
+                          formatter={(value, name) => {
+                            if (name === "value") return [`${value} °/s`, "Sinal"];
+                            if (name === "phonePeak") return [`${value} °/s`, "Picos phone"];
+                            if (name === "predPeak") return [`${value} °/s`, "Picos calibrados"];
+                            return [String(value), String(name)];
+                          }}
                         />
+
                         <Line
                           type="monotone"
                           dataKey="value"
@@ -620,6 +678,36 @@ export function ParticipantDetailPage() {
                           strokeWidth={2}
                           dot={false}
                           isAnimationActive={false}
+                        />
+
+                        <Line
+                          type="linear"
+                          dataKey="phonePeak"
+                          stroke="transparent"
+                          connectNulls={false}
+                          isAnimationActive={false}
+                          activeDot={false}
+                          dot={{
+                            r: 3,
+                            fill: "#111827",
+                            stroke: "#ffffff",
+                            strokeWidth: 1.2,
+                          }}
+                        />
+
+                        <Line
+                          type="linear"
+                          dataKey="predPeak"
+                          stroke="transparent"
+                          connectNulls={false}
+                          isAnimationActive={false}
+                          activeDot={false}
+                          dot={{
+                            r: 4,
+                            fill: "#ffffff",
+                            stroke: "#2563eb",
+                            strokeWidth: 2,
+                          }}
                         />
                       </LineChart>
                     </ResponsiveContainer>

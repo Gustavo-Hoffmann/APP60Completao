@@ -6,6 +6,12 @@ export type ParticipantBlockScores = {
   Mobilidade: number;
 };
 
+export type TwoMstStrategyLabel =
+  | "Ascendente"
+  | "Descendente"
+  | "Constante"
+  | "Indefinida";
+
 export type TwoMstSession = {
   sessao: number;
   date: string;
@@ -17,11 +23,14 @@ export type TwoMstSession = {
   cvTempoCiclo: number;
   velMaxima: number;
   velMinima: number;
+  strategy: TwoMstStrategyLabel;
 };
 
 export type SignalPoint = {
-  time: string;
+  time: number;
   value: number;
+  phonePeak?: number | null;
+  predPeak?: number | null;
 };
 
 export type ParticipantTestSummary = {
