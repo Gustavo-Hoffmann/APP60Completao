@@ -28,20 +28,25 @@ CALIBRATOR_PATH = os.environ.get(
 )
 
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "10"))
-TEST_TYPE = os.environ.get("TEST_TYPE", "MARCHA")
 DEFAULT_BUCKET = os.environ.get("DEFAULT_BUCKET", "test-data")
 
-# fallback se sexo/idade não estiverem salvos em lugar nenhum
 DEFAULT_SEX = os.environ.get("DEFAULT_SEX", "M")
 DEFAULT_AGE = int(os.environ.get("DEFAULT_AGE", "60"))
 
-# lookup opcional na tabela de participantes
 PARTICIPANTS_TABLE = os.environ.get("PARTICIPANTS_TABLE", "participants")
 PARTICIPANT_ID_COLUMN = os.environ.get("PARTICIPANT_ID_COLUMN", "id")
 PARTICIPANT_SEX_COLUMN = os.environ.get("PARTICIPANT_SEX_COLUMN", "sex")
 PARTICIPANT_AGE_COLUMN = os.environ.get("PARTICIPANT_AGE_COLUMN", "age")
 PARTICIPANT_BIRTHDATE_COLUMN = os.environ.get("PARTICIPANT_BIRTHDATE_COLUMN", "birth_date")
 PARTICIPANT_NAME_COLUMN = os.environ.get("PARTICIPANT_NAME_COLUMN", "name")
+
+# Se quiser limitar só alguns testes, usa:
+# ENABLED_TEST_TYPES=MARCHA,TUG,SL30S
+ENABLED_TEST_TYPES = {
+    s.strip().upper()
+    for s in os.environ.get("ENABLED_TEST_TYPES", "MARCHA").split(",")
+    if s.strip()
+}
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVER_KEY)
 
@@ -112,10 +117,6 @@ def first_non_null(d: Dict[str, Any], keys: list[str]) -> Any:
 # ===========================================================
 
 def fetch_participant_row(participant_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Busca dados do participante se a tabela existir.
-    Se falhar, só retorna None e segue a vida.
-    """
     try:
         resp = (
             supabase.table(PARTICIPANTS_TABLE)
@@ -132,13 +133,6 @@ def fetch_participant_row(participant_id: str) -> Optional[Dict[str, Any]]:
 
 
 def resolve_subject_meta(session_row: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Resolve sexo, idade e sujeito sem quebrar caso o banco ainda esteja incompleto.
-    Ordem:
-    1. campos na própria test_sessions
-    2. tabela participants (se existir)
-    3. fallback por env
-    """
     participant_id = str(session_row["participant_id"])
     participant_row = fetch_participant_row(participant_id)
 
@@ -159,9 +153,6 @@ def resolve_subject_meta(session_row: Dict[str, Any]) -> Dict[str, Any]:
 
     sex = session_sex or participant_sex or DEFAULT_SEX
     age = session_age or participant_age or DEFAULT_AGE
-
-    # sujeito é só um identificador textual para a rotina
-    # pode ser nome, subject_code, ou prefixo do participant_id
     sujeito = session_name or participant_name or f"{participant_id[:8]}_S{session_row['session_number']}"
 
     return {
@@ -181,19 +172,23 @@ def download_raw_csv(bucket: str, path: str) -> bytes:
 
 def claim_next_session() -> Optional[Dict[str, Any]]:
     """
-    Pega a próxima sessão pendente.
-    Assumindo 1 worker rodando.
+    Pega a próxima sessão pendente entre os testes habilitados.
+    Assumindo 1 worker/instância.
     """
     resp = (
         supabase.table("test_sessions")
         .select("*")
-        .eq("test_type", TEST_TYPE)
         .eq("processing_status", "pending")
         .order("created_at", desc=False)
-        .limit(1)
+        .limit(50)
         .execute()
     )
     rows = resp.data or []
+
+    # filtra em memória porque o supabase-python fica mais chato
+    # para OR dinâmico de múltiplos test_type
+    rows = [r for r in rows if str(r.get("test_type", "")).upper() in ENABLED_TEST_TYPES]
+
     if not rows:
         return None
 
@@ -239,7 +234,11 @@ def mark_error(session_id: str, err: Exception) -> None:
     )
 
 
-def upsert_result(session_row: Dict[str, Any], metrics: Dict[str, Any]) -> None:
+def upsert_result(
+    session_row: Dict[str, Any],
+    metrics: Dict[str, Any],
+    extra_payload: Optional[Dict[str, Any]] = None,
+) -> None:
     payload = {
         "test_session_id": session_row["id"],
         "participant_id": session_row["participant_id"],
@@ -249,6 +248,9 @@ def upsert_result(session_row: Dict[str, Any], metrics: Dict[str, Any]) -> None:
         "updated_at": now_iso(),
     }
 
+    if extra_payload:
+        payload.update(extra_payload)
+
     (
         supabase.table("test_session_results")
         .upsert(payload, on_conflict="test_session_id")
@@ -257,12 +259,70 @@ def upsert_result(session_row: Dict[str, Any], metrics: Dict[str, Any]) -> None:
 
 
 # ===========================================================
+# TEST DISPATCHERS
+# ===========================================================
+
+def process_marcha(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]:
+    meta = resolve_subject_meta(session_row)
+    log(f"[MARCHA] Meta resolvida | sexo={meta['sexo']} idade={meta['idade']} sujeito={meta['sujeito']}")
+
+    result = process_marcha_csv(
+        csv_path=csv_path,
+        calibrator_path=CALIBRATOR_PATH,
+        sexo=meta["sexo"],
+        idade=meta["idade"],
+        sujeito=meta["sujeito"],
+        include_plot_payload=False,
+    )
+
+    return {
+        "metrics": result["metrics"],
+    }
+
+
+def process_tug(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]:
+    raise NotImplementedError("TUG ainda não plugado no worker.")
+
+
+def process_sl30s(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]:
+    raise NotImplementedError("SL30S ainda não plugado no worker.")
+
+
+def process_los(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]:
+    raise NotImplementedError("LOS ainda não plugado no worker.")
+
+
+def process_utt(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]:
+    raise NotImplementedError("UTT ainda não plugado no worker.")
+
+
+def process_ivcf20(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]:
+    raise NotImplementedError("IVCF20 ainda não plugado no worker.")
+
+
+TEST_PROCESSORS = {
+    "MARCHA": process_marcha,
+    "TUG": process_tug,
+    "SL30S": process_sl30s,
+    "LOS": process_los,
+    "UTT": process_utt,
+    "IVCF20": process_ivcf20,
+}
+
+
+# ===========================================================
 # PROCESSAMENTO
 # ===========================================================
 
 def process_one(session_row: Dict[str, Any]) -> None:
+    test_type = str(session_row["test_type"]).upper()
     bucket = session_row.get("raw_bucket") or DEFAULT_BUCKET
     raw_path = session_row["raw_file_path"]
+
+    if test_type not in TEST_PROCESSORS:
+        raise ValueError(f"test_type não suportado no worker: {test_type}")
+
+    processor = TEST_PROCESSORS[test_type]
 
     log(f"Baixando CSV do bucket={bucket} path={raw_path}")
     raw_bytes = download_raw_csv(bucket, raw_path)
@@ -272,22 +332,13 @@ def process_one(session_row: Dict[str, Any]) -> None:
         with open(csv_path, "wb") as f:
             f.write(raw_bytes)
 
-        meta = resolve_subject_meta(session_row)
-        log(f"Meta resolvida | sexo={meta['sexo']} idade={meta['idade']} sujeito={meta['sujeito']}")
-
-        result = process_marcha_csv(
-            csv_path=csv_path,
-            calibrator_path=CALIBRATOR_PATH,
-            sexo=meta["sexo"],
-            idade=meta["idade"],
-            sujeito=meta["sujeito"],
-            include_plot_payload=False,  # você disse que por enquanto quer só métricas
-        )
+        result = processor(session_row, csv_path)
 
         metrics = result["metrics"]
+        extra_payload = result.get("extra_payload")
 
-        log(f"Métricas prontas: {metrics}")
-        upsert_result(session_row, metrics)
+        log(f"[{test_type}] Métricas prontas: {metrics}")
+        upsert_result(session_row, metrics, extra_payload=extra_payload)
         mark_done(session_row["id"])
 
 
@@ -296,7 +347,7 @@ def process_one(session_row: Dict[str, Any]) -> None:
 # ===========================================================
 
 def main() -> None:
-    log("Worker da MARCHA iniciado.")
+    log(f"Worker iniciado. Testes habilitados: {sorted(ENABLED_TEST_TYPES)}")
 
     while True:
         row: Optional[Dict[str, Any]] = None
@@ -309,6 +360,7 @@ def main() -> None:
 
             log(
                 f"Processando sessão id={row['id']} "
+                f"test_type={row['test_type']} "
                 f"participant_id={row['participant_id']} "
                 f"session={row['session_number']}"
             )
