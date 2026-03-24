@@ -18,6 +18,16 @@ type Params = {
     sexo?: string;
     birthDate?: string;
     dob?: string;
+    bodyMassKg?: number | null;
+    massKg?: number | null;
+    weight?: number | null;
+    massa?: number | null;
+    peso?: number | null;
+    heightCm?: number | null;
+    estaturaCm?: number | null;
+    height?: number | null;
+    estatura?: number | null;
+    altura?: number | null;
   };
   result: NativeImuStopResult;
   jsonUri: string;
@@ -134,9 +144,12 @@ export default function SentarLevantarResultScreen() {
     [participant]
   );
 
+  const displayMass = useMemo(() => formatMassLabel(readMassKg(participant)), [participant]);
+  const displayHeight = useMemo(() => formatHeightLabel(readHeightCm(participant)), [participant]);
+
   const analysis = useMemo(() => analyzeSL30(result, age, sex), [result, age, sex]);
 
-  const shareJson = async () => {
+  const shareCsv = async () => {
     try {
       const available = await Sharing.isAvailableAsync();
       if (!available) {
@@ -145,12 +158,12 @@ export default function SentarLevantarResultScreen() {
       }
 
       await Sharing.shareAsync(jsonUri, {
-        mimeType: "application/json",
-        dialogTitle: "Compartilhar JSON do teste",
-        UTI: Platform.OS === "ios" ? "public.json" : undefined,
+        mimeType: "text/csv",
+        dialogTitle: "Compartilhar CSV do teste",
+        UTI: Platform.OS === "ios" ? "public.comma-separated-values-text" : undefined,
       });
     } catch (e: any) {
-      Alert.alert("Erro", e?.message ?? "Falha ao compartilhar JSON.");
+      Alert.alert("Erro", e?.message ?? "Falha ao compartilhar CSV.");
     }
   };
 
@@ -184,6 +197,8 @@ export default function SentarLevantarResultScreen() {
           name={participant?.name ?? "—"}
           age={age != null ? `${age} anos` : "—"}
           sex={displaySex}
+          mass={displayMass}
+          height={displayHeight}
         />
 
         {analysis ? (
@@ -206,6 +221,8 @@ export default function SentarLevantarResultScreen() {
                     label: "Cadência",
                     value: analysis.cadence != null ? `${analysis.cadence.toFixed(2)} rep/min` : "—",
                   },
+                  { label: "Massa", value: displayMass },
+                  { label: "Estatura", value: displayHeight },
                   { label: "Classificação", value: analysis.classification },
                   { label: "Sessão", value: sessionNumber != null ? `S${sessionNumber}` : "—" },
                 ]}
@@ -272,8 +289,8 @@ export default function SentarLevantarResultScreen() {
 
         <View style={styles.buttonWrap}>
           <ThemedButton
-            title={`Compartilhar JSON${sessionNumber ? ` • S${sessionNumber}` : ""}`}
-            onPress={shareJson}
+            title={`Compartilhar CSV${sessionNumber ? ` • S${sessionNumber}` : ""}`}
+            onPress={shareCsv}
           />
         </View>
 
@@ -292,10 +309,14 @@ function ParticipantCard({
   name,
   age,
   sex,
+  mass,
+  height,
 }: {
   name: string;
   age: string;
   sex: string;
+  mass: string;
+  height: string;
 }) {
   return (
     <View style={[styles.card, styles.participantCard]}>
@@ -313,6 +334,11 @@ function ParticipantCard({
       <View style={styles.pillRow}>
         <StatPill label="Idade" value={age} />
         <StatPill label="Sexo" value={sex} />
+      </View>
+
+      <View style={styles.pillRow}>
+        <StatPill label="Massa" value={mass} />
+        <StatPill label="Estatura" value={height} />
       </View>
     </View>
   );
@@ -439,6 +465,59 @@ function LiteratureTable({ rows }: { rows: NormDisplayRow[] }) {
       ) : null}
     </View>
   );
+}
+
+
+function readMassKg(
+  participant?: Params["participant"]
+): number | null {
+  if (!participant) return null;
+
+  const candidate =
+    participant.bodyMassKg ??
+    participant.massKg ??
+    participant.weight ??
+    participant.massa ??
+    participant.peso;
+
+  if (candidate == null) return null;
+
+  const n = Number(candidate);
+  if (!Number.isFinite(n) || n <= 0) return null;
+
+  return Math.round(n * 1000) / 1000;
+}
+
+function readHeightCm(
+  participant?: Params["participant"]
+): number | null {
+  if (!participant) return null;
+
+  let candidate =
+    participant.heightCm ??
+    participant.estaturaCm ??
+    participant.height ??
+    participant.estatura ??
+    participant.altura;
+
+  if (candidate == null) return null;
+
+  let n = Number(candidate);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n <= 3) n *= 100;
+  if (n < 50 || n > 260) return null;
+
+  return Math.round(n * 10) / 10;
+}
+
+function formatMassLabel(value: number | null) {
+  if (value == null) return "—";
+  return Number.isInteger(value) ? `${value} kg` : `${value.toFixed(1)} kg`;
+}
+
+function formatHeightLabel(value: number | null) {
+  if (value == null) return "—";
+  return Number.isInteger(value) ? `${value} cm` : `${value.toFixed(1)} cm`;
 }
 
 function getInitials(name?: string | null) {

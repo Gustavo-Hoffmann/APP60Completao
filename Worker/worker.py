@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional
 from supabase import create_client, Client
 
 from marcha_runtime import process_marcha_csv
+from sl30s_runtime import process_sl30s_csv
 
 
 # ===========================================================
@@ -44,7 +45,7 @@ PARTICIPANT_NAME_COLUMN = os.environ.get("PARTICIPANT_NAME_COLUMN", "name")
 # ENABLED_TEST_TYPES=MARCHA,TUG,SL30S
 ENABLED_TEST_TYPES = {
     s.strip().upper()
-    for s in os.environ.get("ENABLED_TEST_TYPES", "MARCHA").split(",")
+    for s in os.environ.get("ENABLED_TEST_TYPES", "MARCHA,SL30S").split(",")
     if s.strip()
 }
 
@@ -288,7 +289,23 @@ def process_tug(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]:
 
 
 def process_sl30s(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]:
-    raise NotImplementedError("SL30S ainda não plugado no worker.")
+    meta = resolve_subject_meta(session_row)
+    log(f"[SL30S] Meta resolvida | sexo={meta['sexo']} idade={meta['idade']} sujeito={meta['sujeito']}")
+
+    result = process_sl30s_csv(
+        csv_path=csv_path,
+        sexo=meta["sexo"],
+        idade=meta["idade"],
+        sujeito=meta["sujeito"],
+        include_plot_payload=True,
+    )
+
+    return {
+        "metrics": result["metrics"],
+        "extra_payload": {
+            "plot_json": result.get("plot"),
+        },
+    }
 
 
 def process_los(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]:

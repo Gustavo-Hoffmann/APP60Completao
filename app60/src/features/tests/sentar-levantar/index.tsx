@@ -1,5 +1,16 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Alert, BackHandler, View } from "react-native";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Alert,
+  BackHandler,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as Speech from "expo-speech";
 
@@ -14,6 +25,19 @@ import {
 } from "../../../services/tests/uploadTestJson";
 
 type Phase = "idle" | "countdown" | "running" | "finished";
+
+type ParticipantWithAnthropometry = Participant & {
+  bodyMassKg?: number | null;
+  massKg?: number | null;
+  weight?: number | null;
+  heightCm?: number | null;
+  estaturaCm?: number | null;
+  height?: number | null;
+  massa?: number | null;
+  peso?: number | null;
+  estatura?: number | null;
+  altura?: number | null;
+};
 
 const SAMPLE_HZ = 60;
 const RECORD_MS = 34_000;
@@ -55,6 +79,70 @@ function fmtMs(ms: number) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+function sanitizeDecimalInput(value: string) {
+  return value.replace(",", ".").replace(/[^0-9.]/g, "");
+}
+
+function parseMassKg(value: string): number | null {
+  const cleaned = sanitizeDecimalInput(value);
+  if (!cleaned) return null;
+
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || n <= 0 || n > 400) return null;
+
+  return Math.round(n * 1000) / 1000;
+}
+
+function parseHeightCm(value: string): number | null {
+  const cleaned = sanitizeDecimalInput(value);
+  if (!cleaned) return null;
+
+  let n = Number(cleaned);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n <= 3) n *= 100;
+  if (n < 50 || n > 260) return null;
+
+  return Math.round(n * 10) / 10;
+}
+
+function formatDecimalInput(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function formatMassDisplay(value: number | null) {
+  return value != null ? `${formatDecimalInput(value)} kg` : "—";
+}
+
+function formatHeightDisplay(value: number | null) {
+  return value != null ? `${formatDecimalInput(value)} cm` : "—";
+}
+
+function readExistingMassKg(participant?: Participant): number | null {
+  if (!participant) return null;
+
+  const p = participant as ParticipantWithAnthropometry;
+  const candidate = p.bodyMassKg ?? p.massKg ?? p.weight ?? p.massa ?? p.peso;
+  if (candidate == null) return null;
+
+  const n = Number(candidate);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 1000) / 1000 : null;
+}
+
+function readExistingHeightCm(participant?: Participant): number | null {
+  if (!participant) return null;
+
+  const p = participant as ParticipantWithAnthropometry;
+  let candidate = p.heightCm ?? p.estaturaCm ?? p.height ?? p.estatura ?? p.altura;
+  if (candidate == null) return null;
+
+  let n = Number(candidate);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n <= 3) n *= 100;
+
+  return Math.round(n * 10) / 10;
+}
+
 export default function SentarLevantar() {
   const nav = useNavigation<any>();
   const route = useRoute<any>();
@@ -69,12 +157,39 @@ export default function SentarLevantar() {
   const [recordingStarted, setRecordingStarted] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
 
+  const [bodyMassInput, setBodyMassInput] = useState("");
+  const [heightInput, setHeightInput] = useState("");
+  const [anthropometryModalVisible, setAnthropometryModalVisible] = useState(false);
+  const [anthropometryConfirmed, setAnthropometryConfirmed] = useState(false);
+
   const cancelledRef = useRef(false);
   const finishTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const runStartRef = useRef<number | null>(null);
   const recordingStartedRef = useRef(false);
   const finishingRef = useRef(false);
+  const participantKeyRef = useRef<string>("");
+
+  const parsedBodyMassKg = useMemo(() => parseMassKg(bodyMassInput), [bodyMassInput]);
+  const parsedHeightCm = useMemo(() => parseHeightCm(heightInput), [heightInput]);
+
+  const participantForTest = useMemo<ParticipantWithAnthropometry | undefined>(() => {
+    if (!participant) return undefined;
+
+    return {
+      ...participant,
+      bodyMassKg: parsedBodyMassKg,
+      massKg: parsedBodyMassKg,
+      weight: parsedBodyMassKg,
+      heightCm: parsedHeightCm,
+      estaturaCm: parsedHeightCm,
+      height: parsedHeightCm,
+      massa: parsedBodyMassKg,
+      peso: parsedBodyMassKg,
+      estatura: parsedHeightCm,
+      altura: parsedHeightCm,
+    };
+  }, [participant, parsedBodyMassKg, parsedHeightCm]);
 
   useEffect(() => {
     recordingStartedRef.current = recordingStarted;
@@ -87,7 +202,20 @@ export default function SentarLevantar() {
         testTitle: "Sentar e levantar",
         testKey: "sentar_levantar",
       });
+      return;
     }
+
+    const participantKey = String(participant.id ?? participant.name ?? "");
+    if (participantKeyRef.current === participantKey) return;
+    participantKeyRef.current = participantKey;
+
+    const initialMass = readExistingMassKg(participant);
+    const initialHeight = readExistingHeightCm(participant);
+
+    setBodyMassInput(initialMass != null ? formatDecimalInput(initialMass) : "");
+    setHeightInput(initialHeight != null ? formatDecimalInput(initialHeight) : "");
+    setAnthropometryConfirmed(false);
+    setAnthropometryModalVisible(true);
   }, [participant, nav]);
 
   useLayoutEffect(() => {
@@ -153,6 +281,50 @@ export default function SentarLevantar() {
     runStartRef.current = null;
   };
 
+  const confirmAnthropometry = useCallback(() => {
+    if (parsedBodyMassKg == null || parsedBodyMassKg <= 0) {
+      Alert.alert("Massa inválida", "Digite a massa em kg.");
+      return;
+    }
+
+    if (parsedHeightCm == null || parsedHeightCm <= 0) {
+      Alert.alert("Estatura inválida", "Digite a estatura em cm.");
+      return;
+    }
+
+    setBodyMassInput(formatDecimalInput(parsedBodyMassKg));
+    setHeightInput(formatDecimalInput(parsedHeightCm));
+    setAnthropometryConfirmed(true);
+    setAnthropometryModalVisible(false);
+  }, [parsedBodyMassKg, parsedHeightCm]);
+
+  const ensureAnthropometryReady = useCallback(() => {
+    if (!participant) {
+      Alert.alert("Erro", "Participante ausente.");
+      return false;
+    }
+
+    if (parsedBodyMassKg == null || parsedBodyMassKg <= 0) {
+      Alert.alert("Massa obrigatória", "Informe uma massa válida em kg antes de iniciar.");
+      setAnthropometryModalVisible(true);
+      return false;
+    }
+
+    if (parsedHeightCm == null || parsedHeightCm <= 0) {
+      Alert.alert("Estatura obrigatória", "Informe uma estatura válida em cm antes de iniciar.");
+      setAnthropometryModalVisible(true);
+      return false;
+    }
+
+    if (!anthropometryConfirmed) {
+      Alert.alert("Confirme os dados", "Confirme massa e estatura antes de iniciar.");
+      setAnthropometryModalVisible(true);
+      return false;
+    }
+
+    return true;
+  }, [anthropometryConfirmed, parsedBodyMassKg, parsedHeightCm, participant]);
+
   const finalizeCapture = useCallback(
     async (reason: "auto" | "manual") => {
       if (finishingRef.current) return;
@@ -170,7 +342,7 @@ export default function SentarLevantar() {
           return;
         }
 
-        if (!participant) {
+        if (!participantForTest) {
           throw new Error("Participante ausente no fim da coleta.");
         }
 
@@ -180,8 +352,8 @@ export default function SentarLevantar() {
           throw new Error("A coleta retornou sem amostras.");
         }
 
-        const nextSession = await getNextSessionNumber(String(participant.id), "SL30S");
-        const saved = await saveSl30sJsonToCache(r, participant, nextSession);
+        const nextSession = await getNextSessionNumber(String(participantForTest.id), "SL30S");
+        const saved = await saveSl30sJsonToCache(r, participantForTest, nextSession);
 
         setResult(r);
         setJsonUri(saved.uri);
@@ -210,11 +382,13 @@ export default function SentarLevantar() {
         finishingRef.current = false;
       }
     },
-    [participant]
+    [participantForTest]
   );
 
   const startTest = useCallback(async () => {
     try {
+      if (!ensureAnthropometryReady() || !participantForTest) return;
+
       cancelledRef.current = false;
       finishingRef.current = false;
       clearFinishTimeout();
@@ -274,7 +448,7 @@ export default function SentarLevantar() {
       setCountdownText("");
       Alert.alert("Erro", e?.message ?? "Falha ao iniciar o teste.");
     }
-  }, [finalizeCapture]);
+  }, [ensureAnthropometryReady, finalizeCapture, participantForTest]);
 
   const stopTest = useCallback(async () => {
     cancelledRef.current = true;
@@ -302,10 +476,10 @@ export default function SentarLevantar() {
   }, []);
 
   const goToResults = () => {
-    if (!result || !jsonUri || !participant) return;
+    if (!result || !jsonUri || !participantForTest) return;
 
     nav.navigate(Routes.Test_SentarLevantar_Result, {
-      participant,
+      participant: participantForTest,
       result,
       jsonUri,
       sessionNumber: jsonSessionNumber,
@@ -323,6 +497,9 @@ export default function SentarLevantar() {
       <View>
         <T style={{ fontSize: 22, fontWeight: "900", marginTop: 18 }}>Sentar e levantar</T>
         <T style={{ marginTop: 4, opacity: 0.7 }}>Participante: {participant?.name ?? "—"}</T>
+        <T style={{ marginTop: 4, opacity: 0.7 }}>
+          Massa: {formatMassDisplay(parsedBodyMassKg)} · Estatura: {formatHeightDisplay(parsedHeightCm)}
+        </T>
       </View>
 
       <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
@@ -362,7 +539,14 @@ export default function SentarLevantar() {
         )}
 
         {!showFinishButton ? (
-          <ThemedButton title="Iniciar teste" onPress={startTest} style={{ minWidth: 220 }} />
+          <View style={{ alignItems: "center", gap: 12 }}>
+            <ThemedButton title="Iniciar teste" onPress={startTest} style={{ minWidth: 220 }} />
+            <Pressable style={styles.secondaryButton} onPress={() => setAnthropometryModalVisible(true)}>
+              <T style={styles.secondaryButtonText}>
+                {anthropometryConfirmed ? "Editar massa e estatura" : "Informar massa e estatura"}
+              </T>
+            </Pressable>
+          </View>
         ) : (
           <ThemedButton
             title="Finalizar teste"
@@ -379,12 +563,201 @@ export default function SentarLevantar() {
             <T>Amostras: {result.stats.n}</T>
             <T>Hz médio: {result.stats.hzMean?.toFixed(2) ?? "—"}</T>
             <T>% 58–62 Hz: {result.stats.pctIn58to62?.toFixed(1) ?? "—"}%</T>
+            <T>Massa: {formatMassDisplay(parsedBodyMassKg)}</T>
+            <T>Estatura: {formatHeightDisplay(parsedHeightCm)}</T>
             <T>Sessão: {jsonSessionNumber != null ? `S${jsonSessionNumber}` : "—"}</T>
           </View>
         )}
 
         {showGoToResults && <ThemedButton title="Ir para resultados" onPress={goToResults} />}
       </View>
+
+      <Modal
+        visible={anthropometryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (phase === "idle" || phase === "finished") {
+            setAnthropometryModalVisible(false);
+          }
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalKeyboardWrap}
+          >
+            <View style={styles.modalCard}>
+              <T style={styles.modalTitle}>Dados antropométricos</T>
+              <T style={styles.modalSubtitle}>
+                Informe massa e estatura do participante antes da coleta.
+              </T>
+
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <View style={styles.inputBlock}>
+                  <T style={styles.inputLabel}>Participante</T>
+                  <View style={styles.readOnlyField}>
+                    <T style={styles.readOnlyFieldText}>{participant?.name ?? "—"}</T>
+                  </View>
+                </View>
+
+                <View style={styles.inputBlock}>
+                  <T style={styles.inputLabel}>Massa (kg)</T>
+                  <TextInput
+                    value={bodyMassInput}
+                    onChangeText={setBodyMassInput}
+                    keyboardType="decimal-pad"
+                    placeholder="Ex.: 72.4"
+                    placeholderTextColor="#94A3B8"
+                    style={styles.input}
+                    editable={phase === "idle" || phase === "finished"}
+                  />
+                </View>
+
+                <View style={styles.inputBlock}>
+                  <T style={styles.inputLabel}>Estatura (cm)</T>
+                  <TextInput
+                    value={heightInput}
+                    onChangeText={setHeightInput}
+                    keyboardType="decimal-pad"
+                    placeholder="Ex.: 175"
+                    placeholderTextColor="#94A3B8"
+                    style={styles.input}
+                    editable={phase === "idle" || phase === "finished"}
+                  />
+                </View>
+
+                <View style={styles.modalActions}>
+                  {(phase === "idle" || phase === "finished") && (
+                    <Pressable
+                      style={styles.modalSecondaryButton}
+                      onPress={() => setAnthropometryModalVisible(false)}
+                    >
+                      <T style={styles.modalSecondaryButtonText}>Fechar</T>
+                    </Pressable>
+                  )}
+
+                  <Pressable style={styles.modalPrimaryButton} onPress={confirmAnthropometry}>
+                    <T style={styles.modalPrimaryButtonText}>Salvar</T>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  secondaryButton: {
+    minWidth: 220,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryButtonText: {
+    fontWeight: "800",
+    color: "#1D4ED8",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    paddingHorizontal: 18,
+    justifyContent: "center",
+  },
+  modalKeyboardWrap: {
+    width: "100%",
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    maxHeight: "82%",
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    opacity: 0.72,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  inputBlock: {
+    marginBottom: 14,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 8,
+    color: "#334155",
+  },
+  readOnlyField: {
+    minHeight: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 14,
+    justifyContent: "center",
+  },
+  readOnlyFieldText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  input: {
+    minHeight: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: "#0F172A",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 10,
+  },
+  modalSecondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  modalSecondaryButtonText: {
+    fontWeight: "800",
+    color: "#475569",
+  },
+  modalPrimaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 16,
+    backgroundColor: "#0B5FFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  modalPrimaryButtonText: {
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+});

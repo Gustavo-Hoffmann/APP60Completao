@@ -116,6 +116,19 @@ type UploadedSessionResult = {
   path: string;
 };
 
+type ParticipantAnthropometryFields = {
+  bodyMassKg?: unknown;
+  massKg?: unknown;
+  weight?: unknown;
+  massa?: unknown;
+  peso?: unknown;
+  heightCm?: unknown;
+  estaturaCm?: unknown;
+  height?: unknown;
+  estatura?: unknown;
+  altura?: unknown;
+};
+
 const IVCF20_DOMAIN_META: Record<Ivcf20CategoryKey, { label: string; max_score: number }> = {
   idade: { label: "Idade", max_score: 3 },
   percepcao: { label: "Saúde", max_score: 1 },
@@ -165,6 +178,11 @@ function asFiniteNumber(value: unknown, fallback = 0): number {
 function round3(value: unknown): number {
   const n = asFiniteNumber(value, 0);
   return Math.round(n * 1000) / 1000;
+}
+
+function round1(value: unknown): number {
+  const n = asFiniteNumber(value, 0);
+  return Math.round(n * 10) / 10;
 }
 
 function escapeCsvValue(value: unknown): string {
@@ -243,6 +261,30 @@ function computeCollectionQuality(
   return "GOOD";
 }
 
+function toOptionalFloat(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function getParticipantBodyMassKg(participant: Participant): number | null {
+  const p = participant as Participant & ParticipantAnthropometryFields;
+  const value = p.bodyMassKg ?? p.massKg ?? p.weight ?? p.massa ?? p.peso;
+  const n = toOptionalFloat(value);
+  if (n == null || n <= 0 || n > 400) return null;
+  return round3(n);
+}
+
+function getParticipantHeightCm(participant: Participant): number | null {
+  const p = participant as Participant & ParticipantAnthropometryFields;
+  const value = p.heightCm ?? p.estaturaCm ?? p.height ?? p.estatura ?? p.altura;
+  let n = toOptionalFloat(value);
+  if (n == null || n <= 0) return null;
+  if (n <= 3) n *= 100;
+  if (n < 50 || n > 260) return null;
+  return round1(n);
+}
+
 function buildSensorMetadataLines(
   testType: SensorCsvTestType,
   result: NativeImuLikeResult,
@@ -261,6 +303,8 @@ function buildSensorMetadataLines(
     `# test_type=${testType}`,
     `# participant_id=${String(participant?.id ?? "")}`,
     `# participant_name=${String(participant?.name ?? "")}`,
+    `# body_mass_kg=${getParticipantBodyMassKg(participant) ?? ""}`,
+    `# height_cm=${getParticipantHeightCm(participant) ?? ""}`,
     `# session_number=${sessionNumber}`,
     `# session_label=S${sessionNumber}`,
     `# performed_at=${performedAt}`,
