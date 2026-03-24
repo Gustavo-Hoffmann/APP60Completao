@@ -2,8 +2,12 @@ import { supabase } from "../../../lib/supabase/client";
 import { mariaSilvaMock } from "../../../mocks/participants";
 import type {
   Participant,
-  SignalPoint,
+  Sl30sGodaLabel,
+  Sl30sRikliJonesLabel,
+  Sl30sSession,
+  Sl30sSignalPoint,
   TwoMstSession,
+  TwoMstSignalPoint,
   TwoMstStrategyLabel,
 } from "../../../types/participant";
 
@@ -43,14 +47,72 @@ type MarchaPlotJson = {
   y_pred_peaks_deg_s?: unknown;
 };
 
+type Sl30sMetricsJson = {
+  sex?: string | null;
+  age_bin?: string | null;
+  repetitions?: number | null;
+  mean_power_w?: number | null;
+  total_work_j?: number | null;
+  work_per_rep_j?: number | null;
+  mean_cycle_duration_s?: number | null;
+  mean_stand_time_s?: number | null;
+  mean_sit_time_s?: number | null;
+  mean_transition_to_stand_s?: number | null;
+  mean_transition_to_sit_s?: number | null;
+  mean_frequency_hz?: number | null;
+  cv_cycle_time_pct?: number | null;
+  signal_amplitude_deg?: number | null;
+  vel_flex_stand_mean_deg_s?: number | null;
+  vel_ext_stand_mean_deg_s?: number | null;
+  vel_flex_sit_mean_deg_s?: number | null;
+  vel_ext_sit_mean_deg_s?: number | null;
+  goda_classification?: string | null;
+  rikli_jones_classification?: string | null;
+  z_score?: number | null;
+  percentile?: number | null;
+};
+
+type Sl30sPlotJson = {
+  t_s?: unknown;
+  signal_deg?: unknown;
+  peak_indices?: unknown;
+  valley_indices?: unknown;
+};
+
 type TestSessionResultRow = {
   participant_id: string;
   test_type: string;
   session_number: number | null;
-  metrics_json: MarchaMetricsJson | string | null;
-  plot_json: MarchaPlotJson | string | null;
+  metrics_json: MarchaMetricsJson | Sl30sMetricsJson | string | null;
+  plot_json: MarchaPlotJson | Sl30sPlotJson | string | null;
   created_at: string | null;
   updated_at: string | null;
+};
+
+type Norm30StsStats = {
+  mean: number;
+  sd: number;
+};
+
+const NORM_30STS: Record<"M" | "F", Record<string, Norm30StsStats>> = {
+  F: {
+    "60-64": { mean: 15.4, sd: 4.3 },
+    "65-69": { mean: 13.5, sd: 4.3 },
+    "70-74": { mean: 12.9, sd: 3.7 },
+    "75-79": { mean: 12.5, sd: 3.9 },
+    "80-84": { mean: 10.3, sd: 4.0 },
+    "85-89": { mean: 8.0, sd: 5.1 },
+    "90-94": { mean: 6.0, sd: 4.0 },
+  },
+  M: {
+    "60-64": { mean: 16.4, sd: 3.3 },
+    "65-69": { mean: 15.2, sd: 4.5 },
+    "70-74": { mean: 14.5, sd: 4.2 },
+    "75-79": { mean: 14.0, sd: 4.3 },
+    "80-84": { mean: 12.4, sd: 3.9 },
+    "85-89": { mean: 10.3, sd: 4.0 },
+    "90-94": { mean: 9.7, sd: 6.8 },
+  },
 };
 
 function calcAgeFromDate(date?: string | null) {
@@ -93,6 +155,20 @@ function normalizeSex(value?: string | null): Participant["sex"] {
   return "Feminino";
 }
 
+function normalizeOptionalSex(value?: string | null): Participant["sex"] | undefined {
+  const normalized = String(value ?? "").trim().toLowerCase();
+
+  if (["m", "masculino", "male", "masc"].includes(normalized)) {
+    return "Masculino";
+  }
+
+  if (["f", "feminino", "female", "fem"].includes(normalized)) {
+    return "Feminino";
+  }
+
+  return undefined;
+}
+
 function formatDateBr(value?: string | null) {
   if (!value) return "—";
 
@@ -110,6 +186,11 @@ function round(value: number, decimals = 2) {
 function asNumber(value: unknown, fallback = 0) {
   const num = Number(value);
   return Number.isFinite(num) ? num : fallback;
+}
+
+function asNullableNumber(value: unknown): number | null {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -136,6 +217,10 @@ function asNumberArray(value: unknown): number[] {
   return value.map((v) => Number(v)).filter((v) => Number.isFinite(v));
 }
 
+function asIndexArray(value: unknown): number[] {
+  return asNumberArray(value).map((v) => Math.round(v));
+}
+
 function findNearestIndex(times: number[], target: number) {
   let bestIndex = -1;
   let bestDist = Number.POSITIVE_INFINITY;
@@ -158,6 +243,29 @@ function mapStrategyLabel(value: unknown): TwoMstStrategyLabel {
   if (normalized === "descending") return "Descendente";
   if (normalized === "constant") return "Constante";
   return "Indefinida";
+}
+
+function mapGodaLabel(value: unknown): Sl30sGodaLabel {
+  const normalized = String(value ?? "").trim().toLowerCase();
+
+  if (normalized === "constante") return "Constante";
+  if (normalized === "flutuante") return "Flutuante";
+  if (normalized === "desacelerador") return "Desacelerador";
+  if (normalized === "acelerador") return "Acelerador";
+  if (normalized === "desacelerador (tendência)") return "Desacelerador (Tendência)";
+  if (normalized === "acelerador (tendência)") return "Acelerador (Tendência)";
+  if (normalized === "flutuante (misto)") return "Flutuante (Misto)";
+  return "—";
+}
+
+function mapRikliJonesLabel(value: unknown): Sl30sRikliJonesLabel {
+  const normalized = String(value ?? "").trim().toLowerCase();
+
+  if (normalized === "abaixo da média") return "Abaixo da média";
+  if (normalized === "na média") return "Na média";
+  if (normalized === "acima da média") return "Acima da média";
+  if (normalized === "idade fora da faixa da tabela") return "Idade fora da faixa da tabela";
+  return "—";
 }
 
 function mapParticipant(row: ParticipantRow): Participant {
@@ -199,7 +307,7 @@ function mapTwoMstSession(row: TestSessionResultRow): TwoMstSession | null {
   };
 }
 
-function mapSignalPoints(row: TestSessionResultRow): SignalPoint[] {
+function mapTwoMstSignalPoints(row: TestSessionResultRow): TwoMstSignalPoint[] {
   const plot = asRecord(row.plot_json) as MarchaPlotJson | null;
   if (!plot) return [];
 
@@ -209,7 +317,7 @@ function mapSignalPoints(row: TestSessionResultRow): SignalPoint[] {
 
   if (!n) return [];
 
-  const points: SignalPoint[] = [];
+  const points: TwoMstSignalPoint[] = [];
 
   for (let i = 0; i < n; i += 1) {
     points.push({
@@ -243,32 +351,142 @@ function mapSignalPoints(row: TestSessionResultRow): SignalPoint[] {
   return points;
 }
 
+function getSl30sNormStats(sex: unknown, ageBin: unknown): Norm30StsStats | null {
+  const normalizedSex = String(sex ?? "").trim().toUpperCase();
+  if (normalizedSex !== "M" && normalizedSex !== "F") return null;
+
+  const normalizedAgeBin = String(ageBin ?? "").trim();
+  return NORM_30STS[normalizedSex][normalizedAgeBin] ?? null;
+}
+
+function mapSl30sSession(row: TestSessionResultRow): Sl30sSession | null {
+  const sessionNumber = asNumber(row.session_number, Number.NaN);
+  if (!Number.isFinite(sessionNumber)) return null;
+
+  const metrics = (asRecord(row.metrics_json) ?? {}) as Record<string, unknown>;
+  const norm = getSl30sNormStats(metrics["sex"], metrics["age_bin"]);
+  const normMean = norm ? round(norm.mean, 1) : null;
+  const normLower = norm ? round(norm.mean - norm.sd, 1) : null;
+  const normUpper = norm ? round(norm.mean + norm.sd, 1) : null;
+
+  return {
+    sessao: sessionNumber,
+    date: formatDateBr(row.updated_at ?? row.created_at),
+    repeticoes: Math.round(asNumber(metrics["repetitions"])),
+    potenciaMedia: round(asNumber(metrics["mean_power_w"]), 2),
+    trabalhoTotal: round(asNumber(metrics["total_work_j"]), 2),
+    trabalhoPorRep: round(asNumber(metrics["work_per_rep_j"]), 2),
+    tempoMedioCiclo: round(asNumber(metrics["mean_cycle_duration_s"]), 3),
+    tempoMedioLevantar: round(asNumber(metrics["mean_stand_time_s"]), 3),
+    tempoMedioSentar: round(asNumber(metrics["mean_sit_time_s"]), 3),
+    transicaoMediaLevantar: round(asNumber(metrics["mean_transition_to_stand_s"]), 3),
+    transicaoMediaSentar: round(asNumber(metrics["mean_transition_to_sit_s"]), 3),
+    frequenciaMedia: round(asNumber(metrics["mean_frequency_hz"]), 3),
+    cvTempoCiclo: round(asNumber(metrics["cv_cycle_time_pct"]), 2),
+    amplitudeSinal: round(asNumber(metrics["signal_amplitude_deg"]), 2),
+    velFlexLevantar: round(asNumber(metrics["vel_flex_stand_mean_deg_s"]), 2),
+    velExtLevantar: round(asNumber(metrics["vel_ext_stand_mean_deg_s"]), 2),
+    velFlexSentar: round(asNumber(metrics["vel_flex_sit_mean_deg_s"]), 2),
+    velExtSentar: round(asNumber(metrics["vel_ext_sit_mean_deg_s"]), 2),
+    goda: mapGodaLabel(metrics["goda_classification"]),
+    rikliJones: mapRikliJonesLabel(metrics["rikli_jones_classification"]),
+    zScore: asNullableNumber(metrics["z_score"]),
+    percentile: asNullableNumber(metrics["percentile"]),
+    ageBin: String(metrics["age_bin"] ?? "").trim() || undefined,
+    sex: normalizeOptionalSex(String(metrics["sex"] ?? "")),
+    normativeMean: normMean,
+    normativeLower: normLower,
+    normativeUpper: normUpper,
+  };
+}
+
+function mapSl30sSignalPoints(row: TestSessionResultRow): Sl30sSignalPoint[] {
+  const plot = asRecord(row.plot_json) as Sl30sPlotJson | null;
+  if (!plot) return [];
+
+  const times = asNumberArray(plot.t_s);
+  const signal = asNumberArray(plot.signal_deg);
+  const n = Math.min(times.length, signal.length);
+
+  if (!n) return [];
+
+  const points: Sl30sSignalPoint[] = [];
+  for (let i = 0; i < n; i += 1) {
+    points.push({
+      time: Number(times[i].toFixed(3)),
+      value: Number(signal[i].toFixed(3)),
+      peak: null,
+      valley: null,
+    });
+  }
+
+  const peakIndices = asIndexArray(plot.peak_indices);
+  const valleyIndices = asIndexArray(plot.valley_indices);
+
+  for (const idx of peakIndices) {
+    if (idx >= 0 && idx < points.length) {
+      points[idx].peak = points[idx].value;
+    }
+  }
+
+  for (const idx of valleyIndices) {
+    if (idx >= 0 && idx < points.length) {
+      points[idx].valley = points[idx].value;
+    }
+  }
+
+  return points;
+}
+
 function buildParticipantTests(rows: TestSessionResultRow[]): Participant["tests"] | undefined {
   const orderedRows = [...rows].sort(
     (a, b) => asNumber(a.session_number) - asNumber(b.session_number),
   );
 
-  const sessions: TwoMstSession[] = [];
-  const signals: Record<number, SignalPoint[]> = {};
+  const twoMstSessions: TwoMstSession[] = [];
+  const twoMstSignals: Record<number, TwoMstSignalPoint[]> = {};
+  const sl30sSessions: Sl30sSession[] = [];
+  const sl30sSignals: Record<number, Sl30sSignalPoint[]> = {};
 
   for (const row of orderedRows) {
-    const session = mapTwoMstSession(row);
-    if (!session) continue;
+    const testType = String(row.test_type ?? "").toUpperCase();
 
-    sessions.push(session);
+    if (testType === "MARCHA") {
+      const session = mapTwoMstSession(row);
+      if (!session) continue;
 
-    const signal = mapSignalPoints(row);
-    if (signal.length) {
-      signals[session.sessao] = signal;
+      twoMstSessions.push(session);
+
+      const signal = mapTwoMstSignalPoints(row);
+      if (signal.length) {
+        twoMstSignals[session.sessao] = signal;
+      }
+
+      continue;
+    }
+
+    if (testType === "SL30S") {
+      const session = mapSl30sSession(row);
+      if (!session) continue;
+
+      sl30sSessions.push(session);
+
+      const signal = mapSl30sSignalPoints(row);
+      if (signal.length) {
+        sl30sSignals[session.sessao] = signal;
+      }
     }
   }
 
-  if (!sessions.length) return undefined;
+  if (!twoMstSessions.length && !sl30sSessions.length) return undefined;
 
   return {
-    has2MST: true,
-    twoMstSessions: sessions,
-    twoMstSignals: signals,
+    has2MST: twoMstSessions.length > 0,
+    twoMstSessions,
+    twoMstSignals,
+    hasSL30S: sl30sSessions.length > 0,
+    sl30sSessions,
+    sl30sSignals,
   };
 }
 
@@ -314,7 +532,7 @@ export async function getParticipantById(id: string): Promise<Participant | null
         "participant_id, test_type, session_number, metrics_json, plot_json, created_at, updated_at",
       )
       .eq("participant_id", id)
-      .eq("test_type", "MARCHA")
+      .in("test_type", ["MARCHA", "SL30S"])
       .order("session_number", { ascending: true }),
   ]);
 

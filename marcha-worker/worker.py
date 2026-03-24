@@ -14,6 +14,7 @@ from supabase import create_client, Client
 
 from marcha_runtime import process_marcha_csv
 from sl30s_runtime import process_sl30s_csv
+from ivcf20_runtime import process_ivcf20_file
 
 
 # ===========================================================
@@ -39,13 +40,13 @@ PARTICIPANT_ID_COLUMN = os.environ.get("PARTICIPANT_ID_COLUMN", "id")
 PARTICIPANT_SEX_COLUMN = os.environ.get("PARTICIPANT_SEX_COLUMN", "sex")
 PARTICIPANT_AGE_COLUMN = os.environ.get("PARTICIPANT_AGE_COLUMN", "age")
 PARTICIPANT_BIRTHDATE_COLUMN = os.environ.get("PARTICIPANT_BIRTHDATE_COLUMN", "birth_date")
-PARTICIPANT_NAME_COLUMN = os.environ.get("PARTICIPANT_NAME_COLUMN", "name")
+PARTICIPANT_NAME_COLUMN = os.environ.get("PARTICIPANT_NAME_COLUMN", "full_name")
 
 # Se quiser limitar só alguns testes, usa:
 # ENABLED_TEST_TYPES=MARCHA,TUG,SL30S
 ENABLED_TEST_TYPES = {
     s.strip().upper()
-    for s in os.environ.get("ENABLED_TEST_TYPES", "MARCHA,SL30S").split(",")
+    for s in os.environ.get("ENABLED_TEST_TYPES", "MARCHA,SL30S,IVCF20").split(",")
     if s.strip()
 }
 
@@ -167,7 +168,7 @@ def resolve_subject_meta(session_row: Dict[str, Any]) -> Dict[str, Any]:
 # STORAGE / DB
 # ===========================================================
 
-def download_raw_csv(bucket: str, path: str) -> bytes:
+def download_raw_file(bucket: str, path: str) -> bytes:
     return supabase.storage.from_(bucket).download(path)
 
 
@@ -316,9 +317,22 @@ def process_utt(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]:
     raise NotImplementedError("UTT ainda não plugado no worker.")
 
 
-def process_ivcf20(session_row: Dict[str, Any], csv_path: str) -> Dict[str, Any]:
-    raise NotImplementedError("IVCF20 ainda não plugado no worker.")
+def process_ivcf20(session_row: Dict[str, Any], raw_path: str) -> Dict[str, Any]:
+    result = process_ivcf20_file(raw_path)
 
+    metrics = result["metrics"]
+    log(
+        "[IVCF20] Resumo pronto "
+        f"| score={metrics.get('score_total')} "
+        f"class={metrics.get('classification_label')}"
+    )
+
+    return {
+        "metrics": metrics,
+        "extra_payload": {
+            "plot_json": None,
+        },
+    }
 
 TEST_PROCESSORS = {
     "MARCHA": process_marcha,
@@ -337,22 +351,25 @@ TEST_PROCESSORS = {
 def process_one(session_row: Dict[str, Any]) -> None:
     test_type = str(session_row["test_type"]).upper()
     bucket = session_row.get("raw_bucket") or DEFAULT_BUCKET
-    raw_path = session_row["raw_file_path"]
+    raw_storage_path = session_row["raw_file_path"]
 
     if test_type not in TEST_PROCESSORS:
         raise ValueError(f"test_type não suportado no worker: {test_type}")
 
     processor = TEST_PROCESSORS[test_type]
 
-    log(f"Baixando CSV do bucket={bucket} path={raw_path}")
-    raw_bytes = download_raw_csv(bucket, raw_path)
+    log(f"Baixando raw do bucket={bucket} path={raw_storage_path}")
+    raw_bytes = download_raw_file(bucket, raw_storage_path)
+
+    raw_ext = os.path.splitext(raw_storage_path)[1].strip() or ".bin"
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        csv_path = os.path.join(tmpdir, "raw.csv")
-        with open(csv_path, "wb") as f:
+        local_raw_path = os.path.join(tmpdir, f"raw{raw_ext}")
+
+        with open(local_raw_path, "wb") as f:
             f.write(raw_bytes)
 
-        result = processor(session_row, csv_path)
+        result = processor(session_row, local_raw_path)
 
         metrics = result["metrics"]
         extra_payload = result.get("extra_payload")
@@ -360,7 +377,6 @@ def process_one(session_row: Dict[str, Any]) -> None:
         log(f"[{test_type}] Métricas prontas: {metrics}")
         upsert_result(session_row, metrics, extra_payload=extra_payload)
         mark_done(session_row["id"])
-
 
 # ===========================================================
 # MAIN LOOP

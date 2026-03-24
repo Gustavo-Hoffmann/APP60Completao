@@ -26,17 +26,74 @@ export type TwoMstSession = {
   strategy: TwoMstStrategyLabel;
 };
 
-export type SignalPoint = {
+export type TwoMstSignalPoint = {
   time: number;
   value: number;
   phonePeak?: number | null;
   predPeak?: number | null;
 };
 
+export type Sl30sGodaLabel =
+  | "Constante"
+  | "Flutuante"
+  | "Desacelerador"
+  | "Acelerador"
+  | "Desacelerador (Tendência)"
+  | "Acelerador (Tendência)"
+  | "Flutuante (Misto)"
+  | "—";
+
+export type Sl30sRikliJonesLabel =
+  | "Abaixo da média"
+  | "Na média"
+  | "Acima da média"
+  | "Idade fora da faixa da tabela"
+  | "—";
+
+export type Sl30sSession = {
+  sessao: number;
+  date: string;
+  repeticoes: number;
+  potenciaMedia: number;
+  trabalhoTotal: number;
+  trabalhoPorRep: number;
+  tempoMedioCiclo: number;
+  tempoMedioLevantar: number;
+  tempoMedioSentar: number;
+  transicaoMediaLevantar: number;
+  transicaoMediaSentar: number;
+  frequenciaMedia: number;
+  cvTempoCiclo: number;
+  amplitudeSinal: number;
+  velFlexLevantar: number;
+  velExtLevantar: number;
+  velFlexSentar: number;
+  velExtSentar: number;
+  goda: Sl30sGodaLabel;
+  rikliJones: Sl30sRikliJonesLabel;
+  zScore?: number | null;
+  percentile?: number | null;
+  ageBin?: string;
+  sex?: "Masculino" | "Feminino";
+  normativeMean?: number | null;
+  normativeLower?: number | null;
+  normativeUpper?: number | null;
+};
+
+export type Sl30sSignalPoint = {
+  time: number;
+  value: number;
+  peak?: number | null;
+  valley?: number | null;
+};
+
 export type ParticipantTestSummary = {
   has2MST?: boolean;
   twoMstSessions?: TwoMstSession[];
-  twoMstSignals?: Record<number, SignalPoint[]>;
+  twoMstSignals?: Record<number, TwoMstSignalPoint[]>;
+  hasSL30S?: boolean;
+  sl30sSessions?: Sl30sSession[];
+  sl30sSignals?: Record<number, Sl30sSignalPoint[]>;
 };
 
 export type Participant = {
