@@ -1,19 +1,17 @@
+
 # -*- coding: utf-8 -*-
 """
 sl30s_runtime.py
 
-Runtime do teste Sentar e Levantar (SL30S/30STS) no mesmo esquema do worker da marcha.
+Runtime do teste Sentar e Levantar (SL30S/30STS).
 
-Objetivo:
-- ler o CSV bruto do app60
-- reproduzir a lógica principal do notebook "30STS - APP Gustavo 01 - métricas"
-- não exportar arquivos locais
-- retornar métricas + payload do gráfico em memória para gravar no Supabase
-
-Observações importantes:
-- o notebook usa orientação estimada por Madgwick e detecta os ciclos no ângulo X em graus
-- aqui a lógica foi portada para Python puro, sem depender do pacote `ahrs`
-- a estrutura final foi organizada para caber bem em `metrics_json`
+Portado a partir do notebook "30STS - APP 01 GU CSV" para uso no worker:
+- leitura robusta do CSV bruto do app60
+- interpolação ACC/GYR em 60 Hz
+- filtro Butterworth igual ao notebook
+- orientação via Madgwick IMU-only
+- detecção de ciclos no ângulo X (vale-pico-vale-pico-vale)
+- saída com métricas + payload do gráfico em memória
 """
 
 from __future__ import annotations
@@ -30,12 +28,12 @@ from scipy.signal import butter, filtfilt, find_peaks
 FS = 60.0
 DT = 1.0 / FS
 ACC_CUTOFF_HZ = 1.3
-GYR_CUTOFF_HZ = 3.0
+GYR_CUTOFF_HZ = 10.0
 BUTTER_ORDER = 4
-PEAK_MIN_DISTANCE = 15
-PEAK_PROMINENCE = 1.0
+PEAK_MIN_DISTANCE = 30
+PEAK_THRESHOLD_DEG = 5.0
 MADGWICK_BETA = 0.15
-WINDOW_SEC = 30.0
+WINDOW_SEC = 30.5
 CHAIR_HEIGHT_M = 0.46
 BODY_MASS_FACTOR = 0.9
 GRAVITY = 9.81
@@ -62,9 +60,15 @@ NORM_30STS: Dict[str, Dict[str, Dict[str, float]]] = {
 }
 
 
-# ==========================================================
-# HELPERS GERAIS
-# ==========================================================
+def round1(value: Any) -> Optional[float]:
+    try:
+        v = float(value)
+    except Exception:
+        return None
+    if not math.isfinite(v):
+        return None
+    return round(v, 1)
+
 
 def round2(value: Any) -> Optional[float]:
     try:
@@ -84,6 +88,20 @@ def round3(value: Any) -> Optional[float]:
     if not math.isfinite(v):
         return None
     return round(v, 3)
+
+
+def mean_or_none(values: List[float] | np.ndarray) -> Optional[float]:
+    arr = np.asarray(values, dtype=float)
+    if arr.size == 0:
+        return None
+    return float(np.mean(arr))
+
+
+def sum_or_zero(values: List[float] | np.ndarray) -> float:
+    arr = np.asarray(values, dtype=float)
+    if arr.size == 0:
+        return 0.0
+    return float(np.sum(arr))
 
 
 def normalize_sex(value: Any) -> Optional[str]:
@@ -146,30 +164,6 @@ def classify_30sts(sex: Optional[str], age: Optional[int], repetitions: int) -> 
     return status, round2(z_score), round1(percentile)
 
 
-def round1(value: Any) -> Optional[float]:
-    try:
-        v = float(value)
-    except Exception:
-        return None
-    if not math.isfinite(v):
-        return None
-    return round(v, 1)
-
-
-def mean_or_none(values: List[float] | np.ndarray) -> Optional[float]:
-    arr = np.asarray(values, dtype=float)
-    if arr.size == 0:
-        return None
-    return float(np.mean(arr))
-
-
-def sum_or_zero(values: List[float] | np.ndarray) -> float:
-    arr = np.asarray(values, dtype=float)
-    if arr.size == 0:
-        return 0.0
-    return float(np.sum(arr))
-
-
 def parse_metadata_from_csv(file_path: str) -> Dict[str, str]:
     meta: Dict[str, str] = {}
     with open(file_path, "r", encoding="utf-8") as f:
@@ -215,21 +209,32 @@ def compute_bmi(body_mass_kg: Optional[float], height_cm: Optional[float]) -> Op
     return round3(float(body_mass_kg) / (h_m * h_m))
 
 
-# ==========================================================
-# ENTRADA E PRÉ-PROCESSAMENTO
-# ==========================================================
-
 def load_app60_sl30s_csv(file_path: str) -> Tuple[pd.DataFrame, Dict[str, str]]:
     meta = parse_metadata_from_csv(file_path)
     df = pd.read_csv(file_path, comment="#")
 
-    required = ["row_t_ms", "ax", "ay", "az", "gx", "gy", "gz"]
-    missing = [c for c in required if c not in df.columns]
+    required_signals = ["ax", "ay", "az", "gx", "gy", "gz"]
+    missing = [c for c in required_signals if c not in df.columns]
     if missing:
         raise ValueError(f"CSV bruto do SL30S sem colunas obrigatórias: {missing}")
 
+    if "acc_t_ms" in df.columns:
+        acc_t_ms = pd.to_numeric(df["acc_t_ms"], errors="coerce")
+    elif "row_t_ms" in df.columns:
+        acc_t_ms = pd.to_numeric(df["row_t_ms"], errors="coerce")
+    else:
+        raise ValueError("CSV bruto do SL30S sem coluna temporal para acelerômetro (acc_t_ms ou row_t_ms).")
+
+    if "gyro_t_ms" in df.columns:
+        gyr_t_ms = pd.to_numeric(df["gyro_t_ms"], errors="coerce")
+    elif "row_t_ms" in df.columns:
+        gyr_t_ms = pd.to_numeric(df["row_t_ms"], errors="coerce")
+    else:
+        raise ValueError("CSV bruto do SL30S sem coluna temporal para giroscópio (gyro_t_ms ou row_t_ms).")
+
     out = pd.DataFrame({
-        "time_s": pd.to_numeric(df["row_t_ms"], errors="coerce") / 1000.0,
+        "acc_time_s": acc_t_ms / 1000.0,
+        "gyr_time_s": gyr_t_ms / 1000.0,
         "ax": pd.to_numeric(df["ax"], errors="coerce"),
         "ay": pd.to_numeric(df["ay"], errors="coerce"),
         "az": pd.to_numeric(df["az"], errors="coerce"),
@@ -241,9 +246,7 @@ def load_app60_sl30s_csv(file_path: str) -> Tuple[pd.DataFrame, Dict[str, str]]:
     out = (
         out
         .replace([np.inf, -np.inf], np.nan)
-        .dropna(subset=["time_s", "ax", "ay", "az", "gx", "gy", "gz"])
-        .sort_values("time_s")
-        .drop_duplicates(subset=["time_s"])
+        .dropna(subset=["acc_time_s", "gyr_time_s", "ax", "ay", "az", "gx", "gy", "gz"])
         .reset_index(drop=True)
     )
 
@@ -253,32 +256,37 @@ def load_app60_sl30s_csv(file_path: str) -> Tuple[pd.DataFrame, Dict[str, str]]:
     return out, meta
 
 
-def ajustar_tempo(t_in: np.ndarray, s_in: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    t_diff = np.diff(t_in)
-    t_diff = np.insert(t_diff, 0, 0.0)
-    t_cum = np.cumsum(t_diff)
+def normalize_timebase(time_s: np.ndarray, signal_xyz: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    time_s = np.asarray(time_s, dtype=float)
+    signal_xyz = np.asarray(signal_xyz, dtype=float)
 
-    if np.all(np.diff(t_cum) > 0):
-        return t_cum.astype(float), s_in.astype(float)
+    time_diff = np.diff(time_s)
+    time_diff = np.insert(time_diff, 0, 0.0)
+    time_cumsum = np.cumsum(time_diff)
+    time_cumsum = time_cumsum - time_cumsum[0]
 
-    unique_indices = np.unique(t_cum, return_index=True)[1]
-    t_cum = t_cum[unique_indices]
-    s_out = s_in[unique_indices]
-    order = np.argsort(t_cum)
-    return t_cum[order].astype(float), s_out[order].astype(float)
+    if np.all(np.diff(time_cumsum) > 0):
+        return time_cumsum.astype(float), signal_xyz.astype(float)
+
+    unique_idx = np.unique(time_cumsum, return_index=True)[1]
+    time_cumsum = time_cumsum[unique_idx]
+    signal_xyz = signal_xyz[unique_idx]
+    order = np.argsort(time_cumsum)
+    return time_cumsum[order].astype(float), signal_xyz[order].astype(float)
 
 
 def interpolate_to_regular_grid(
-    time_s: np.ndarray,
+    acc_time_s: np.ndarray,
     acc_xyz: np.ndarray,
+    gyr_time_s: np.ndarray,
     gyr_xyz: np.ndarray,
     *,
     fs: float = FS,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     dt = 1.0 / fs
 
-    ta, acc_clean = ajustar_tempo(time_s, acc_xyz)
-    tg, gyr_clean = ajustar_tempo(time_s, gyr_xyz)
+    ta, acc_clean = normalize_timebase(acc_time_s, acc_xyz)
+    tg, gyr_clean = normalize_timebase(gyr_time_s, gyr_xyz)
 
     t_start = max(float(np.min(ta)), float(np.min(tg)))
     t_end = min(float(np.max(ta)), float(np.max(tg)))
@@ -297,22 +305,21 @@ def interpolate_to_regular_grid(
         gyr_interp[:, i] = CubicSpline(tg, gyr_clean[:, i])(new_time)
 
     return new_time, acc_interp, gyr_interp
-def butter_lowpass(data: np.ndarray, cutoff_hz: float, fs: float, order: int = 4) -> np.ndarray:
+
+
+def butter_lowpass(data: np.ndarray, cutoff_hz: float, fs: float, order: int = BUTTER_ORDER) -> np.ndarray:
     nyq = 0.5 * fs
     b, a = butter(order, cutoff_hz / nyq, btype="low", analog=False)
     return filtfilt(b, a, data, axis=0)
 
 
-# ==========================================================
-# MADGWICK + ORIENTAÇÃO
-# ==========================================================
-
-def madgwick_imu(acc: np.ndarray, gyr: np.ndarray, *, frequency: float = FS, beta: float = MADGWICK_BETA) -> np.ndarray:
-    """
-    Implementação enxuta do Madgwick IMU-only.
-    Quaternion em ordem [w, x, y, z].
-    Giroscópio em rad/s.
-    """
+def madgwick_imu(
+    acc: np.ndarray,
+    gyr: np.ndarray,
+    *,
+    frequency: float = FS,
+    beta: float = MADGWICK_BETA,
+) -> np.ndarray:
     n = int(acc.shape[0])
     if n == 0:
         return np.zeros((0, 4), dtype=float)
@@ -328,6 +335,7 @@ def madgwick_imu(acc: np.ndarray, gyr: np.ndarray, *, frequency: float = FS, bet
 
         grad = np.zeros(4, dtype=float)
         norm_a = math.sqrt(ax * ax + ay * ay + az * az)
+
         if norm_a > 0.0:
             ax /= norm_a
             ay /= norm_a
@@ -355,18 +363,12 @@ def madgwick_imu(acc: np.ndarray, gyr: np.ndarray, *, frequency: float = FS, bet
 
         q_new = q[i - 1] + q_dot * dt
         q_new_norm = float(np.linalg.norm(q_new))
-        if q_new_norm <= 0.0:
-            q[i] = q[i - 1]
-        else:
-            q[i] = q_new / q_new_norm
+        q[i] = q[i - 1] if q_new_norm <= 0.0 else (q_new / q_new_norm)
 
     return q
 
 
 def q2euler_xyz(q: np.ndarray) -> np.ndarray:
-    """
-    Retorna [roll_x, pitch_y, yaw_z] em radianos.
-    """
     w, x, y, z = (float(v) for v in q)
 
     t0 = 2.0 * (w * x + y * z)
@@ -384,173 +386,147 @@ def q2euler_xyz(q: np.ndarray) -> np.ndarray:
     return np.array([roll, pitch, yaw], dtype=float)
 
 
-# ==========================================================
-# DETECÇÃO E MÉTRICAS
-# ==========================================================
+def detect_events(signal_x: np.ndarray, time_s: np.ndarray) -> Tuple[int, int, np.ndarray, np.ndarray]:
+    media = float(np.mean(signal_x))
 
-def calc_vel_segmento(t: np.ndarray, y: np.ndarray, idx_ini: int, idx_fim: int) -> Tuple[float, float]:
-    t_seg = t[idx_ini:idx_fim + 1]
-    y_seg = y[idx_ini:idx_fim + 1]
-    if len(t_seg) > 1:
-        vel, b = np.polyfit(t_seg, y_seg, 1)
-        return float(vel), float(b)
-    return 0.0, 0.0
+    peaks, _ = find_peaks(signal_x, distance=PEAK_MIN_DISTANCE)
+    peaks = np.asarray([int(p) for p in peaks if signal_x[p] > (media + PEAK_THRESHOLD_DEG)], dtype=int)
 
+    valleys, _ = find_peaks(-signal_x, distance=PEAK_MIN_DISTANCE)
+    valleys = np.asarray(
+        [int(v) for v in valleys if signal_x[v] < (media - PEAK_THRESHOLD_DEG) and v < len(signal_x) - 1],
+        dtype=int,
+    )
 
-def get_idx_30pc(t: np.ndarray, y: np.ndarray, idx1: int, idx2: int) -> Tuple[int, int]:
-    i_start, i_end = min(idx1, idx2), max(idx1, idx2)
-    y_segmento = y[i_start:i_end + 1]
-    if len(y_segmento) == 0:
-        return i_start, i_end
-
-    y_min = float(np.min(y_segmento))
-    y_max = float(np.max(y_segmento))
-    amplitude = y_max - y_min
-
-    if y[idx2] > y[idx1]:
-        target_1 = y_min + 0.3 * amplitude
-        target_2 = y_min + 0.7 * amplitude
-    else:
-        target_1 = y_min + 0.7 * amplitude
-        target_2 = y_min + 0.3 * amplitude
-
-    idx_range = np.arange(i_start, i_end + 1)
-    idx_v1 = int(idx_range[np.argmin(np.abs(y[idx_range] - target_1))])
-    idx_v2 = int(idx_range[np.argmin(np.abs(y[idx_range] - target_2))])
-    return min(idx_v1, idx_v2), max(idx_v1, idx_v2)
-
-
-def build_cycles(signal_x: np.ndarray, new_time: np.ndarray) -> Tuple[int, int, np.ndarray, np.ndarray, List[Dict[str, Any]], np.ndarray]:
-    media_x = float(np.mean(signal_x))
-
-    peaks, _ = find_peaks(signal_x, distance=PEAK_MIN_DISTANCE, prominence=PEAK_PROMINENCE)
-    vales, _ = find_peaks(-signal_x, distance=PEAK_MIN_DISTANCE, prominence=PEAK_PROMINENCE)
-    vales = np.asarray([v for v in vales if v < len(signal_x) - 1], dtype=int)
-
-    limite_pico_inicial = media_x + 3.0
     inicio_mov = 0
-    primeiro_pico_idx = -1
-
-    for p in peaks:
-        if signal_x[p] > limite_pico_inicial:
-            primeiro_pico_idx = int(p)
+    found_start = False
+    for i in range(max(0, len(valleys) - 2)):
+        v1 = int(valleys[i])
+        v2 = int(valleys[i + 1])
+        has_peak_between = any(v1 < int(p) < v2 for p in peaks.tolist())
+        if has_peak_between:
+            inicio_mov = v1
+            found_start = True
             break
 
-    if primeiro_pico_idx != -1:
-        vales_anteriores = [int(v) for v in vales if v < primeiro_pico_idx]
-        if vales_anteriores:
-            inicio_mov = vales_anteriores[-1]
-        else:
-            fatia = signal_x[:primeiro_pico_idx]
-            inicio_mov = int(np.argmin(fatia)) if len(fatia) > 0 else 0
+    if not found_start:
+        inicio_mov = int(valleys[0]) if valleys.size else 0
 
-    tempo_inicio = float(new_time[inicio_mov])
-    tempo_fim_alvo = tempo_inicio + WINDOW_SEC
-    fim_mov = int(np.argmin(np.abs(new_time - tempo_fim_alvo)))
+    tempo_inicio = float(time_s[inicio_mov])
+    tempo_fim = tempo_inicio + WINDOW_SEC
+    fim_mov = int(np.argmin(np.abs(time_s - tempo_fim)))
 
-    peaks_mov = np.asarray([int(p) for p in peaks if inicio_mov <= p <= fim_mov], dtype=int)
-    vales_mov = np.asarray([int(v) for v in vales if inicio_mov <= v <= fim_mov], dtype=int)
+    peaks_mov = np.asarray([int(p) for p in peaks if inicio_mov <= int(p) <= fim_mov], dtype=int)
+    valleys_mov = np.asarray([int(v) for v in valleys if inicio_mov <= int(v) <= fim_mov], dtype=int)
 
-    if inicio_mov not in set(vales_mov.tolist()):
-        vales_mov = np.asarray(sorted(vales_mov.tolist() + [inicio_mov]), dtype=int)
+    if peaks_mov.size == 0 or valleys_mov.size == 0:
+        raise ValueError("Não foi possível detectar picos/vales suficientes no SL30S.")
 
-    t_relativo = new_time - new_time[inicio_mov]
+    valleys_corr = [int(valleys_mov[0])]
+    for i in range(len(peaks_mov) - 1):
+        start = int(peaks_mov[i])
+        end = int(peaks_mov[i + 1])
+        if end > start + 1:
+            seq = signal_x[start:end]
+            if seq.size > 0:
+                idx_min = int(np.argmin(seq) + start)
+                if idx_min != valleys_corr[-1]:
+                    valleys_corr.append(idx_min)
 
-    eventos_globais = ([{"idx": int(p), "tipo": "P"} for p in peaks_mov] +
-                       [{"idx": int(v), "tipo": "V"} for v in vales_mov])
-    eventos_globais.sort(key=lambda x: x["idx"])
+    if len(peaks_mov) > 0 and int(peaks_mov[-1]) + 1 < len(signal_x):
+        seq = signal_x[int(peaks_mov[-1]) + 1 : fim_mov + 1]
+        if seq.size > 0:
+            idx_min_final = int(np.argmin(seq) + int(peaks_mov[-1]) + 1)
+            if (
+                idx_min_final < len(signal_x) - 1
+                and idx_min_final > 0
+                and signal_x[idx_min_final] < signal_x[idx_min_final - 1]
+                and signal_x[idx_min_final] < signal_x[idx_min_final + 1]
+            ):
+                valleys_corr.append(idx_min_final)
 
-    ciclos_para_plot: List[Dict[str, Any]] = []
-    i = 0
-    while i <= len(eventos_globais) - 5:
-        subset = eventos_globais[i:i + 5]
-        padrao = [e["tipo"] for e in subset]
-        if padrao == ["V", "P", "V", "P", "V"]:
-            idx_start = int(subset[0]["idx"])
-            idx_end = int(subset[4]["idx"])
-            ciclos_para_plot.append({
-                "id": len(ciclos_para_plot) + 1,
-                "idx_global_start": idx_start,
-                "idx_global_end": idx_end,
-                "picos": [int(subset[1]["idx"]), int(subset[3]["idx"])],
-                "vales": [int(subset[0]["idx"]), int(subset[2]["idx"]), int(subset[4]["idx"])],
-                "duracao": float(t_relativo[idx_end] - t_relativo[idx_start]),
-            })
-            i += 4
-        else:
-            i += 1
+    valleys_mov = np.asarray(sorted(set(valleys_corr)), dtype=int)
 
-    return inicio_mov, fim_mov, peaks_mov, vales_mov, ciclos_para_plot, t_relativo
+    return inicio_mov, fim_mov, peaks_mov, valleys_mov
 
 
-def compute_transition_times(new_time: np.ndarray, signal_x: np.ndarray, ciclos: List[Dict[str, Any]]) -> pd.DataFrame:
-    if not ciclos:
-        return pd.DataFrame(columns=["Ciclo", "Transição Em Pé", "Transição Sentado"])
+def build_cycles_from_events(peaks: np.ndarray, valleys: np.ndarray, time_rel_s: np.ndarray) -> List[Dict[str, Any]]:
+    ciclos: List[Dict[str, Any]] = []
+    peaks_list = [int(v) for v in peaks.tolist()]
+    valleys_list = [int(v) for v in valleys.tolist()]
 
-    todos_pontos_proj: List[Dict[str, float]] = []
+    i_vale = 0
+    i_pico = 0
 
-    for ciclo in ciclos:
-        v1, p1, v2, p2, v3 = (
-            ciclo["vales"][0],
-            ciclo["picos"][0],
-            ciclo["vales"][1],
-            ciclo["picos"][1],
-            ciclo["vales"][2],
+    while True:
+        if i_vale + 2 >= len(valleys_list) or i_pico + 1 >= len(peaks_list):
+            break
+
+        v1 = valleys_list[i_vale]
+
+        while i_pico < len(peaks_list) and peaks_list[i_pico] < v1:
+            i_pico += 1
+        if i_pico >= len(peaks_list):
+            break
+        p1 = peaks_list[i_pico]
+
+        i_vale2 = i_vale + 1
+        while i_vale2 < len(valleys_list) and valleys_list[i_vale2] < p1:
+            i_vale2 += 1
+        if i_vale2 >= len(valleys_list):
+            break
+        v2 = valleys_list[i_vale2]
+
+        i_pico2 = i_pico + 1
+        while i_pico2 < len(peaks_list) and peaks_list[i_pico2] < v2:
+            i_pico2 += 1
+        if i_pico2 >= len(peaks_list):
+            break
+        p2 = peaks_list[i_pico2]
+
+        i_vale3 = i_vale2 + 1
+        while i_vale3 < len(valleys_list) and valleys_list[i_vale3] < p2:
+            i_vale3 += 1
+        if i_vale3 >= len(valleys_list):
+            break
+        v3 = valleys_list[i_vale3]
+
+        ciclos.append({
+            "id": len(ciclos) + 1,
+            "vales": [int(v1), int(v2), int(v3)],
+            "picos": [int(p1), int(p2)],
+            "inicio": int(v1),
+            "fim": int(v3),
+            "duracao": float(time_rel_s[v3] - time_rel_s[v1]),
+        })
+
+        i_vale = i_vale3
+        i_pico = i_pico2
+
+    return ciclos
+
+
+def compute_transition_times(time_s: np.ndarray, ciclos: List[Dict[str, Any]]) -> pd.DataFrame:
+    rows: List[Dict[str, Any]] = []
+    for i, ciclo in enumerate(ciclos):
+        v1, p1, v2, p2, _v3 = (
+            int(ciclo["vales"][0]),
+            int(ciclo["picos"][0]),
+            int(ciclo["vales"][1]),
+            int(ciclo["picos"][1]),
+            int(ciclo["vales"][2]),
         )
-        fases = [(v1, p1), (p1, v2), (v2, p2), (p2, v3)]
-
-        for idx_ini, idx_fim in fases:
-            i30, f30 = get_idx_30pc(new_time, signal_x, idx_ini, idx_fim)
-            vel, b = calc_vel_segmento(new_time, signal_x, i30, f30)
-
-            if vel > 0:
-                y_target = float(signal_x[idx_ini])
-                t_superior = float(new_time[f30])
-            else:
-                y_target = float(signal_x[idx_fim])
-                t_superior = float(new_time[i30])
-
-            t_inferior = (y_target - b) / vel if abs(vel) > 1e-6 else float(new_time[idx_ini])
-            todos_pontos_proj.append({"t": float(t_inferior), "y": y_target})
-
-    todos_pontos_proj = sorted(todos_pontos_proj, key=lambda k: k["t"])
-    dados_ciclos: Dict[int, Dict[str, Any]] = {}
-    count_par = 0
-    i = 1
-    while i < len(todos_pontos_proj) - 1:
-        ponto_a = todos_pontos_proj[i]
-        ponto_b = todos_pontos_proj[i + 1]
-        tempo = float(ponto_b["t"] - ponto_a["t"])
-
-        if count_par % 2 == 0:
-            num_ciclo = (count_par // 2) + 1
-            tipo_coluna = "Transição Em Pé"
-        else:
-            num_ciclo = (count_par // 2) + 2
-            tipo_coluna = "Transição Sentado"
-
-        if num_ciclo not in dados_ciclos:
-            dados_ciclos[num_ciclo] = {
-                "Ciclo": num_ciclo,
-                "Transição Em Pé": np.nan,
-                "Transição Sentado": np.nan,
-            }
-        dados_ciclos[num_ciclo][tipo_coluna] = round(float(tempo), 2)
-
-        i += 2
-        count_par += 1
-
-    if not dados_ciclos:
-        return pd.DataFrame(columns=["Ciclo", "Transição Em Pé", "Transição Sentado"])
-
-    df = pd.DataFrame(list(dados_ciclos.values()))
-    df = df[["Ciclo", "Transição Em Pé", "Transição Sentado"]].sort_values("Ciclo").reset_index(drop=True)
-    return df
+        rows.append({
+            "Ciclo": int(i + 1),
+            "Transição Em Pé": round2(float(time_s[p1] - time_s[v1])),
+            "Transição Sentado": round2(float(time_s[p2] - time_s[v2])),
+        })
+    return pd.DataFrame(rows, columns=["Ciclo", "Transição Em Pé", "Transição Sentado"])
 
 
 def build_cycle_rows(
-    new_time: np.ndarray,
-    t_relativo: np.ndarray,
+    time_s: np.ndarray,
+    time_rel_s: np.ndarray,
     signal_x: np.ndarray,
     ciclos: List[Dict[str, Any]],
     df_transitions: pd.DataFrame,
@@ -559,14 +535,16 @@ def build_cycle_rows(
     sexo: Optional[str],
     idade: Optional[int],
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    trans_pe_list = df_transitions["Transição Em Pé"].fillna(0).tolist() if not df_transitions.empty else []
-    trans_sentado_list = df_transitions["Transição Sentado"].fillna(0).tolist() if not df_transitions.empty else []
+    trans_stand = df_transitions["Transição Em Pé"].tolist() if not df_transitions.empty else []
+    trans_sit = df_transitions["Transição Sentado"].tolist() if not df_transitions.empty else []
 
     tempos_ciclo: List[float] = []
     tempos_levantar: List[float] = []
     tempos_sentar: List[float] = []
-    pico1_absoluto_list: List[float] = []
-    pico2_absoluto_list: List[float] = []
+    pico1_list: List[float] = []
+    pico2_list: List[float] = []
+    pico1_t_rel_list: List[float] = []
+    pico2_t_rel_list: List[float] = []
     amp_flex_levantar: List[float] = []
     amp_ext_levantar: List[float] = []
     amp_flex_sentar: List[float] = []
@@ -577,6 +555,14 @@ def build_cycle_rows(
     vel_ext_sentar: List[float] = []
     rows: List[Dict[str, Any]] = []
 
+    height_m = float(height_cm) / 100.0
+    h_sentado = 0.53 * height_m
+    h_deslocamento = h_sentado - CHAIR_HEIGHT_M
+    if h_deslocamento <= 0:
+        h_deslocamento = 0.1
+
+    energia_por_ciclo = body_mass_kg * BODY_MASS_FACTOR * GRAVITY * h_deslocamento
+
     for i, ciclo in enumerate(ciclos):
         idx_v1 = int(ciclo["vales"][0])
         idx_p1 = int(ciclo["picos"][0])
@@ -584,9 +570,11 @@ def build_cycle_rows(
         idx_p2 = int(ciclo["picos"][1])
         idx_v3 = int(ciclo["vales"][2])
 
-        t_v1 = float(new_time[idx_v1])
-        t_v2 = float(new_time[idx_v2])
-        t_v3 = float(new_time[idx_v3])
+        t_v1 = float(time_s[idx_v1])
+        t_v2 = float(time_s[idx_v2])
+        t_v3 = float(time_s[idx_v3])
+        t_p1 = float(time_s[idx_p1])
+        t_p2 = float(time_s[idx_p2])
 
         tempo_total = t_v3 - t_v1
         tempo_levantar = t_v2 - t_v1
@@ -596,10 +584,12 @@ def build_cycle_rows(
         tempos_levantar.append(tempo_levantar)
         tempos_sentar.append(tempo_sentar)
 
-        pico1_abs = float(signal_x[idx_p1])
-        pico2_abs = float(signal_x[idx_p2])
-        pico1_absoluto_list.append(pico1_abs)
-        pico2_absoluto_list.append(pico2_abs)
+        pico1 = float(signal_x[idx_p1])
+        pico2 = float(signal_x[idx_p2])
+        pico1_list.append(pico1)
+        pico2_list.append(pico2)
+        pico1_t_rel_list.append(float(time_rel_s[idx_p1]))
+        pico2_t_rel_list.append(float(time_rel_s[idx_p2]))
 
         flex_lev = abs(float(signal_x[idx_v1] - signal_x[idx_p1]))
         ext_lev = abs(float(signal_x[idx_p1] - signal_x[idx_v2]))
@@ -611,26 +601,30 @@ def build_cycle_rows(
         amp_flex_sentar.append(flex_sen)
         amp_ext_sentar.append(ext_sen)
 
-        vel_fl_lev = flex_lev / tempo_levantar if tempo_levantar != 0 else 0.0
-        vel_ex_lev = ext_lev / tempo_levantar if tempo_levantar != 0 else 0.0
-        vel_fl_sen = flex_sen / tempo_sentar if tempo_sentar != 0 else 0.0
-        vel_ex_sen = ext_sen / tempo_sentar if tempo_sentar != 0 else 0.0
+        vel_fl_lev = flex_lev / tempo_levantar if tempo_levantar > 0 else 0.0
+        vel_ex_lev = ext_lev / tempo_levantar if tempo_levantar > 0 else 0.0
+        vel_fl_sen = flex_sen / tempo_sentar if tempo_sentar > 0 else 0.0
+        vel_ex_sen = ext_sen / tempo_sentar if tempo_sentar > 0 else 0.0
 
         vel_flex_levantar.append(vel_fl_lev)
         vel_ext_levantar.append(vel_ex_lev)
         vel_flex_sentar.append(vel_fl_sen)
         vel_ext_sentar.append(vel_ex_sen)
 
+        power_cycle = energia_por_ciclo / tempo_total if tempo_total > 0 else 0.0
+
         rows.append({
             "cycle": int(i + 1),
             "time_total_s": round2(tempo_total),
             "time_stand_s": round2(tempo_levantar),
             "time_sit_s": round2(tempo_sentar),
-            "transition_to_stand_s": round2(trans_pe_list[i]) if i < len(trans_pe_list) else 0.0,
-            "transition_to_sit_s": round2(trans_sentado_list[i]) if i < len(trans_sentado_list) else 0.0,
-            "frequency_hz": round2((1.0 / tempo_total) if tempo_total != 0 else 0.0),
-            "peak1_deg": round2(pico1_abs),
-            "peak2_deg": round2(pico2_abs),
+            "transition_to_stand_s": round2(trans_stand[i]) if i < len(trans_stand) else None,
+            "transition_to_sit_s": round2(trans_sit[i]) if i < len(trans_sit) else None,
+            "frequency_hz": round2((1.0 / tempo_total) if tempo_total > 0 else 0.0),
+            "peak1_deg": round2(pico1),
+            "peak1_time_rel_s": round3(time_rel_s[idx_p1]),
+            "peak2_deg": round2(pico2),
+            "peak2_time_rel_s": round3(time_rel_s[idx_p2]),
             "amp_flex_stand_deg": round2(flex_lev),
             "amp_ext_stand_deg": round2(ext_lev),
             "amp_flex_sit_deg": round2(flex_sen),
@@ -639,49 +633,34 @@ def build_cycle_rows(
             "vel_ext_stand_deg_s": round2(vel_ex_lev),
             "vel_flex_sit_deg_s": round2(vel_fl_sen),
             "vel_ext_sit_deg_s": round2(vel_ex_sen),
-            "cycle_start_t_rel_s": round3(float(t_relativo[idx_v1])),
-            "cycle_end_t_rel_s": round3(float(t_relativo[idx_v3])),
+            "cycle_start_t_rel_s": round3(time_rel_s[idx_v1]),
+            "cycle_end_t_rel_s": round3(time_rel_s[idx_v3]),
             "valley_indices": [idx_v1, idx_v2, idx_v3],
             "peak_indices": [idx_p1, idx_p2],
+            "displacement_m": round3(h_deslocamento),
+            "work_j": round2(energia_por_ciclo),
+            "power_w": round2(power_cycle),
         })
 
-    hz_ciclos = [(1.0 / t) if t != 0 else 0.0 for t in tempos_ciclo]
+    hz_ciclos = [(1.0 / t) if t > 0 else 0.0 for t in tempos_ciclo]
     cv_tempo_total = (
         (float(np.std(tempos_ciclo, ddof=1)) / float(np.mean(tempos_ciclo)) * 100.0)
-        if len(tempos_ciclo) > 1 and float(np.mean(tempos_ciclo)) != 0.0
+        if len(tempos_ciclo) > 1 and float(np.mean(tempos_ciclo)) > 0.0
         else 0.0
     )
 
-    height_m = height_cm / 100.0
-    h_com_em_pe = height_m * 0.5
-    h_deslocamento = h_com_em_pe - CHAIR_HEIGHT_M
-    if h_deslocamento < 0.1:
-        h_deslocamento = 0.3
-
-    trabalho_por_ciclo = body_mass_kg * BODY_MASS_FACTOR * GRAVITY * h_deslocamento
-    potencia_por_ciclo = [(trabalho_por_ciclo / t) if t > 0 else 0.0 for t in tempos_ciclo]
     tempo_total_acumulado = sum_or_zero(tempos_ciclo)
-    energia_total_acumulada = trabalho_por_ciclo * len(tempos_ciclo)
-    mean_power_global = (energia_total_acumulada / tempo_total_acumulado) if tempo_total_acumulado > 0 else 0.0
-
-    for row, pot in zip(rows, potencia_por_ciclo):
-        row["cv_cycle_time_pct"] = round2(cv_tempo_total)
-        row["displacement_m"] = round2(h_deslocamento)
-        row["work_j"] = round2(trabalho_por_ciclo)
-        row["power_w"] = round2(pot)
+    energia_total = energia_por_ciclo * len(ciclos)
+    mean_power_global = (energia_total / tempo_total_acumulado) if tempo_total_acumulado > 0 else 0.0
+    mean_power_relative = (mean_power_global / body_mass_kg) if body_mass_kg > 0 else 0.0
 
     total_reps = len(ciclos)
     status_norm, z_val, perc_val = classify_30sts(sexo, idade, total_reps)
 
-    for row in rows:
-        row["rikli_jones_classification"] = status_norm
-        row["z_score"] = z_val
-        row["percentile"] = perc_val
-
     c_t1 = c_t2 = c_t3 = 0
     for ciclo in ciclos:
         idx_fim = int(ciclo["vales"][2])
-        tempo_fim_ciclo = float(t_relativo[idx_fim])
+        tempo_fim_ciclo = float(time_rel_s[idx_fim])
         if tempo_fim_ciclo <= 10.0:
             c_t1 += 1
         elif tempo_fim_ciclo <= 20.0:
@@ -708,6 +687,10 @@ def build_cycle_rows(
                 perfil_goda = "Flutuante (Misto)"
 
     for row in rows:
+        row["cv_cycle_time_pct"] = round2(cv_tempo_total)
+        row["rikli_jones_classification"] = status_norm
+        row["z_score"] = z_val
+        row["percentile"] = perc_val
         row["goda_classification"] = perfil_goda
 
     summary = {
@@ -716,12 +699,14 @@ def build_cycle_rows(
         "mean_cycle_duration_s": round2(mean_or_none(tempos_ciclo)),
         "mean_stand_time_s": round2(mean_or_none(tempos_levantar)),
         "mean_sit_time_s": round2(mean_or_none(tempos_sentar)),
-        "mean_transition_to_stand_s": round2(mean_or_none([float(v) for v in trans_pe_list])) if trans_pe_list else None,
-        "mean_transition_to_sit_s": round2(mean_or_none([float(v) for v in trans_sentado_list])) if trans_sentado_list else None,
+        "mean_transition_to_stand_s": round2(mean_or_none(trans_stand)) if trans_stand else None,
+        "mean_transition_to_sit_s": round2(mean_or_none(trans_sit)) if trans_sit else None,
         "mean_frequency_hz": round2(mean_or_none(hz_ciclos)),
         "cv_cycle_time_pct": round2(cv_tempo_total),
-        "peak1_mean_deg": round2(mean_or_none(pico1_absoluto_list)),
-        "peak2_mean_deg": round2(mean_or_none(pico2_absoluto_list)),
+        "peak1_mean_deg": round2(mean_or_none(pico1_list)),
+        "peak2_mean_deg": round2(mean_or_none(pico2_list)),
+        "peak1_mean_time_rel_s": round2(mean_or_none(pico1_t_rel_list)),
+        "peak2_mean_time_rel_s": round2(mean_or_none(pico2_t_rel_list)),
         "amp_flex_stand_mean_deg": round2(mean_or_none(amp_flex_levantar)),
         "amp_ext_stand_mean_deg": round2(mean_or_none(amp_ext_levantar)),
         "amp_flex_sit_mean_deg": round2(mean_or_none(amp_flex_sentar)),
@@ -730,10 +715,11 @@ def build_cycle_rows(
         "vel_ext_stand_mean_deg_s": round2(mean_or_none(vel_ext_levantar)),
         "vel_flex_sit_mean_deg_s": round2(mean_or_none(vel_flex_sentar)),
         "vel_ext_sit_mean_deg_s": round2(mean_or_none(vel_ext_sentar)),
-        "displacement_m": round2(h_deslocamento),
-        "work_per_rep_j": round2(trabalho_por_ciclo),
-        "total_work_j": round2(energia_total_acumulada),
+        "displacement_m": round3(h_deslocamento),
+        "work_per_rep_j": round2(energia_por_ciclo),
+        "total_work_j": round2(energia_total),
         "mean_power_w": round2(mean_power_global),
+        "mean_power_relative_w_kg": round3(mean_power_relative),
         "rikli_jones_classification": status_norm,
         "z_score": z_val,
         "percentile": perc_val,
@@ -743,9 +729,6 @@ def build_cycle_rows(
 
     return rows, summary
 
-# ==========================================================
-# PIPELINE PRINCIPAL
-# ==========================================================
 
 def process_sl30s_csv(
     csv_path: str,
@@ -757,20 +740,31 @@ def process_sl30s_csv(
 ) -> Dict[str, Any]:
     df_in, meta = load_app60_sl30s_csv(csv_path)
 
-    time_s = df_in["time_s"].to_numpy(dtype=float)
+    acc_time_s = df_in["acc_time_s"].to_numpy(dtype=float)
+    gyr_time_s = df_in["gyr_time_s"].to_numpy(dtype=float)
 
-    # Mesma reorganização do notebook:
-    # aceleração -> [ax, az, ay] com inversão do eixo Y final
     acc_xyz = df_in[["ax", "az", "ay"]].to_numpy(dtype=float) * GRAVITY
     acc_xyz[:, 2] *= -1.0
 
-    # giroscópio -> [gx, gz, gy] com inversão do eixo Y final
     gyr_xyz = df_in[["gx", "gz", "gy"]].to_numpy(dtype=float)
     gyr_xyz[:, 2] *= -1.0
 
-    new_time, acc_interp, gyr_interp = interpolate_to_regular_grid(time_s, acc_xyz, gyr_xyz, fs=FS)
+    new_time, acc_interp, gyr_interp = interpolate_to_regular_grid(
+        acc_time_s,
+        acc_xyz,
+        gyr_time_s,
+        gyr_xyz,
+        fs=FS,
+    )
+
     acc_filt = butter_lowpass(acc_interp, ACC_CUTOFF_HZ, FS, order=BUTTER_ORDER)
     gyr_filt = butter_lowpass(gyr_interp, GYR_CUTOFF_HZ, FS, order=BUTTER_ORDER)
+
+    if acc_filt.shape[0] != gyr_filt.shape[0]:
+        min_len = min(acc_filt.shape[0], gyr_filt.shape[0])
+        acc_filt = acc_filt[:min_len]
+        gyr_filt = gyr_filt[:min_len]
+        new_time = new_time[:min_len]
 
     q = madgwick_imu(acc_filt, gyr_filt, frequency=FS, beta=MADGWICK_BETA)
     euler_rad = np.asarray([q2euler_xyz(row) for row in q], dtype=float)
@@ -778,12 +772,14 @@ def process_sl30s_csv(
     deg_angles[:, 0] = deg_angles[:, 0] - np.mean(deg_angles[:, 0])
     signal_x = deg_angles[:, 0].astype(float)
 
-    inicio_mov, fim_mov, peaks_mov, vales_mov, ciclos_para_plot, t_relativo = build_cycles(signal_x, new_time)
+    inicio_mov, fim_mov, peaks_mov, valleys_mov = detect_events(signal_x, new_time)
+    time_rel_s = new_time - new_time[inicio_mov]
+    ciclos = build_cycles_from_events(peaks_mov, valleys_mov, time_rel_s)
 
-    if not ciclos_para_plot:
+    if not ciclos:
         raise ValueError("Nenhum ciclo completo detectado no SL30S.")
 
-    df_transitions = compute_transition_times(new_time, signal_x, ciclos_para_plot)
+    df_transitions = compute_transition_times(new_time, ciclos)
 
     sex_norm = normalize_sex(sexo)
     body_mass_kg = infer_body_mass_kg(meta)
@@ -792,9 +788,9 @@ def process_sl30s_csv(
 
     cycle_rows, summary = build_cycle_rows(
         new_time,
-        t_relativo,
+        time_rel_s,
         signal_x,
-        ciclos_para_plot,
+        ciclos,
         df_transitions,
         body_mass_kg,
         height_cm,
@@ -806,14 +802,14 @@ def process_sl30s_csv(
 
     recorte_idx = np.arange(inicio_mov, fim_mov + 1, dtype=int)
     signal_cut = signal_x[recorte_idx]
-    time_cut = t_relativo[recorte_idx]
+    time_cut = time_rel_s[recorte_idx]
 
     absolute_to_cut = {int(abs_i): int(rel_i) for rel_i, abs_i in enumerate(recorte_idx.tolist())}
     peaks_cut = [absolute_to_cut[int(i)] for i in peaks_mov if int(i) in absolute_to_cut]
-    valleys_cut = [absolute_to_cut[int(i)] for i in vales_mov if int(i) in absolute_to_cut]
+    valleys_cut = [absolute_to_cut[int(i)] for i in valleys_mov if int(i) in absolute_to_cut]
 
     metrics: Dict[str, Any] = {
-        "analysis_version": "sl30s_worker_v2_notebook_port",
+        "analysis_version": "sl30s_worker_v3_notebook_aligned",
         "subject_code": str(sujeito),
         "sex": sex_norm,
         "age": int(idade) if idade is not None else None,
@@ -827,6 +823,7 @@ def process_sl30s_csv(
         "analysis_start_s": round3(float(new_time[inicio_mov])),
         "analysis_end_s": round3(float(new_time[fim_mov])),
         "analysis_window_target_s": round3(WINDOW_SEC),
+        "analysis_window_actual_s": round3(float(new_time[fim_mov] - new_time[inicio_mov])),
         "signal_name": "angle_x_deg",
         "signal_mean_deg": round3(float(np.mean(signal_cut))),
         "signal_sd_deg": round3(float(np.std(signal_cut))),
@@ -834,7 +831,7 @@ def process_sl30s_csv(
         "signal_max_deg": round3(float(np.max(signal_cut))),
         "signal_amplitude_deg": round3(float(np.max(signal_cut) - np.min(signal_cut))),
         "peak_count": int(len(peaks_mov)),
-        "valley_count": int(len(vales_mov)),
+        "valley_count": int(len(valleys_mov)),
         **summary,
         "cycle_rows": cycle_rows,
     }
@@ -849,16 +846,20 @@ def process_sl30s_csv(
             "peak_indices": [int(v) for v in peaks_cut],
             "valley_indices": [int(v) for v in valleys_cut],
             "start_index": 0,
+            "end_index": int(len(time_cut) - 1),
+            "analysis_start_t_s": 0.0,
+            "analysis_end_t_s": round3(float(time_cut[-1])) if len(time_cut) else 0.0,
             "cycles": [
                 {
                     "id": int(c["id"]),
-                    "start_index": int(absolute_to_cut.get(int(c["idx_global_start"]), 0)),
-                    "end_index": int(absolute_to_cut.get(int(c["idx_global_end"]), 0)),
-                    "peak_indices": [int(absolute_to_cut.get(int(p), 0)) for p in c["picos"]],
-                    "valley_indices": [int(absolute_to_cut.get(int(v), 0)) for v in c["vales"]],
-                    "duration_s": round3(c["duracao"]),
+                    "start_index": int(absolute_to_cut[int(c["inicio"])]),
+                    "end_index": int(absolute_to_cut[int(c["fim"])]),
+                    "peak_indices": [int(absolute_to_cut[int(p)]) for p in c["picos"]],
+                    "valley_indices": [int(absolute_to_cut[int(v)]) for v in c["vales"]],
+                    "duration_s": round3(float(c["duracao"])),
                 }
-                for c in ciclos_para_plot
+                for c in ciclos
+                if int(c["inicio"]) in absolute_to_cut and int(c["fim"]) in absolute_to_cut
             ],
         }
 
