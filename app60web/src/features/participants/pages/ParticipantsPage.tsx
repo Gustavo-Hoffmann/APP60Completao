@@ -140,13 +140,13 @@ export function ParticipantsPage() {
           <PremiumMetricCard
             label="2MST disponível"
             value={stats.with2Mst}
-            subtitle="Com mock pronto para demo"
+            subtitle="Participantes com marcha processada"
             icon={Activity}
           />
           <PremiumMetricCard
             label="IVCF frágil"
             value={stats.fragile}
-            subtitle="Classificação de maior atenção"
+            subtitle="Última classificação com maior atenção"
             icon={HeartPulse}
           />
         </section>
@@ -172,7 +172,7 @@ export function ParticipantsPage() {
                       <th className="px-6 py-5">Idade</th>
                       <th className="px-6 py-5">Sexo</th>
                       <th className="px-6 py-5">Cidade</th>
-                      <th className="px-6 py-5">IVCF</th>
+                      <th className="px-6 py-5">IVCF-20</th>
                       <th className="px-6 py-5 text-right">Abrir</th>
                     </tr>
                   </thead>
@@ -213,16 +213,21 @@ export function ParticipantsPage() {
                           <td className="px-6 py-5 text-slate-600">{cityState}</td>
                           <td className="px-6 py-5">
                             {participant.ivcfClass ? (
-                              <span
-                                className={[
-                                  "inline-flex rounded-full border px-3 py-1 text-xs font-bold",
-                                  getIvcfBadgeStyles(participant.ivcfClass),
-                                ].join(" ")}
-                              >
-                                {participant.ivcfClass}
-                              </span>
+                              <div className="flex flex-col gap-2">
+                                <div className="text-sm font-black text-slate-900">
+                                  {participant.ivcfScore ?? "—"} pontos
+                                </div>
+                                <span
+                                  className={[
+                                    "inline-flex w-fit rounded-full border px-3 py-1 text-xs font-bold",
+                                    getIvcfBadgeStyles(participant.ivcfClass),
+                                  ].join(" ")}
+                                >
+                                  {participant.ivcfClass}
+                                </span>
+                              </div>
                             ) : (
-                              <span className="text-slate-400">—</span>
+                              <span className="text-slate-400">Sem coleta</span>
                             )}
                           </td>
                           <td className="px-6 py-5 text-right">

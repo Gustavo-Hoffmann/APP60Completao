@@ -1,7 +1,10 @@
 import { supabase } from "../../../lib/supabase/client";
 import { mariaSilvaMock } from "../../../mocks/participants";
 import type {
+  IvcfClassification,
+  IvcfSession,
   Participant,
+  ParticipantBlockScores,
   Sl30sGodaLabel,
   Sl30sRikliJonesLabel,
   Sl30sSession,
@@ -79,11 +82,27 @@ type Sl30sPlotJson = {
   valley_indices?: unknown;
 };
 
+type IvcfBlockScoreJson = {
+  key?: string | null;
+  label?: string | null;
+  score?: number | null;
+  max_score?: number | null;
+  maxScore?: number | null;
+};
+
+type IvcfMetricsJson = {
+  score_total?: number | null;
+  classification_label?: string | null;
+  classification_key?: string | null;
+  block_scores?: IvcfBlockScoreJson[] | null;
+  blocks_map?: Record<string, unknown> | null;
+};
+
 type TestSessionResultRow = {
   participant_id: string;
   test_type: string;
   session_number: number | null;
-  metrics_json: MarchaMetricsJson | Sl30sMetricsJson | string | null;
+  metrics_json: MarchaMetricsJson | Sl30sMetricsJson | IvcfMetricsJson | string | null;
   plot_json: MarchaPlotJson | Sl30sPlotJson | string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -165,6 +184,25 @@ function normalizeOptionalSex(value?: string | null): Participant["sex"] | undef
   if (["f", "feminino", "female", "fem"].includes(normalized)) {
     return "Feminino";
   }
+
+  return undefined;
+}
+
+function normalizeIvcfClass(label?: unknown, key?: unknown): IvcfClassification | undefined {
+  const normalizedLabel = String(label ?? "").trim().toLowerCase();
+
+  if (normalizedLabel === "robusto") return "Robusto";
+  if (["pré-frágil", "pre-frágil", "pre-fragil", "pré-fragil"].includes(normalizedLabel)) {
+    return "Pré-Frágil";
+  }
+  if (["frágil", "fragil"].includes(normalizedLabel)) return "Frágil";
+
+  const normalizedKey = String(key ?? "").trim().toLowerCase();
+  if (normalizedKey === "robusto") return "Robusto";
+  if (["pre_fragil", "pre-fragil", "pré_fragil", "pré-frágil"].includes(normalizedKey)) {
+    return "Pré-Frágil";
+  }
+  if (normalizedKey === "fragil") return "Frágil";
 
   return undefined;
 }
@@ -283,6 +321,62 @@ function mapParticipant(row: ParticipantRow): Participant {
     state: row.state ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapIvcfBlocks(metrics: Record<string, unknown>): ParticipantBlockScores {
+  const blocks: ParticipantBlockScores = {};
+
+  const blockScores = metrics["block_scores"];
+  if (Array.isArray(blockScores) && blockScores.length) {
+    for (const item of blockScores) {
+      const row = asRecord(item);
+      if (!row) continue;
+
+      const label = String(row["label"] ?? row["key"] ?? "").trim();
+      const score = asNullableNumber(row["score"]);
+
+      if (!label || score === null) continue;
+      blocks[label] = score;
+    }
+
+    return blocks;
+  }
+
+  const blocksMap = asRecord(metrics["blocks_map"]);
+  if (blocksMap) {
+    for (const [label, rawScore] of Object.entries(blocksMap)) {
+      const score = asNullableNumber(rawScore);
+      if (!label || score === null) continue;
+      blocks[label] = score;
+    }
+  }
+
+  return blocks;
+}
+
+function mapIvcfSession(row: TestSessionResultRow): IvcfSession | null {
+  const sessionNumber = asNumber(row.session_number, Number.NaN);
+  if (!Number.isFinite(sessionNumber)) return null;
+
+  const metrics = asRecord(row.metrics_json) ?? {};
+  const classification = normalizeIvcfClass(
+    metrics["classification_label"],
+    metrics["classification_key"],
+  );
+  const scoreTotal = asNumber(metrics["score_total"], Number.NaN);
+  const blocks = mapIvcfBlocks(metrics);
+
+  if (!Number.isFinite(scoreTotal) && !classification && !Object.keys(blocks).length) {
+    return null;
+  }
+
+  return {
+    sessao: sessionNumber,
+    date: formatDateBr(row.updated_at ?? row.created_at),
+    scoreTotal: Number.isFinite(scoreTotal) ? Math.round(scoreTotal) : 0,
+    classification,
+    blocks,
   };
 }
 
@@ -447,6 +541,7 @@ function buildParticipantTests(rows: TestSessionResultRow[]): Participant["tests
   const twoMstSignals: Record<number, TwoMstSignalPoint[]> = {};
   const sl30sSessions: Sl30sSession[] = [];
   const sl30sSignals: Record<number, Sl30sSignalPoint[]> = {};
+  const ivcfSessions: IvcfSession[] = [];
 
   for (const row of orderedRows) {
     const testType = String(row.test_type ?? "").toUpperCase();
@@ -475,10 +570,18 @@ function buildParticipantTests(rows: TestSessionResultRow[]): Participant["tests
       if (signal.length) {
         sl30sSignals[session.sessao] = signal;
       }
+
+      continue;
+    }
+
+    if (testType === "IVCF20") {
+      const session = mapIvcfSession(row);
+      if (!session) continue;
+      ivcfSessions.push(session);
     }
   }
 
-  if (!twoMstSessions.length && !sl30sSessions.length) return undefined;
+  if (!twoMstSessions.length && !sl30sSessions.length && !ivcfSessions.length) return undefined;
 
   return {
     has2MST: twoMstSessions.length > 0,
@@ -487,7 +590,32 @@ function buildParticipantTests(rows: TestSessionResultRow[]): Participant["tests
     hasSL30S: sl30sSessions.length > 0,
     sl30sSessions,
     sl30sSignals,
+    hasIVCF20: ivcfSessions.length > 0,
+    ivcfSessions,
   };
+}
+
+function applyLatestIvcf(participant: Participant, tests?: Participant["tests"]): Participant {
+  const latestIvcf = tests?.ivcfSessions?.[tests.ivcfSessions.length - 1];
+
+  if (!latestIvcf) return tests ? { ...participant, tests } : participant;
+
+  return {
+    ...participant,
+    ivcfScore: latestIvcf.scoreTotal,
+    ivcfClass: latestIvcf.classification,
+    blocks: latestIvcf.blocks,
+    tests,
+  };
+}
+
+function buildParticipantWithResults(
+  row: ParticipantRow,
+  resultRows: TestSessionResultRow[],
+): Participant {
+  const base = mapParticipant(row);
+  const tests = buildParticipantTests(resultRows);
+  return applyLatestIvcf(base, tests);
 }
 
 export function getFallbackParticipant(): Participant {
@@ -495,18 +623,45 @@ export function getFallbackParticipant(): Participant {
 }
 
 export async function listParticipants(): Promise<Participant[]> {
-  const { data, error } = await supabase
-    .from("participants")
-    .select(
-      "id, full_name, cpf, birth_date, sex, created_by, owner_student_id, owner_professor_id, city, state, created_at, updated_at",
-    )
-    .order("full_name", { ascending: true });
+  const [participantsResult, resultsResult] = await Promise.all([
+    supabase
+      .from("participants")
+      .select(
+        "id, full_name, cpf, birth_date, sex, created_by, owner_student_id, owner_professor_id, city, state, created_at, updated_at",
+      )
+      .order("full_name", { ascending: true }),
 
-  if (error) {
-    throw new Error(error.message);
+    supabase
+      .from("test_session_results")
+      .select(
+        "participant_id, test_type, session_number, metrics_json, plot_json, created_at, updated_at",
+      )
+      .in("test_type", ["MARCHA", "IVCF20"])
+      .order("session_number", { ascending: true }),
+  ]);
+
+  if (participantsResult.error) {
+    throw new Error(participantsResult.error.message);
   }
 
-  const real = (data ?? []).map((row) => mapParticipant(row as ParticipantRow));
+  if (resultsResult.error) {
+    throw new Error(resultsResult.error.message);
+  }
+
+  const rows = (participantsResult.data ?? []) as ParticipantRow[];
+  const results = (resultsResult.data ?? []) as TestSessionResultRow[];
+
+  const resultsByParticipant = new Map<string, TestSessionResultRow[]>();
+  for (const row of results) {
+    const key = row.participant_id;
+    const bucket = resultsByParticipant.get(key) ?? [];
+    bucket.push(row);
+    resultsByParticipant.set(key, bucket);
+  }
+
+  const real = rows.map((row) =>
+    buildParticipantWithResults(row, resultsByParticipant.get(row.id) ?? []),
+  );
   const hasMariaMockAlready = real.some((participant) => participant.id === mariaSilvaMock.id);
 
   return hasMariaMockAlready ? real : [mariaSilvaMock, ...real];
@@ -532,7 +687,7 @@ export async function getParticipantById(id: string): Promise<Participant | null
         "participant_id, test_type, session_number, metrics_json, plot_json, created_at, updated_at",
       )
       .eq("participant_id", id)
-      .in("test_type", ["MARCHA", "SL30S"])
+      .in("test_type", ["MARCHA", "SL30S", "IVCF20"])
       .order("session_number", { ascending: true }),
   ]);
 
@@ -546,8 +701,8 @@ export async function getParticipantById(id: string): Promise<Participant | null
 
   if (!participantResult.data) return null;
 
-  const participant = mapParticipant(participantResult.data as ParticipantRow);
-  const tests = buildParticipantTests((resultsResult.data ?? []) as TestSessionResultRow[]);
-
-  return tests ? { ...participant, tests } : participant;
+  return buildParticipantWithResults(
+    participantResult.data as ParticipantRow,
+    (resultsResult.data ?? []) as TestSessionResultRow[],
+  );
 }

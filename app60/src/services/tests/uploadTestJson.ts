@@ -162,12 +162,7 @@ function fileStamp() {
 }
 
 function getDbTestType(testType: SupportedTestType): string {
-  switch (testType) {
-    case "IVCF20":
-      return "IVCF_20";
-    default:
-      return testType;
-  }
+  return testType;
 }
 
 function asFiniteNumber(value: unknown, fallback = 0): number {

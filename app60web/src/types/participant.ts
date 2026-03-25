@@ -1,9 +1,13 @@
-export type ParticipantBlockScores = {
-  Idade: number;
-  Percepção: number;
-  AVD: number;
-  Humor: number;
-  Mobilidade: number;
+export type ParticipantBlockScores = Record<string, number>;
+
+export type IvcfClassification = "Robusto" | "Pré-Frágil" | "Frágil";
+
+export type IvcfSession = {
+  sessao: number;
+  date: string;
+  scoreTotal: number;
+  classification?: IvcfClassification;
+  blocks: ParticipantBlockScores;
 };
 
 export type TwoMstStrategyLabel =
@@ -94,6 +98,8 @@ export type ParticipantTestSummary = {
   hasSL30S?: boolean;
   sl30sSessions?: Sl30sSession[];
   sl30sSignals?: Record<number, Sl30sSignalPoint[]>;
+  hasIVCF20?: boolean;
+  ivcfSessions?: IvcfSession[];
 };
 
 export type Participant = {
@@ -111,7 +117,7 @@ export type Participant = {
   createdAt?: string;
   updatedAt?: string;
   ivcfScore?: number;
-  ivcfClass?: "Robusto" | "Pré-Frágil" | "Frágil";
+  ivcfClass?: IvcfClassification;
   blocks?: ParticipantBlockScores;
   tests?: ParticipantTestSummary;
 };
