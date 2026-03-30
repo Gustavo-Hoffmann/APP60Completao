@@ -508,9 +508,9 @@ export function Sl30sSection({ participant }: Props) {
                 <Line
                   type="monotone"
                   dataKey="repeticoes"
-                  stroke="#166534"
+                  stroke="#b91c1c"
                   strokeWidth={3}
-                  dot={{ r: 4, fill: "#166534" }}
+                  dot={{ r: 4, fill: "#b91c1c" }}
                   activeDot={{ r: 7 }}
                 />
               </LineChart>
@@ -633,12 +633,12 @@ export function Sl30sSection({ participant }: Props) {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-emerald-100 bg-emerald-50/30 p-3">
+          <div className="rounded-3xl border border-red-100 bg-red-50/30 p-3">
             <div className="h-72">
               {selectedSignal.length ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={selectedSignal}>
-                    <CartesianGrid stroke="#d1fae5" strokeDasharray="2 2" />
+                    <CartesianGrid stroke="#fecaca" strokeDasharray="2 2" />
 
                     <XAxis
                       dataKey="time"
@@ -675,7 +675,7 @@ export function Sl30sSection({ participant }: Props) {
                     <Line
                       type="monotone"
                       dataKey="value"
-                      stroke="#166534"
+                      stroke="#b91c1c"
                       strokeWidth={2.5}
                       dot={false}
                       isAnimationActive={false}
