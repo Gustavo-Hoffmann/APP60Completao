@@ -12,6 +12,16 @@ export function AppShell() {
   }, []);
 
   useEffect(() => {
+    const root = document.documentElement;
+    const syncTheme = () => setIsDark(root.classList.contains("dark"));
+
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
     localStorage.setItem("app60-theme", isDark ? "dark" : "light");
   }, [isDark]);
@@ -23,9 +33,9 @@ export function AppShell() {
         isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900",
       ].join(" ")}
     >
-      <AppSidebar isDark={isDark} onToggleTheme={() => setIsDark((prev) => !prev)} />
+      <AppSidebar isDark={isDark} />
 
-      <main className="flex-1">
+      <main className="app-content flex-1">
         <Outlet context={{ isDark }} />
       </main>
     </div>

@@ -10,4 +10,8 @@ export const routes = {
   questionnaires: "/questionnaires",
   tests: "/tests",
   test2mst: "/tests/2mst",
+  testSl30s: "/tests/sl30s",
+  testTug: "/tests/tug",
+  testUtt: "/tests/utt",
+  testLos: "/tests/los",
 };

@@ -10,6 +10,10 @@ import { ParticipantDetailPage } from "../features/participants/pages/Participan
 import { QuestionnairesPage } from "../features/questionnaires/pages/QuestionnairesPage";
 import { TestsHubPage } from "../features/tests/pages/TestsHubPage";
 import { Test2MSTPage } from "../features/tests/marcha-estacionaria/pages/Test2MSTPage";
+import { TestSL30sPage } from "../features/tests/sentar-levantar/pages/TestSL30sPage";
+import { TestTUGPage } from "../features/tests/tug/pages/TestTUGPage";
+import { TestUTTPage } from "../features/tests/utt/pages/TestUTTPage";
+import { TestLOSPage } from "../features/tests/los/pages/TestLOSPage";
 import { routes } from "../navigation/routes";
 import { useAuth } from "../contexts/AuthContext";
 import type { Role } from "../types/auth";
@@ -85,6 +89,10 @@ export const router = createBrowserRouter([
           { path: routes.questionnaires.slice(1), element: <QuestionnairesPage /> },
           { path: routes.tests.slice(1), element: <TestsHubPage /> },
           { path: "tests/2mst", element: <Test2MSTPage /> },
+          { path: "tests/sl30s", element: <TestSL30sPage /> },
+          { path: "tests/tug", element: <TestTUGPage /> },
+          { path: "tests/utt", element: <TestUTTPage /> },
+          { path: "tests/los", element: <TestLOSPage /> },
         ],
       },
     ],

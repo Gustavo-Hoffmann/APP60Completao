@@ -73,7 +73,7 @@ const baseItems: CarouselItem[] = [
     testKey: "tug",
     title: "Time Up and Go",
     nextRoute: Routes.Test_TUG,
-    image: require("../../../assets/tests/tug.jpeg"),
+    image: require("../../../assets/tests/tug.png"),
   },
   {
     key: "questionarios",

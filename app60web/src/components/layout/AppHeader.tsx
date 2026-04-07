@@ -1,4 +1,4 @@
-import { Bell, LogOut, Search } from "lucide-react";
+import { Bell, LogOut, Moon, Search, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
@@ -16,12 +16,28 @@ export function AppHeader({ title, subtitle }: Props) {
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    setIsDark(document.documentElement.classList.contains("dark"));
+    const root = document.documentElement;
+    const updateTheme = () => setIsDark(root.classList.contains("dark"));
+
+    updateTheme();
+
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+
+    return () => observer.disconnect();
   }, []);
 
   async function handleLogout() {
     await logout();
     navigate(routes.login, { replace: true });
+  }
+
+  function handleToggleTheme() {
+    const root = document.documentElement;
+    const nextIsDark = !root.classList.contains("dark");
+    root.classList.toggle("dark", nextIsDark);
+    localStorage.setItem("app60-theme", nextIsDark ? "dark" : "light");
+    setIsDark(nextIsDark);
   }
 
   return (
@@ -55,6 +71,21 @@ export function AppHeader({ title, subtitle }: Props) {
             <Search size={16} className="absolute left-3 top-3 text-slate-400" />
             <Input placeholder="Buscar..." className="w-72 pl-10" />
           </div>
+
+          <button
+            type="button"
+            onClick={handleToggleTheme}
+            aria-label={isDark ? "Ativar modo claro" : "Ativar modo noturno"}
+            title={isDark ? "Modo claro" : "Modo noturno"}
+            className={[
+              "rounded-xl border p-2.5 transition",
+              isDark
+                ? "border-slate-700 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white"
+                : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800",
+            ].join(" ")}
+          >
+            {isDark ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
 
           <button
             type="button"

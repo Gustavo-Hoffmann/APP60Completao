@@ -1,14 +1,38 @@
 import { ClipboardList, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { StatCard } from "../../../components/ui/StatCard";
-import { mariaSilvaMock } from "../../../mocks/participants";
+import type { Participant } from "../../../types/participant";
+import { listParticipants } from "../../participants/services/participants";
 
 export function QuestionnairesPage() {
-  const participants = [mariaSilvaMock];
+  const [participants, setParticipants] = useState<Participant[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function load() {
+      try {
+        const data = await listParticipants();
+        if (!mounted) return;
+        setParticipants(data.filter((participant) => participant.id !== "example-maria-silva"));
+      } catch {
+        if (!mounted) return;
+        setParticipants([]);
+      }
+    }
+
+    void load();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const total = participants.length;
   const fragile = participants.filter((p) => p.ivcfClass === "Frágil").length;
   const preFragile = participants.filter((p) => p.ivcfClass === "Pré-Frágil").length;
+  const hasParticipants = useMemo(() => participants.length > 0, [participants]);
 
   return (
     <div>
@@ -49,19 +73,27 @@ export function QuestionnairesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {participants.map((participant) => (
-                <tr key={participant.id}>
-                  <td className="px-6 py-4 font-medium text-slate-800">
-                    {participant.name}
-                  </td>
-                  <td className="px-6 py-4 text-slate-500">
-                    {participant.ivcfScore ?? "-"}
-                  </td>
-                  <td className="px-6 py-4 text-slate-500">
-                    {participant.ivcfClass ?? "-"}
+              {hasParticipants ? (
+                participants.map((participant) => (
+                  <tr key={participant.id}>
+                    <td className="px-6 py-4 font-medium text-slate-800">
+                      {participant.name}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500">
+                      {participant.ivcfScore ?? "-"}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500">
+                      {participant.ivcfClass ?? "-"}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="px-6 py-6 text-slate-500" colSpan={3}>
+                    Nenhum participante disponível.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

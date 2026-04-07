@@ -11,17 +11,22 @@ const tests = [
   {
     name: "SL-30s",
     description: "Sentar e levantar em 30 segundos",
-    path: "#",
+    path: routes.testSl30s,
   },
   {
     name: "TUG",
     description: "Timed Up and Go",
-    path: "#",
+    path: routes.testTug,
   },
   {
     name: "LOS",
     description: "Limite de estabilidade",
-    path: "#",
+    path: routes.testLos,
+  },
+  {
+    name: "UTT",
+    description: "Up on the Toes Test",
+    path: routes.testUtt,
   },
 ];
 
@@ -42,18 +47,12 @@ export function TestsHubPage() {
             <h2 className="text-lg font-bold text-slate-900">{test.name}</h2>
             <p className="mt-2 text-sm text-slate-500">{test.description}</p>
 
-            {test.path === "#" ? (
-              <span className="mt-4 inline-block text-sm font-medium text-slate-400">
-                Em desenvolvimento
-              </span>
-            ) : (
-              <Link
-                to={test.path}
-                className="mt-4 inline-block text-sm font-semibold text-brand-700 hover:text-brand-800"
-              >
-                Abrir módulo
-              </Link>
-            )}
+            <Link
+              to={test.path}
+              className="mt-4 inline-block text-sm font-semibold text-brand-700 hover:text-brand-800"
+            >
+              Abrir módulo
+            </Link>
           </div>
         ))}
       </div>

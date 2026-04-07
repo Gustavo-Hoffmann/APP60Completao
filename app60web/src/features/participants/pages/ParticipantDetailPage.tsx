@@ -25,6 +25,7 @@ import {
 
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { Card } from "../../../components/ui/Card";
+import { supabase } from "../../../lib/supabase/client";
 import { routes } from "../../../navigation/routes";
 import type { IvcfSession, Participant, Sl30sSession, TwoMstSession } from "../../../types/participant";
 import { getParticipantById } from "../services/participants";
@@ -85,7 +86,7 @@ function TinyMetricChart<T extends { sessao: number }>({
               tickLine={false}
             />
             <Tooltip
-              cursor={{ fill: "#f8fafc" }}
+              cursor={{ fill: "rgba(59, 130, 246, 0.14)" }}
               contentStyle={{
                 borderRadius: 12,
                 border: "1px solid #e2e8f0",
@@ -625,6 +626,7 @@ export function ParticipantDetailPage() {
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [relatedNames, setRelatedNames] = useState<Record<string, string>>({});
 
   const [openedTest, setOpenedTest] = useState<OpenedTest>(null);
   const [selectedTwoMstSession, setSelectedTwoMstSession] = useState<number>(1);
@@ -658,6 +660,53 @@ export function ParticipantDetailPage() {
       mounted = false;
     };
   }, [id]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadRelatedNames() {
+      if (!participant) return;
+
+      const ids = Array.from(
+        new Set(
+          [participant.createdByUserId, participant.professorId, participant.studentId]
+            .filter(Boolean)
+            .map((value) => String(value)),
+        ),
+      );
+
+      if (!ids.length) {
+        if (mounted) setRelatedNames({});
+        return;
+      }
+
+      const { data, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, name")
+        .in("id", ids);
+
+      if (!mounted) return;
+      if (profileError) {
+        setRelatedNames({});
+        return;
+      }
+
+      const nextNames: Record<string, string> = {};
+      for (const row of data ?? []) {
+        const item = row as { id?: string; name?: string | null };
+        if (item.id) {
+          nextNames[item.id] = item.name?.trim() || item.id;
+        }
+      }
+      setRelatedNames(nextNames);
+    }
+
+    void loadRelatedNames();
+
+    return () => {
+      mounted = false;
+    };
+  }, [participant]);
 
   const twoMstSessions = useMemo(() => participant?.tests?.twoMstSessions ?? [], [participant]);
   const sl30sSessions = useMemo(() => participant?.tests?.sl30sSessions ?? [], [participant]);
@@ -733,6 +782,13 @@ export function ParticipantDetailPage() {
   }
 
   const cityState = [participant.city, participant.state].filter(Boolean).join(" / ") || "—";
+  const createdByName = relatedNames[participant.createdByUserId] ?? participant.createdByUserId;
+  const professorName = participant.professorId
+    ? (relatedNames[participant.professorId] ?? participant.professorId)
+    : null;
+  const studentName = participant.studentId
+    ? (relatedNames[participant.studentId] ?? participant.studentId)
+    : null;
 
   const has2Mst = Boolean(participant.tests?.has2MST && twoMstSessions.length);
   const hasSl30s = Boolean(participant.tests?.hasSL30S && sl30sSessions.length);
@@ -823,9 +879,9 @@ export function ParticipantDetailPage() {
           <DetailItem label="Sexo" value={participant.sex} />
           <DetailItem label="Cidade / Estado" value={cityState} />
           <DetailItem label="Data de nascimento" value={participant.dob} />
-          <DetailItem label="Criado por" value={participant.createdByUserId} />
-          <DetailItem label="Professor" value={participant.professorId} />
-          <DetailItem label="Aluno/Pesquisador" value={participant.studentId} />
+          <DetailItem label="Criado por" value={createdByName} />
+          <DetailItem label="Professor" value={professorName} />
+          <DetailItem label="Aluno/Pesquisador" value={studentName} />
         </section>
 
         {showIvcfDetails ? (
@@ -1134,8 +1190,8 @@ export function ParticipantDetailPage() {
                         <Line
                           type="monotone"
                           dataKey="value"
-                          stroke="#dc2626"
-                          strokeWidth={2}
+                          stroke="#ff4d8d"
+                          strokeWidth={2.8}
                           dot={false}
                           isAnimationActive={false}
                         />
@@ -1426,11 +1482,11 @@ export function ParticipantDetailPage() {
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-3">
+                <div className="rounded-3xl border border-blue-100 bg-blue-50/40 p-3">
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={selectedSl30sSignal}>
-                        <CartesianGrid stroke="#dcfce7" strokeDasharray="2 2" />
+                        <CartesianGrid stroke="#dbeafe" strokeDasharray="2 2" />
 
                         <XAxis
                           dataKey="time"
@@ -1467,8 +1523,8 @@ export function ParticipantDetailPage() {
                         <Line
                           type="monotone"
                           dataKey="value"
-                          stroke="#166534"
-                          strokeWidth={2}
+                          stroke="#ff4d8d"
+                          strokeWidth={2.8}
                           dot={false}
                           isAnimationActive={false}
                         />

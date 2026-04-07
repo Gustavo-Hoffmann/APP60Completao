@@ -1,4 +1,5 @@
 import { Activity, ClipboardList, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -12,13 +13,28 @@ import {
 } from "recharts";
 import { AppHeader } from "../../../../components/layout/AppHeader";
 import { StatCard } from "../../../../components/ui/StatCard";
-import {
-  monthlyData2MST,
-  participant2MSTList,
-  statsData2MST,
-} from "../mocks";
+import type { Participant } from "../../../../types/participant";
+import { listParticipants } from "../../../participants/services/participants";
+import { summarize2Mst } from "../../lib/overview";
 
 export function Test2MSTPage() {
+  const [participants, setParticipants] = useState<Participant[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      const data = await listParticipants();
+      if (!mounted) return;
+      setParticipants(data.filter((participant) => participant.id !== "example-maria-silva"));
+    }
+    void load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const { stats, monthly, list } = useMemo(() => summarize2Mst(participants), [participants]);
+
   return (
     <div>
       <AppHeader
@@ -30,19 +46,19 @@ export function Test2MSTPage() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <StatCard
             title="Participantes Totais"
-            value={statsData2MST.participantes}
+            value={stats.participantes}
             icon={Users}
             subtitle="Participantes com cadastro"
           />
           <StatCard
             title="Coletas no Mês"
-            value={statsData2MST.coletasMes}
+            value={stats.coletasMes}
             icon={ClipboardList}
             subtitle="Coletas recentes do 2MST"
           />
           <StatCard
             title="Coletas Totais"
-            value={statsData2MST.coletasTotal}
+            value={stats.coletasTotal}
             icon={Activity}
             subtitle="Histórico acumulado"
           />
@@ -54,7 +70,7 @@ export function Test2MSTPage() {
           </h2>
           <div className="h-[380px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyData2MST} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={monthly} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
@@ -82,7 +98,7 @@ export function Test2MSTPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {participant2MSTList.map((item) => (
+                {list.map((item) => (
                   <tr key={item.participantId}>
                     <td className="px-6 py-4 font-medium text-slate-800">
                       {item.participantName}
@@ -93,6 +109,13 @@ export function Test2MSTPage() {
                     <td className="px-6 py-4 text-slate-500">{item.cadenciaUltima}</td>
                   </tr>
                 ))}
+                {list.length === 0 ? (
+                  <tr>
+                    <td className="px-6 py-6 text-slate-500" colSpan={5}>
+                      Ainda não existem dados reais de 2MST vinculados aos participantes.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>

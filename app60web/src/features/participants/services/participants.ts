@@ -662,9 +662,7 @@ export async function listParticipants(): Promise<Participant[]> {
   const real = rows.map((row) =>
     buildParticipantWithResults(row, resultsByParticipant.get(row.id) ?? []),
   );
-  const hasMariaMockAlready = real.some((participant) => participant.id === mariaSilvaMock.id);
-
-  return hasMariaMockAlready ? real : [mariaSilvaMock, ...real];
+  return real;
 }
 
 export async function getParticipantById(id: string): Promise<Participant | null> {

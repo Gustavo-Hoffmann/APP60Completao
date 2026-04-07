@@ -26,3 +26,94 @@ html.dark #root {
   background: #020617;
   color: #f8fafc;
 }
+
+/* Dark mode visual polish for dashboard content. */
+html.dark .app-content {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(56, 189, 248, 0.08), transparent 45%),
+    radial-gradient(900px 500px at 90% 0%, rgba(59, 130, 246, 0.1), transparent 50%),
+    #020617;
+}
+
+html.dark .app-content .bg-white,
+html.dark .app-content .bg-white\/90,
+html.dark .app-content .bg-white\/70 {
+  background-color: #0b1324 !important;
+}
+
+html.dark .app-content .bg-slate-50,
+html.dark .app-content .bg-slate-50\/70 {
+  background-color: #111b31 !important;
+}
+
+html.dark .app-content .bg-slate-100 {
+  background-color: #16223b !important;
+}
+
+html.dark .app-content .border-slate-200,
+html.dark .app-content .border-slate-100 {
+  border-color: #2a3d63 !important;
+}
+
+html.dark .app-content .shadow-sm {
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.35) !important;
+}
+
+html.dark .app-content .text-slate-900 {
+  color: #e6f1ff !important;
+}
+
+html.dark .app-content .text-slate-800 {
+  color: #d4e4ff !important;
+}
+
+html.dark .app-content .text-slate-700 {
+  color: #c0d5f8 !important;
+}
+
+html.dark .app-content .text-slate-600,
+html.dark .app-content .text-slate-500,
+html.dark .app-content .text-slate-400 {
+  color: #8ea7cc !important;
+}
+
+/* Soften colored chips/cards to match neon dark theme. */
+html.dark .app-content .bg-blue-50,
+html.dark .app-content .bg-blue-50\/40,
+html.dark .app-content .bg-blue-50\/70 {
+  background-color: rgba(37, 99, 235, 0.16) !important;
+}
+
+html.dark .app-content .border-blue-100,
+html.dark .app-content .border-blue-200 {
+  border-color: rgba(59, 130, 246, 0.45) !important;
+}
+
+html.dark .app-content .bg-emerald-50,
+html.dark .app-content .bg-emerald-50\/40,
+html.dark .app-content .bg-emerald-50\/70 {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+}
+
+html.dark .app-content .bg-red-50,
+html.dark .app-content .bg-red-50\/30,
+html.dark .app-content .bg-red-50\/70 {
+  background-color: rgba(239, 68, 68, 0.14) !important;
+}
+
+/* Recharts tooltip and hover layer */
+html.dark .app-content .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: rgba(11, 19, 36, 0.96) !important;
+  border: 1px solid #2a3d63 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45) !important;
+}
+
+html.dark .app-content .recharts-tooltip-item,
+html.dark .app-content .recharts-tooltip-label {
+  color: #d4e4ff !important;
+}
+
+html.dark .app-content .recharts-cartesian-grid line {
+  stroke: rgba(148, 163, 184, 0.34) !important;
+}

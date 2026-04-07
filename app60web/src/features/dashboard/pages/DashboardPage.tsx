@@ -108,8 +108,10 @@ type SelectedState = {
 
 function GoogleGeoChart({
   onSelectState,
+  isDark,
 }: {
   onSelectState: (state: SelectedState) => void;
+  isDark: boolean;
 }) {
   const [chartLoaded, setChartLoaded] = useState(false);
 
@@ -142,12 +144,17 @@ function GoogleGeoChart({
       const options = {
         region: "BR",
         resolution: "provinces",
-        colorAxis: { colors: ["#dbeafe", "#2563eb"] },
+        colorAxis: isDark
+          ? { colors: ["#bfdbfe", "#172554"] }
+          : { colors: ["#dbeafe", "#2563eb"] },
         backgroundColor: "transparent",
-        datalessRegionColor: "#f8fafc",
-        defaultColor: "#f1f5f9",
+        datalessRegionColor: isDark ? "#0f172a" : "#f8fafc",
+        defaultColor: isDark ? "#1e293b" : "#f1f5f9",
         legend: "none",
-        tooltip: { textStyle: { color: "#334155" }, showColorCode: true },
+        tooltip: {
+          textStyle: { color: isDark ? "#dbeafe" : "#334155" },
+          showColorCode: true,
+        },
         enableRegionInteractivity: true,
       };
 
@@ -173,20 +180,41 @@ function GoogleGeoChart({
     drawChart();
     window.addEventListener("resize", drawChart);
     return () => window.removeEventListener("resize", drawChart);
-  }, [chartLoaded, onSelectState]);
+  }, [chartLoaded, onSelectState, isDark]);
 
   return (
-    <div className="relative flex h-[600px] w-full items-center justify-center rounded-2xl bg-slate-50/60">
+    <div
+      className={[
+        "relative flex h-[600px] w-full items-center justify-center rounded-2xl",
+        isDark ? "bg-blue-400/25" : "bg-slate-50/60",
+      ].join(" ")}
+    >
       <div
         id="google-map-container"
         className="h-full w-full overflow-hidden rounded-2xl"
       />
-      <div className="pointer-events-none absolute bottom-4 left-4 rounded-xl border border-slate-200 bg-white/95 p-3 text-xs shadow-sm backdrop-blur-sm">
-        <p className="mb-2 font-bold text-slate-700">Densidade</p>
+      <div
+        className={[
+          "pointer-events-none absolute bottom-4 left-4 rounded-xl border p-3 text-xs shadow-sm backdrop-blur-sm",
+          isDark
+            ? "border-slate-700 bg-slate-950/85"
+            : "border-slate-200 bg-white/95",
+        ].join(" ")}
+      >
+        <p className={["mb-2 font-bold", isDark ? "text-slate-200" : "text-slate-700"].join(" ")}>
+          Densidade
+        </p>
         <div className="mb-1 flex items-center gap-2">
-          <div className="h-2 w-20 rounded-full bg-gradient-to-r from-blue-100 to-blue-600" />
+          <div
+            className={[
+              "h-2 w-20 rounded-full",
+              isDark
+                ? "bg-gradient-to-r from-blue-200 to-blue-900"
+                : "bg-gradient-to-r from-blue-100 to-blue-600",
+            ].join(" ")}
+          />
         </div>
-        <div className="flex justify-between text-[10px] text-slate-500">
+        <div className={["flex justify-between text-[10px]", isDark ? "text-slate-400" : "text-slate-500"].join(" ")}>
           <span>Baixa</span>
           <span>Alta</span>
         </div>
@@ -198,26 +226,43 @@ function GoogleGeoChart({
 function CityDetailView({
   state,
   onBack,
+  isDark,
 }: {
   state: SelectedState;
   onBack: () => void;
+  isDark: boolean;
 }) {
   const cities = cityDataMock[state.id] || [];
 
   return (
-    <div className="flex h-[600px] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between rounded-t-2xl border-b border-slate-200 bg-slate-50 px-4 py-4">
+    <div
+      className={[
+        "flex h-[600px] flex-col rounded-2xl border shadow-sm",
+        isDark ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white",
+      ].join(" ")}
+    >
+      <div
+        className={[
+          "flex items-center justify-between rounded-t-2xl border-b px-4 py-4",
+          isDark ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-slate-50",
+        ].join(" ")}
+      >
         <button
           onClick={onBack}
-          className="flex items-center text-sm font-medium text-slate-500 transition-colors hover:text-blue-600"
+          className={[
+            "flex items-center text-sm font-medium transition-colors hover:text-blue-500",
+            isDark ? "text-slate-300" : "text-slate-500",
+          ].join(" ")}
         >
           <ArrowLeft size={16} className="mr-2" />
           Voltar ao mapa nacional
         </button>
-        <h3 className="text-lg font-bold text-slate-700">{state.name}</h3>
+        <h3 className={["text-lg font-bold", isDark ? "text-slate-100" : "text-slate-700"].join(" ")}>
+          {state.name}
+        </h3>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6">
+      <div className={["flex-1 overflow-y-auto p-6", isDark ? "bg-slate-900" : "bg-slate-50/50"].join(" ")}>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cities.length > 0 ? (
             cities.map((city, idx) => (
@@ -277,6 +322,18 @@ function CityDetailView({
 
 export function DashboardPage() {
   const [selectedState, setSelectedState] = useState<SelectedState | null>(null);
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const updateTheme = () => setIsDark(root.classList.contains("dark"));
+
+    updateTheme();
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -332,9 +389,9 @@ export function DashboardPage() {
           </div>
 
           {selectedState ? (
-            <CityDetailView state={selectedState} onBack={() => setSelectedState(null)} />
+            <CityDetailView state={selectedState} onBack={() => setSelectedState(null)} isDark={isDark} />
           ) : (
-            <GoogleGeoChart onSelectState={setSelectedState} />
+            <GoogleGeoChart onSelectState={setSelectedState} isDark={isDark} />
           )}
         </section>
       </main>

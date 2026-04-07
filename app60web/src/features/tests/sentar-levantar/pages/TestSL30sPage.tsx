@@ -1,4 +1,5 @@
 import { Activity, ClipboardList, Repeat, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -10,13 +11,28 @@ import {
 } from "recharts";
 import { AppHeader } from "../../../../components/layout/AppHeader";
 import { StatCard } from "../../../../components/ui/StatCard";
-import {
-  monthlyDataSL30s,
-  participantSL30sList,
-  statsDataSL30s,
-} from "../mocks";
+import type { Participant } from "../../../../types/participant";
+import { listParticipants } from "../../../participants/services/participants";
+import { summarizeSl30s } from "../../lib/overview";
 
 export function TestSL30sPage() {
+  const [participants, setParticipants] = useState<Participant[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      const data = await listParticipants();
+      if (!mounted) return;
+      setParticipants(data.filter((participant) => participant.id !== "example-maria-silva"));
+    }
+    void load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const { stats, monthly, list } = useMemo(() => summarizeSl30s(participants), [participants]);
+
   return (
     <div>
       <AppHeader
@@ -28,25 +44,25 @@ export function TestSL30sPage() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
           <StatCard
             title="Participantes Totais"
-            value={statsDataSL30s.participantes}
+            value={stats.participantes}
             icon={Users}
             subtitle="Participantes com SL-30s"
           />
           <StatCard
             title="Coletas no Mês"
-            value={statsDataSL30s.coletasMes}
+            value={stats.coletasMes}
             icon={ClipboardList}
             subtitle="Sessões recentes"
           />
           <StatCard
             title="Repetições Médias"
-            value={statsDataSL30s.repsMedias}
+            value={stats.repsMedias}
             icon={Repeat}
             subtitle="Repetições por teste"
           />
           <StatCard
             title="Coletas Totais"
-            value={statsDataSL30s.coletasTotal}
+            value={stats.coletasTotal}
             icon={Activity}
             subtitle="Histórico acumulado"
           />
@@ -59,7 +75,7 @@ export function TestSL30sPage() {
           <div className="h-[380px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={monthlyDataSL30s}
+                data={monthly}
                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
               >
                 <CartesianGrid
@@ -114,7 +130,7 @@ export function TestSL30sPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {participantSL30sList.map((item) => (
+                {list.map((item) => (
                   <tr key={item.participantId}>
                     <td className="px-6 py-4 font-medium text-slate-800">
                       {item.participantName}
@@ -129,6 +145,13 @@ export function TestSL30sPage() {
                     </td>
                   </tr>
                 ))}
+                {list.length === 0 ? (
+                  <tr>
+                    <td className="px-6 py-6 text-slate-500" colSpan={5}>
+                      Ainda não existem dados reais de SL-30s vinculados aos participantes.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>

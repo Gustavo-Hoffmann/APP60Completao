@@ -55,7 +55,7 @@ function TinyMetricChart({
               tickLine={false}
             />
             <Tooltip
-              cursor={{ fill: "#f8fafc" }}
+              cursor={{ fill: "rgba(59, 130, 246, 0.14)" }}
               contentStyle={{
                 borderRadius: 12,
                 border: "1px solid #e2e8f0",
@@ -382,8 +382,8 @@ export function TwoMstSection({ participant }: Props) {
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke="#dc2626"
-                    strokeWidth={2}
+                    stroke="#ff4d8d"
+                    strokeWidth={2.8}
                     dot={false}
                     isAnimationActive={false}
                   />

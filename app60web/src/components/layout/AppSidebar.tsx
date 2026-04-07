@@ -2,9 +2,6 @@ import {
   Activity,
   ClipboardList,
   LayoutDashboard,
-  Moon,
-  Settings,
-  Sun,
   UserCircle2,
   Users,
 } from "lucide-react";
@@ -23,7 +20,6 @@ type SidebarItem = {
 
 type Props = {
   isDark: boolean;
-  onToggleTheme: () => void;
 };
 
 const items: SidebarItem[] = [
@@ -71,7 +67,7 @@ function getInitials(name?: string) {
     .join("");
 }
 
-export function AppSidebar({ isDark, onToggleTheme }: Props) {
+export function AppSidebar({ isDark }: Props) {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -83,27 +79,28 @@ export function AppSidebar({ isDark, onToggleTheme }: Props) {
   return (
     <aside
       className={[
-        "hidden w-72 shrink-0 border-r lg:flex lg:flex-col",
+        "hidden w-72 shrink-0 border-r lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col",
         isDark
           ? "border-slate-800 bg-slate-900"
           : "border-slate-200 bg-white",
       ].join(" ")}
     >
-      <div className="flex items-center gap-3 px-6 py-6">
-        <div className="rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 p-3 text-white shadow-lg shadow-blue-200">
-          <Activity size={24} />
-        </div>
-        <div>
-          <div className={["text-lg font-bold", isDark ? "text-white" : "text-slate-900"].join(" ")}>
-            App60 Web
-          </div>
-          <div className={["text-xs", isDark ? "text-slate-400" : "text-slate-500"].join(" ")}>
-            Painel de gestão
-          </div>
+      <div className="px-5 py-5">
+        <img
+          src={isDark ? "/logo-seniorsense-dark.png" : "/logo-seniorsense.png"}
+          alt="SeniorSense 60+"
+          className="h-35 w-auto max-w-full object-contain object-left"
+        />
+        <div
+          className={[
+            "mt-2 text-xs",
+            isDark ? "text-slate-400" : "text-slate-500",
+          ].join(" ")}
+        >
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3">
         {visibleItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
@@ -160,34 +157,6 @@ export function AppSidebar({ isDark, onToggleTheme }: Props) {
           </div>
 
           <UserCircle2 size={18} className={isDark ? "text-slate-500" : "text-slate-400"} />
-        </button>
-
-        <button
-          type="button"
-          onClick={onToggleTheme}
-          className={[
-            "mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium transition",
-            isDark
-              ? "border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
-              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
-          ].join(" ")}
-        >
-          {isDark ? <Sun size={16} /> : <Moon size={16} />}
-          {isDark ? "Modo claro" : "Modo noturno"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => navigate(routes.myProfile)}
-          className={[
-            "flex w-full items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium transition",
-            isDark
-              ? "border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
-              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-100",
-          ].join(" ")}
-        >
-          <Settings size={16} />
-          Editar meu perfil
         </button>
       </div>
     </aside>

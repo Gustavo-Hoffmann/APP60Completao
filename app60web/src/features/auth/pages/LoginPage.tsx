@@ -50,8 +50,12 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-10">
       <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-soft">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">App60 Web</h1>
-          <p className="mt-2 text-sm text-slate-500">
+          <img
+            src="/logo-seniorsense.png"
+            alt="SeniorSense 60+"
+            className="mx-auto h-20 w-full max-w-[320px] object-contain"
+          />
+          <p className="mt-4 text-center text-sm text-slate-500">
             Entre com seu email e senha cadastrados pelo administrador.
           </p>
         </div>

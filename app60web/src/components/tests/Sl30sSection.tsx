@@ -208,7 +208,7 @@ function TinyMetricChart({
               tickLine={false}
             />
             <Tooltip
-              cursor={{ fill: "#f8fafc" }}
+              cursor={{ fill: "rgba(59, 130, 246, 0.14)" }}
               contentStyle={{
                 borderRadius: 12,
                 border: "1px solid #e2e8f0",
@@ -633,12 +633,12 @@ export function Sl30sSection({ participant }: Props) {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-red-100 bg-red-50/30 p-3">
+          <div className="rounded-3xl border border-blue-100 bg-blue-50/40 p-3">
             <div className="h-72">
               {selectedSignal.length ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={selectedSignal}>
-                    <CartesianGrid stroke="#fecaca" strokeDasharray="2 2" />
+                    <CartesianGrid stroke="#dbeafe" strokeDasharray="2 2" />
 
                     <XAxis
                       dataKey="time"
@@ -675,8 +675,8 @@ export function Sl30sSection({ participant }: Props) {
                     <Line
                       type="monotone"
                       dataKey="value"
-                      stroke="#b91c1c"
-                      strokeWidth={2.5}
+                      stroke="#ff4d8d"
+                      strokeWidth={2.8}
                       dot={false}
                       isAnimationActive={false}
                     />

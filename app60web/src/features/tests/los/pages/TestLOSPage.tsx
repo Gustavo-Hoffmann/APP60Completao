@@ -1,4 +1,5 @@
 import { Activity, ClipboardList, Timer, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -10,13 +11,45 @@ import {
 } from "recharts";
 import { AppHeader } from "../../../../components/layout/AppHeader";
 import { StatCard } from "../../../../components/ui/StatCard";
-import {
-  monthlyDataLOS,
-  participantLOSList,
-  statsDataLOS,
-} from "../mocks";
+import type { Participant } from "../../../../types/participant";
+import { listParticipants } from "../../../participants/services/participants";
+import { buildMonthlyCollections } from "../../lib/overview";
 
 export function TestLOSPage() {
+  const [participants, setParticipants] = useState<Participant[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      const data = await listParticipants();
+      if (!mounted) return;
+      setParticipants(data.filter((participant) => participant.id !== "example-maria-silva"));
+    }
+    void load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const monthly = useMemo(() => buildMonthlyCollections([]), []);
+  const stats = useMemo(
+    () => ({
+      participantes: participants.length,
+      coletasMes: 0,
+      coletasTotal: 0,
+      tempoMedio: 0,
+    }),
+    [participants.length],
+  );
+  const participantList: Array<{
+    participantId: string;
+    participantName: string;
+    sessoes: number;
+    ultimaData: string;
+    tempoMedioUltimo: string;
+    areaTotalUltima: string;
+  }> = [];
+
   return (
     <div>
       <AppHeader
@@ -28,25 +61,25 @@ export function TestLOSPage() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
           <StatCard
             title="Participantes Totais"
-            value={statsDataLOS.participantes}
+            value={stats.participantes}
             icon={Users}
             subtitle="Participantes com LOS"
           />
           <StatCard
             title="Coletas no Mês"
-            value={statsDataLOS.coletasMes}
+            value={stats.coletasMes}
             icon={ClipboardList}
             subtitle="Sessões recentes"
           />
           <StatCard
             title="Coletas Totais"
-            value={statsDataLOS.coletasTotal}
+            value={stats.coletasTotal}
             icon={Activity}
             subtitle="Histórico acumulado"
           />
           <StatCard
             title="Tempo Médio"
-            value={`${statsDataLOS.tempoMedio}s`}
+            value={`${stats.tempoMedio}s`}
             icon={Timer}
             subtitle="Tempo médio de teste"
           />
@@ -59,7 +92,7 @@ export function TestLOSPage() {
           <div className="h-[380px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={monthlyDataLOS}
+                data={monthly}
                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
               >
                 <CartesianGrid
@@ -114,7 +147,7 @@ export function TestLOSPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {participantLOSList.map((item) => (
+                {participantList.map((item) => (
                   <tr key={item.participantId}>
                     <td className="px-6 py-4 font-medium text-slate-800">
                       {item.participantName}
@@ -129,6 +162,13 @@ export function TestLOSPage() {
                     </td>
                   </tr>
                 ))}
+                {participantList.length === 0 ? (
+                  <tr>
+                    <td className="px-6 py-6 text-slate-500" colSpan={5}>
+                      Ainda não existem dados reais de LOS vinculados aos participantes.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
