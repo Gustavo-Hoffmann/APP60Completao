@@ -1,0 +1,5 @@
+.env
+.env.local
+.env.*.local
+app60web/.env
+API/supabase-backend/.env
