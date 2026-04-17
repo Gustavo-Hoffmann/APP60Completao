@@ -8,7 +8,7 @@ import { T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
-import { uploadSl30sJsonToSupabase } from "../../../services/tests/uploadTestJson";
+import { uploadSl30sJsonToCollection } from "../../../services/tests/uploadTestJson";
 
 type Params = {
   participant: Participant & {
@@ -172,7 +172,7 @@ export default function SentarLevantarResultScreen() {
       if (uploading) return;
 
       setUploading(true);
-      const sent = await uploadSl30sJsonToSupabase(result, participant);
+      const sent = await uploadSl30sJsonToCollection(result, participant);
 
       Alert.alert(
         "Upload concluído",

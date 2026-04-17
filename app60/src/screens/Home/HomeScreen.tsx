@@ -15,6 +15,7 @@ import { ThemedButton } from "../../components/ThemedButton";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { Routes } from "../../navigation/routes";
+import type { Role } from "../../models/auth";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -33,10 +34,12 @@ type CarouselItem = {
   image: any;
 };
 
-const ROLE_LABEL: Record<"ADMIN" | "PROFESSOR" | "ALUNO", string> = {
-  ADMIN: "Admin",
-  PROFESSOR: "Professor",
-  ALUNO: "Aluno",
+const ROLE_LABEL: Record<Role, string> = {
+  SUPER_ADMIN: "Super Admin",
+  ADMIN: "Administrador",
+  GESTOR: "Gestor",
+  SUPERVISOR: "Supervisor",
+  AVALIADOR: "Avaliador / Pesquisador",
 };
 
 const baseItems: CarouselItem[] = [

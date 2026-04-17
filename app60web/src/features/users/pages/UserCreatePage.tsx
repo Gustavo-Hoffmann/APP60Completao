@@ -1,18 +1,19 @@
-import { CalendarDays, Loader2, Save, UserPlus } from "lucide-react";
+import { CalendarDays, Loader2, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
-import { FunctionsHttpError } from "@supabase/supabase-js";
 
 import "react-datepicker/dist/react-datepicker.css";
 
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { useAuth } from "../../../contexts/AuthContext";
-import { supabase } from "../../../lib/supabase/client";
+import { apiJson } from "../../../lib/api/client";
+import { creatableRolesForAdmin, creatableRolesForSuperAdmin } from "../../../lib/auth/permissions";
 import { routes } from "../../../navigation/routes";
+import type { Role } from "../../../types/auth";
 
-type RoleOption = "PROFESSOR" | "ALUNO";
+type RoleOption = Role;
 
 type FormState = {
   role: RoleOption;
@@ -20,18 +21,23 @@ type FormState = {
   email: string;
   cpf: string;
   birthDate: string;
-  institution: string;
+  institutionId: string;
   phone: string;
   country: string;
   city: string;
   state: string;
-  professorId: string;
+  supervisorId: string;
 };
 
-type ProfessorOption = {
+type UserOption = {
   id: string;
   name: string;
   email: string | null;
+};
+
+type InstitutionOption = {
+  id: string;
+  name: string;
 };
 
 type CountryOption = {
@@ -75,10 +81,19 @@ function formatPhone(value: string) {
     .replace(/(\d{5})(\d)/, "$1-$2");
 }
 
-function birthDateToInitialPassword(date: string) {
-  if (!date) return "";
+function birthDateToInitialPassword(fullName: string, date: string) {
+  const firstName = fullName.trim().split(/\s+/)[0] ?? "";
+  const normalizedFirstName = firstName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z]/g, "");
+
+  if (normalizedFirstName.length < 2 || !date) return "";
   const [yyyy, mm, dd] = date.split("-");
-  return `${dd}${mm}${yyyy.slice(-2)}`;
+  const prefix =
+    normalizedFirstName.charAt(0).toUpperCase() +
+    normalizedFirstName.charAt(1).toLowerCase();
+  return `${prefix}${dd}${mm}${yyyy.slice(-2)}#`;
 }
 
 function isoToDate(value: string) {
@@ -182,21 +197,23 @@ export function UserCreatePage() {
   const { user } = useAuth();
 
   const [form, setForm] = useState<FormState>({
-    role: "PROFESSOR",
+    role: "GESTOR",
     name: "",
     email: "",
     cpf: "",
     birthDate: "",
-    institution: "",
+    institutionId: "",
     phone: "",
     country: "BR",
     city: "",
     state: "",
-    professorId: "",
+    supervisorId: "",
   });
 
-  const [professors, setProfessors] = useState<ProfessorOption[]>([]);
-  const [loadingProfessors, setLoadingProfessors] = useState(false);
+  const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
+  const [loadingInstitutions, setLoadingInstitutions] = useState(false);
+  const [supervisors, setSupervisors] = useState<UserOption[]>([]);
+  const [loadingSupervisors, setLoadingSupervisors] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [countries, setCountries] = useState<CountryOption[]>([]);
@@ -210,13 +227,23 @@ export function UserCreatePage() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const initialPassword = useMemo(
-    () => birthDateToInitialPassword(form.birthDate),
-    [form.birthDate]
+    () => birthDateToInitialPassword(form.name, form.birthDate),
+    [form.name, form.birthDate]
   );
 
-  const isAdmin = user?.role === "ADMIN";
-  const needsProfessorSelection = isAdmin && form.role === "ALUNO";
+  const isSuperAdminUser = user?.role === "SUPER_ADMIN";
+  const isAdminUser = user?.role === "ADMIN";
+  const isManagerUser = user?.role === "GESTOR";
+  const needsInstitutionSelection = isSuperAdminUser;
+  const needsSupervisorSelection = form.role === "AVALIADOR";
   const isBrazil = form.country === "BR";
+
+  const allowedRoles = useMemo((): Role[] => {
+    if (isSuperAdminUser) return creatableRolesForSuperAdmin();
+    if (isAdminUser) return creatableRolesForAdmin();
+    if (isManagerUser) return ["SUPERVISOR", "AVALIADOR"];
+    return [];
+  }, [isSuperAdminUser, isAdminUser, isManagerUser]);
 
   useEffect(() => {
     async function loadCountriesAndStates() {
@@ -244,40 +271,60 @@ export function UserCreatePage() {
   }, []);
 
   useEffect(() => {
-    async function loadProfessors() {
-      if (!isAdmin) {
-        setProfessors([]);
+    async function loadInstitutions() {
+      if (!isSuperAdminUser) {
+        setInstitutions([]);
         return;
       }
-
       try {
-        setLoadingProfessors(true);
-
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, name, email")
-          .eq("role", "PROFESSOR")
-          .eq("is_active", true)
-          .order("name", { ascending: true });
-
-        if (error) throw error;
-
-        setProfessors((data ?? []) as ProfessorOption[]);
+        setLoadingInstitutions(true);
+        const data = await apiJson<InstitutionOption[]>("/api/institutions");
+        setInstitutions(data ?? []);
       } catch (err) {
-        console.error("Erro ao carregar professores:", err);
+        console.error(err);
       } finally {
-        setLoadingProfessors(false);
+        setLoadingInstitutions(false);
       }
     }
-
-    void loadProfessors();
-  }, [isAdmin]);
+    void loadInstitutions();
+  }, [isSuperAdminUser]);
 
   useEffect(() => {
-    if (form.role === "PROFESSOR" && form.professorId) {
-      setForm((prev) => ({ ...prev, professorId: "" }));
+    async function loadSupervisors() {
+      if (!needsSupervisorSelection) {
+        setSupervisors([]);
+        return;
+      }
+      try {
+        setLoadingSupervisors(true);
+        const data = await apiJson<
+          Array<{ id: string; full_name: string; email: string | null; role: string }>
+        >("/api/users");
+        const sups = (data ?? [])
+          .filter((r) => r.role === "SUPERVISOR")
+          .map((r) => ({ id: r.id, name: r.full_name, email: r.email }));
+        setSupervisors(sups);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingSupervisors(false);
+      }
     }
-  }, [form.role, form.professorId]);
+    void loadSupervisors();
+  }, [needsSupervisorSelection]);
+
+  useEffect(() => {
+    if ((user?.role === "ADMIN" || user?.role === "GESTOR") && user.institution_id) {
+      setForm((p) => ({ ...p, institutionId: user.institution_id! }));
+    }
+  }, [user?.role, user?.institution_id]);
+
+  useEffect(() => {
+    if (form.role !== "AVALIADOR" && form.supervisorId) {
+      setForm((prev) => ({ ...prev, supervisorId: "" }));
+    }
+  }, [form.role, form.supervisorId]);
+
 
   useEffect(() => {
     async function loadCities() {
@@ -340,12 +387,16 @@ export function UserCreatePage() {
       !form.email.trim() ||
       !form.cpf.trim() ||
       !form.birthDate ||
-      !form.institution.trim() ||
       !form.phone.trim() ||
       !form.country.trim() ||
       !form.city.trim()
     ) {
       setError("Preencha todos os campos obrigatórios.");
+      return;
+    }
+
+    if (needsInstitutionSelection && !form.institutionId) {
+      setError("Selecione a instituição.");
       return;
     }
 
@@ -359,101 +410,54 @@ export function UserCreatePage() {
       return;
     }
 
-    if (needsProfessorSelection && !form.professorId) {
-      setError("Selecione o professor responsável pelo aluno.");
+    if (needsSupervisorSelection && !form.supervisorId) {
+      setError("Selecione o supervisor do avaliador.");
+      return;
+    }
+
+    const institutionId =
+      isSuperAdminUser ? form.institutionId : user?.institution_id ?? "";
+    if (!institutionId) {
+      setError("Instituição inválida para o cadastro.");
       return;
     }
 
     try {
       setSubmitting(true);
 
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        throw new Error(`Erro ao obter sessão: ${sessionError.message}`);
-      }
-
-      if (!session?.access_token) {
-        throw new Error("Sessão inválida. Faça login novamente.");
-      }
-
-      const payload = {
-        role: form.role,
-        name: form.name.trim(),
-        email: form.email.trim().toLowerCase(),
-        password: initialPassword,
-        professor_id: form.role === "ALUNO" ? form.professorId || null : null,
-        cpf: onlyDigits(form.cpf),
-        phone: form.phone.trim(),
-        institution: form.institution.trim(),
-        country: form.country,
-        city: form.city.trim(),
-        state: isBrazil ? form.state.trim().toUpperCase() : null,
-        birth_date: form.birthDate,
-      };
-
-      const { data, error } = await supabase.functions.invoke("create-user", {
-        body: payload,
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+      await apiJson("/api/users", {
+        method: "POST",
+        body: JSON.stringify({
+          email: form.email.trim().toLowerCase(),
+          password: initialPassword,
+          fullName: form.name.trim(),
+          role: form.role,
+          institutionId,
+          supervisorId:
+            form.role === "AVALIADOR" && form.supervisorId ? form.supervisorId : undefined,
+          cpf: onlyDigits(form.cpf),
+          phone: form.phone.trim(),
+          country: form.country,
+          city: form.city.trim(),
+          state: isBrazil ? form.state.trim().toUpperCase() : null,
+          birth_date: form.birthDate,
+        }),
       });
-
-      if (error) {
-        if (error instanceof FunctionsHttpError) {
-          const response = error.context;
-          let body: any = null;
-
-          try {
-            body = await response.json();
-          } catch {
-            try {
-              body = await response.text();
-            } catch {
-              body = null;
-            }
-          }
-
-          const backendMessage =
-            typeof body === "string"
-              ? body
-              : body?.error || body?.message || error.message;
-
-          throw new Error(backendMessage || "Erro ao cadastrar usuário.");
-        }
-
-        throw new Error(error.message || "Erro ao cadastrar usuário.");
-      }
-
-      const backendError =
-        data &&
-        typeof data === "object" &&
-        "error" in data &&
-        typeof data.error === "string"
-          ? data.error
-          : null;
-
-      if (backendError) {
-        throw new Error(backendError);
-      }
 
       setSuccess("Usuário criado com sucesso.");
 
       setForm({
-        role: "PROFESSOR",
+        role: isSuperAdminUser ? "ADMIN" : isAdminUser ? "GESTOR" : "SUPERVISOR",
         name: "",
         email: "",
         cpf: "",
         birthDate: "",
-        institution: "",
+        institutionId: isSuperAdminUser ? "" : user?.institution_id ?? "",
         phone: "",
         country: "BR",
         city: "",
         state: "",
-        professorId: "",
+        supervisorId: "",
       });
 
       setBrazilCities([]);
@@ -469,7 +473,7 @@ export function UserCreatePage() {
     <div className="min-h-screen bg-slate-50">
       <AppHeader
         title="Criar usuário"
-        subtitle="Cadastre professores e alunos com dados completos"
+        subtitle="Cadastre perfis vinculados à instituição"
       />
 
       <main className="mx-auto max-w-5xl px-6 py-8">
@@ -527,14 +531,25 @@ export function UserCreatePage() {
                 />
               </div>
 
-              <div className="md:col-span-2">
-                <FieldLabel required>Instituição</FieldLabel>
-                <TextField
-                  value={form.institution}
-                  onChange={(e) => updateField("institution", e.target.value)}
-                  placeholder="Ex.: UFPR"
-                />
-              </div>
+              {needsInstitutionSelection ? (
+                <div className="md:col-span-2">
+                  <FieldLabel required>Instituição</FieldLabel>
+                  <SelectField
+                    value={form.institutionId}
+                    onChange={(e) => updateField("institutionId", e.target.value)}
+                    disabled={loadingInstitutions}
+                  >
+                    <option value="">
+                      {loadingInstitutions ? "Carregando..." : "Selecione a instituição"}
+                    </option>
+                    {institutions.map((inst) => (
+                      <option key={inst.id} value={inst.id}>
+                        {inst.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                </div>
+              ) : null}
 
               <div>
                 <FieldLabel required>País</FieldLabel>
@@ -609,7 +624,7 @@ export function UserCreatePage() {
                 <div className="relative">
                   <DatePicker
                     selected={isoToDate(form.birthDate)}
-                    onChange={(date) => updateField("birthDate", dateToIso(date))}
+                    onChange={(date: Date | null) => updateField("birthDate", dateToIso(date))}
                     dateFormat="dd/MM/yyyy"
                     locale={ptBR}
                     showMonthDropdown
@@ -637,28 +652,37 @@ export function UserCreatePage() {
                   value={form.role}
                   onChange={(e) => updateField("role", e.target.value as RoleOption)}
                 >
-                  <option value="PROFESSOR">Professor</option>
-                  <option value="ALUNO">Aluno</option>
+                  {allowedRoles.map((role) => (
+                    <option key={role} value={role}>
+                      {role === "ADMIN"
+                        ? "Administrador"
+                        : role === "GESTOR"
+                          ? "Gestor"
+                          : role === "SUPERVISOR"
+                            ? "Supervisor"
+                            : "Avaliador / Pesquisador"}
+                    </option>
+                  ))}
                 </SelectField>
               </div>
 
-              {needsProfessorSelection ? (
+              {needsSupervisorSelection ? (
                 <div className="md:col-span-2">
-                  <FieldLabel required>Professor responsável</FieldLabel>
+                  <FieldLabel required>Supervisor responsável</FieldLabel>
                   <SelectField
-                    value={form.professorId}
-                    onChange={(e) => updateField("professorId", e.target.value)}
-                    disabled={loadingProfessors}
+                    value={form.supervisorId}
+                    onChange={(e) => updateField("supervisorId", e.target.value)}
+                    disabled={loadingSupervisors}
                   >
                     <option value="">
-                      {loadingProfessors
-                        ? "Carregando professores..."
-                        : "Selecione um professor"}
+                      {loadingSupervisors
+                        ? "Carregando supervisores..."
+                        : "Selecione um supervisor"}
                     </option>
-                    {professors.map((professor) => (
-                      <option key={professor.id} value={professor.id}>
-                        {professor.name}
-                        {professor.email ? ` — ${professor.email}` : ""}
+                    {supervisors.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                        {s.email ? ` — ${s.email}` : ""}
                       </option>
                     ))}
                   </SelectField>
@@ -671,10 +695,10 @@ export function UserCreatePage() {
                     Senha inicial automática
                   </div>
                   <div className="mt-1 text-sm text-slate-500">
-                    A senha inicial será gerada a partir da data de nascimento:
+                    A senha inicial será gerada com as 2 primeiras letras do primeiro nome + data de nascimento + #:
                   </div>
                   <div className="mt-2 font-mono text-lg font-bold text-brand-700">
-                    {initialPassword || "ddmmaa"}
+                    {initialPassword || "An230265#"}
                   </div>
                 </div>
               </div>

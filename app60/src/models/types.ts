@@ -1,7 +1,8 @@
 export type BiologicalSex = "Masculino" | "Feminino";
 
 export type Participant = {
-  id: string;
+  /** Ausente em rascunhos de criação local; o POST da API devolve o id. */
+  id?: string;
   name: string;
   cpf: string;
   dob: string; // ISO

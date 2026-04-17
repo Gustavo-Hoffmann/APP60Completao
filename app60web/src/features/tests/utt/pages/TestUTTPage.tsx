@@ -1,4 +1,4 @@
-import { Activity, ClipboardList, Repeat, Users, Waves } from "lucide-react";
+import { ClipboardList, Repeat, Users, Waves } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bar,

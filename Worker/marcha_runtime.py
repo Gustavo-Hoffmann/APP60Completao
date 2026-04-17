@@ -5,7 +5,7 @@ marcha_runtime.py
 Runtime fiel ao notebook MARCHA.ipynb, com ajuste apenas na borda:
 - entrada agora lê o CSV bruto do app60
 - não exporta CSV/XLSX/HTML/PNG localmente
-- retorna métricas em memória para o worker gravar no Supabase
+- retorna métricas em memória para o worker gravar em RDS (tabela collection_results)
 
 ATENÇÃO:
 - manter scikit-learn==1.6.1 no ambiente final por causa do calibrador .joblib

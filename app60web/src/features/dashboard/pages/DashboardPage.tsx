@@ -1,399 +1,197 @@
-import { useEffect, useState } from "react";
+import { Activity, BarChart3, ClipboardList, Loader2, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  ClipboardList,
-  Map,
-  Maximize2,
-  Users,
-  ArrowLeft,
-} from "lucide-react";
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { StatCard } from "../../../components/ui/StatCard";
-import { statsData } from "../../../mocks/stats";
+import { apiJson } from "../../../lib/api/client";
+import { useAuth } from "../../../contexts/AuthContext";
 
-declare global {
-  interface Window {
-    google?: typeof google;
-  }
+type DashboardSummary = {
+  year: number;
+  participantsTotal: number;
+  collectionsTotal: number;
+  collectionsMonth: number;
+  collectionsByMonth: Array<{ month: number; count: number }>;
+  topTest: { testType: string; count: number } | null;
+  ivcf: { robusto: number; preFragil: number; fragil: number };
+};
+
+function monthLabel(month: number) {
+  const labels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  return labels[month - 1] ?? String(month);
 }
 
-const mapData: (string | number)[][] = [
-  ["Estado", "Coletas"],
-  ["BR-AC", 120],
-  ["BR-AL", 250],
-  ["BR-AP", 80],
-  ["BR-AM", 300],
-  ["BR-BA", 890],
-  ["BR-CE", 600],
-  ["BR-DF", 750],
-  ["BR-ES", 400],
-  ["BR-GO", 550],
-  ["BR-MA", 350],
-  ["BR-MT", 420],
-  ["BR-MS", 380],
-  ["BR-MG", 1100],
-  ["BR-PA", 310],
-  ["BR-PB", 280],
-  ["BR-PR", 1200],
-  ["BR-PE", 500],
-  ["BR-PI", 220],
-  ["BR-RJ", 950],
-  ["BR-RN", 260],
-  ["BR-RS", 880],
-  ["BR-RO", 180],
-  ["BR-RR", 90],
-  ["BR-SC", 750],
-  ["BR-SP", 1500],
-  ["BR-SE", 150],
-  ["BR-TO", 200],
-];
-
-const stateInfo: Record<string, { name: string; id: string }> = {
-  "BR-AC": { name: "Acre", id: "AC" },
-  "BR-AL": { name: "Alagoas", id: "AL" },
-  "BR-AP": { name: "Amapá", id: "AP" },
-  "BR-AM": { name: "Amazonas", id: "AM" },
-  "BR-BA": { name: "Bahia", id: "BA" },
-  "BR-CE": { name: "Ceará", id: "CE" },
-  "BR-DF": { name: "Distrito Federal", id: "DF" },
-  "BR-ES": { name: "Espírito Santo", id: "ES" },
-  "BR-GO": { name: "Goiás", id: "GO" },
-  "BR-MA": { name: "Maranhão", id: "MA" },
-  "BR-MT": { name: "Mato Grosso", id: "MT" },
-  "BR-MS": { name: "Mato Grosso do Sul", id: "MS" },
-  "BR-MG": { name: "Minas Gerais", id: "MG" },
-  "BR-PA": { name: "Pará", id: "PA" },
-  "BR-PB": { name: "Paraíba", id: "PB" },
-  "BR-PR": { name: "Paraná", id: "PR" },
-  "BR-PE": { name: "Pernambuco", id: "PE" },
-  "BR-PI": { name: "Piauí", id: "PI" },
-  "BR-RJ": { name: "Rio de Janeiro", id: "RJ" },
-  "BR-RN": { name: "Rio Grande do Norte", id: "RN" },
-  "BR-RS": { name: "Rio Grande do Sul", id: "RS" },
-  "BR-RO": { name: "Rondônia", id: "RO" },
-  "BR-RR": { name: "Roraima", id: "RR" },
-  "BR-SC": { name: "Santa Catarina", id: "SC" },
-  "BR-SP": { name: "São Paulo", id: "SP" },
-  "BR-SE": { name: "Sergipe", id: "SE" },
-  "BR-TO": { name: "Tocantins", id: "TO" },
-  default: { name: "Estado selecionado", id: "BR" },
-};
-
-const cityDataMock: Record<
-  string,
-  Array<{ name: string; coletas: number; status: "high" | "medium" | "low" }>
-> = {
-  PR: [
-    { name: "Curitiba", coletas: 500, status: "high" },
-    { name: "Araucária", coletas: 300, status: "medium" },
-    { name: "Londrina", coletas: 200, status: "medium" },
-    { name: "Maringá", coletas: 150, status: "low" },
-    { name: "Ponta Grossa", coletas: 50, status: "low" },
-  ],
-  SP: [
-    { name: "São Paulo", coletas: 400, status: "high" },
-    { name: "Campinas", coletas: 200, status: "medium" },
-    { name: "Santos", coletas: 100, status: "low" },
-  ],
-  SC: [
-    { name: "Florianópolis", coletas: 150, status: "medium" },
-    { name: "Joinville", coletas: 100, status: "low" },
-  ],
-};
-
-type SelectedState = {
-  name: string;
-  id: string;
-  coletas: number;
-};
-
-function GoogleGeoChart({
-  onSelectState,
-  isDark,
-}: {
-  onSelectState: (state: SelectedState) => void;
-  isDark: boolean;
-}) {
-  const [chartLoaded, setChartLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!window.google) {
-      const script = document.createElement("script");
-      script.src = "https://www.gstatic.com/charts/loader.js";
-      script.onload = () => {
-        if (window.google) {
-          window.google.charts.load("current", { packages: ["geochart"] });
-          window.google.charts.setOnLoadCallback(() => setChartLoaded(true));
-        }
-      };
-      document.body.appendChild(script);
-    } else {
-      window.google.charts.load("current", { packages: ["geochart"] });
-      window.google.charts.setOnLoadCallback(() => setChartLoaded(true));
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!chartLoaded || !window.google) return;
-
-    const drawChart = () => {
-      const container = document.getElementById("google-map-container");
-      if (!container || !window.google) return;
-
-      const data = window.google.visualization.arrayToDataTable(mapData);
-
-      const options = {
-        region: "BR",
-        resolution: "provinces",
-        colorAxis: isDark
-          ? { colors: ["#bfdbfe", "#172554"] }
-          : { colors: ["#dbeafe", "#2563eb"] },
-        backgroundColor: "transparent",
-        datalessRegionColor: isDark ? "#0f172a" : "#f8fafc",
-        defaultColor: isDark ? "#1e293b" : "#f1f5f9",
-        legend: "none",
-        tooltip: {
-          textStyle: { color: isDark ? "#dbeafe" : "#334155" },
-          showColorCode: true,
-        },
-        enableRegionInteractivity: true,
-      };
-
-      const chart = new window.google.visualization.GeoChart(container);
-
-      window.google.visualization.events.addListener(chart, "select", () => {
-        const selection = chart.getSelection();
-        if (selection.length > 0) {
-          const row = selection[0].row;
-          const isoCode = String(mapData[row + 1][0]);
-          const baseInfo = stateInfo[isoCode] || stateInfo.default;
-          const stateDetails = {
-            ...baseInfo,
-            coletas: Number(mapData[row + 1][1]),
-          };
-          onSelectState(stateDetails);
-        }
-      });
-
-      chart.draw(data, options);
-    };
-
-    drawChart();
-    window.addEventListener("resize", drawChart);
-    return () => window.removeEventListener("resize", drawChart);
-  }, [chartLoaded, onSelectState, isDark]);
-
-  return (
-    <div
-      className={[
-        "relative flex h-[600px] w-full items-center justify-center rounded-2xl",
-        isDark ? "bg-blue-400/25" : "bg-slate-50/60",
-      ].join(" ")}
-    >
-      <div
-        id="google-map-container"
-        className="h-full w-full overflow-hidden rounded-2xl"
-      />
-      <div
-        className={[
-          "pointer-events-none absolute bottom-4 left-4 rounded-xl border p-3 text-xs shadow-sm backdrop-blur-sm",
-          isDark
-            ? "border-slate-700 bg-slate-950/85"
-            : "border-slate-200 bg-white/95",
-        ].join(" ")}
-      >
-        <p className={["mb-2 font-bold", isDark ? "text-slate-200" : "text-slate-700"].join(" ")}>
-          Densidade
-        </p>
-        <div className="mb-1 flex items-center gap-2">
-          <div
-            className={[
-              "h-2 w-20 rounded-full",
-              isDark
-                ? "bg-gradient-to-r from-blue-200 to-blue-900"
-                : "bg-gradient-to-r from-blue-100 to-blue-600",
-            ].join(" ")}
-          />
-        </div>
-        <div className={["flex justify-between text-[10px]", isDark ? "text-slate-400" : "text-slate-500"].join(" ")}>
-          <span>Baixa</span>
-          <span>Alta</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CityDetailView({
-  state,
-  onBack,
-  isDark,
-}: {
-  state: SelectedState;
-  onBack: () => void;
-  isDark: boolean;
-}) {
-  const cities = cityDataMock[state.id] || [];
-
-  return (
-    <div
-      className={[
-        "flex h-[600px] flex-col rounded-2xl border shadow-sm",
-        isDark ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white",
-      ].join(" ")}
-    >
-      <div
-        className={[
-          "flex items-center justify-between rounded-t-2xl border-b px-4 py-4",
-          isDark ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-slate-50",
-        ].join(" ")}
-      >
-        <button
-          onClick={onBack}
-          className={[
-            "flex items-center text-sm font-medium transition-colors hover:text-blue-500",
-            isDark ? "text-slate-300" : "text-slate-500",
-          ].join(" ")}
-        >
-          <ArrowLeft size={16} className="mr-2" />
-          Voltar ao mapa nacional
-        </button>
-        <h3 className={["text-lg font-bold", isDark ? "text-slate-100" : "text-slate-700"].join(" ")}>
-          {state.name}
-        </h3>
-      </div>
-
-      <div className={["flex-1 overflow-y-auto p-6", isDark ? "bg-slate-900" : "bg-slate-50/50"].join(" ")}>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {cities.length > 0 ? (
-            cities.map((city, idx) => (
-              <div
-                key={`${city.name}-${idx}`}
-                className="rounded-xl border border-slate-200 bg-white p-4 transition-all hover:border-blue-200 hover:shadow-md"
-              >
-                <div className="mb-2 flex items-start justify-between">
-                  <div
-                    className={`h-3 w-3 rounded-full ${
-                      city.status === "high"
-                        ? "bg-blue-600"
-                        : city.status === "medium"
-                          ? "bg-amber-400"
-                          : "bg-slate-300"
-                    }`}
-                  />
-                  {city.status === "high" ? (
-                    <div className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                      TOP
-                    </div>
-                  ) : null}
-                </div>
-
-                <h4 className="mb-1 font-bold text-slate-700">{city.name}</h4>
-
-                <div className="flex items-baseline space-x-1">
-                  <span className="text-2xl font-bold text-slate-800">{city.coletas}</span>
-                  <span className="text-xs font-medium text-slate-500">coletas</span>
-                </div>
-
-                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className={`h-full rounded-full ${
-                      city.status === "high"
-                        ? "bg-blue-600"
-                        : city.status === "medium"
-                          ? "bg-amber-400"
-                          : "bg-slate-400"
-                    }`}
-                    style={{ width: `${(city.coletas / 600) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="col-span-full flex flex-col items-center justify-center py-16 text-slate-400">
-              <Map size={48} className="mb-4 opacity-20" />
-              <p>Sem dados detalhados de cidades para este estado.</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+function testLabel(testType: string) {
+  const t = (testType ?? "").toUpperCase();
+  if (t === "MARCHA") return "Marcha estacionária";
+  if (t === "SL30S") return "Sentar e levantar (30s)";
+  if (t === "IVCF20") return "IVCF-20";
+  if (t === "TUG") return "TUG";
+  if (t === "LOS") return "LOS";
+  if (t === "UTT") return "UTT";
+  return t || "—";
 }
 
 export function DashboardPage() {
-  const [selectedState, setSelectedState] = useState<SelectedState | null>(null);
-  const [isDark, setIsDark] = useState(false);
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [data, setData] = useState<DashboardSummary | null>(null);
 
   useEffect(() => {
-    const root = document.documentElement;
-    const updateTheme = () => setIsDark(root.classList.contains("dark"));
-
-    updateTheme();
-    const observer = new MutationObserver(updateTheme);
-    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
-
-    return () => observer.disconnect();
+    async function load() {
+      try {
+        setLoading(true);
+        setError(null);
+        const year = new Date().getFullYear();
+        const summary = await apiJson<DashboardSummary>(`/api/dashboard/summary?year=${year}`);
+        setData(summary ?? null);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : "Erro ao carregar dashboard.");
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    void load();
   }, []);
+
+  const chartData = useMemo(() => {
+    const year = data?.year ?? new Date().getFullYear();
+    const byMonth = new Map<number, number>();
+    for (const row of data?.collectionsByMonth ?? []) {
+      byMonth.set(row.month, row.count);
+    }
+    return Array.from({ length: 12 }, (_, idx) => {
+      const month = idx + 1;
+      return {
+        year,
+        month,
+        label: monthLabel(month),
+        coletas: byMonth.get(month) ?? 0,
+      };
+    });
+  }, [data]);
+
+  const headerTitle =
+    user?.role === "GESTOR"
+      ? user.institution_name ?? "Minha instituição"
+      : "Dashboard";
+  const headerSubtitle = user?.role === "GESTOR" ? undefined : "Visão geral operacional do sistema.";
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <AppHeader
-        title="Dashboard"
-        subtitle="Visão geral operacional do sistema."
-      />
+      <AppHeader title={headerTitle} subtitle={headerSubtitle} />
 
       <main className="space-y-6 p-6">
-        <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          <StatCard
-            title="Participantes Totais"
-            value={statsData.participants}
-            icon={Users}
-            subtitle="Base geral cadastrada"
-          />
-          <StatCard
-            title="Coletas no Mês"
-            value={statsData.collectionsMonth}
-            icon={ClipboardList}
-            subtitle="Volume mensal atual"
-          />
-          <StatCard
-            title="Estados Ativos"
-            value={statsData.activeStates}
-            icon={Map}
-            subtitle="Cobertura atual"
-          />
-        </section>
-
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-6 flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Mapeamento territorial</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Interaja com o mapa para visualizar a distribuição das coletas.
-              </p>
+        {loading ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="flex items-center gap-3 text-slate-500">
+              <Loader2 size={18} className="animate-spin" />
+              Carregando dashboard...
             </div>
-
-            {selectedState ? (
-              <span className="hidden rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 md:inline-block">
-                Filtro ativo: {selectedState.name}
-              </span>
-            ) : (
-              <button
-                className="text-slate-400 transition-colors hover:text-blue-600"
-                title="Expandir"
-                type="button"
-              >
-                <Maximize2 size={18} />
-              </button>
-            )}
           </div>
+        ) : error ? (
+          <div className="rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
+            <div className="text-sm font-semibold text-red-700">Erro</div>
+            <div className="mt-1 text-sm text-red-600">{error}</div>
+          </div>
+        ) : !data ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            Não foi possível carregar os dados.
+          </div>
+        ) : (
+          <>
+            <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <StatCard
+                title="Participantes Totais"
+                value={data.participantsTotal}
+                icon={Users}
+                subtitle="Base ativa vinculada"
+              />
+              <StatCard
+                title="Coletas Totais"
+                value={data.collectionsTotal}
+                icon={Activity}
+                subtitle="Acumulado"
+              />
+              <StatCard
+                title="Coletas no Mês"
+                value={data.collectionsMonth}
+                icon={ClipboardList}
+                subtitle="Mês atual"
+              />
+            </section>
 
-          {selectedState ? (
-            <CityDetailView state={selectedState} onBack={() => setSelectedState(null)} isDark={isDark} />
-          ) : (
-            <GoogleGeoChart onSelectState={setSelectedState} isDark={isDark} />
-          )}
-        </section>
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <BarChart3 size={16} className="text-blue-600" />
+                Coletas mensais ({data.year})
+              </div>
+
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                    <Tooltip formatter={(value) => [`${value}`, "Coletas"]} />
+                    <Bar dataKey="coletas" fill="#2563eb" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                  <div className="text-sm font-semibold text-slate-700">Teste com mais coletas</div>
+                  <div className="mt-2 flex items-baseline justify-between gap-4">
+                    <div className="text-lg font-bold text-slate-900">
+                      {data.topTest ? testLabel(data.topTest.testType) : "—"}
+                    </div>
+                    <div className="text-2xl font-black text-blue-700">
+                      {data.topTest ? data.topTest.count : 0}
+                    </div>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">Quantidade de coletas (total)</div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                  <div className="text-sm font-semibold text-slate-700">IVCF</div>
+                  <div className="mt-3 h-32">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={[
+                          { label: "Robusto", value: data.ivcf.robusto },
+                          { label: "Pré", value: data.ivcf.preFragil },
+                          { label: "Frágil", value: data.ivcf.fragil },
+                        ]}
+                        margin={{ top: 8, right: 0, left: 0, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                        <Tooltip formatter={(value) => [`${value}`, "Participantes"]} />
+                        <Bar dataKey="value" fill="#0ea5e9" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    Última classificação IVCF-20 por participante (com coleta IVCF)
+                  </div>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
       </main>
     </div>
   );

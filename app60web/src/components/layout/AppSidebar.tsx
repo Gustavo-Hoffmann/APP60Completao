@@ -1,7 +1,10 @@
 import {
   Activity,
   ClipboardList,
+  Info,
+  Landmark,
   LayoutDashboard,
+  School,
   UserCircle2,
   Users,
 } from "lucide-react";
@@ -27,31 +30,43 @@ const items: SidebarItem[] = [
     to: routes.dashboard,
     label: "Dashboard",
     icon: LayoutDashboard,
-    roles: ["ADMIN", "PROFESSOR", "ALUNO"],
+    roles: ["SUPER_ADMIN", "ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"],
   },
   {
     to: routes.users,
     label: "Usuários",
     icon: Users,
-    roles: ["ADMIN", "PROFESSOR"],
+    roles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    to: routes.institutions,
+    label: "Instituições",
+    icon: Landmark,
+    roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     to: routes.participants,
     label: "Participantes",
     icon: Users,
-    roles: ["ADMIN", "PROFESSOR", "ALUNO"],
+    roles: ["SUPER_ADMIN", "ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"],
   },
   {
     to: routes.questionnaires,
     label: "Questionários",
     icon: ClipboardList,
-    roles: ["ADMIN", "PROFESSOR", "ALUNO"],
+    roles: ["SUPER_ADMIN", "ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"],
   },
   {
     to: routes.tests,
     label: "Testes",
     icon: Activity,
-    roles: ["ADMIN", "PROFESSOR", "ALUNO"],
+    roles: ["SUPER_ADMIN", "ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"],
+  },
+  {
+    to: routes.myInstitution,
+    label: "Minha Instituição",
+    icon: School,
+    roles: ["GESTOR"],
   },
 ];
 
@@ -100,63 +115,91 @@ export function AppSidebar({ isDark }: Props) {
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3">
-        {visibleItems.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              [
-                "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition",
-                isActive
-                  ? "bg-brand-50 text-brand-700"
-                  : isDark
-                    ? "text-slate-300 hover:bg-slate-800 hover:text-white"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
-              ].join(" ")
-            }
-          >
-            <Icon size={18} />
-            <span>{label}</span>
-          </NavLink>
-        ))}
+      <nav className="flex-1 space-y-1 px-3 pb-6">
+        {visibleItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === routes.dashboard}
+              className={({ isActive }) =>
+                [
+                  "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                  isActive
+                    ? isDark
+                      ? "bg-slate-800 text-white"
+                      : "bg-brand-50 text-brand-800"
+                    : isDark
+                      ? "text-slate-300 hover:bg-slate-800/80"
+                      : "text-slate-600 hover:bg-slate-50",
+                ].join(" ")
+              }
+            >
+              <Icon className="h-5 w-5 shrink-0 opacity-90" />
+              {item.label}
+            </NavLink>
+          );
+        })}
       </nav>
+
+      <div className="px-4 pb-4">
+        <NavLink
+          to={routes.knowledgeBase}
+          className={({ isActive }) =>
+            [
+              "flex items-center gap-3 rounded-2xl px-3 py-[5px] text-xs font-semibold transition",
+              isActive
+                ? isDark
+                  ? "bg-slate-800 text-white"
+                  : "bg-brand-50 text-brand-800"
+                : isDark
+                  ? "text-slate-300 hover:bg-slate-800/80"
+                  : "text-slate-600 hover:bg-slate-50",
+            ].join(" ")
+          }
+        >
+          <Info className="h-4 w-4 shrink-0 opacity-90" />
+          Base de conhecimento
+        </NavLink>
+      </div>
 
       <div
         className={[
-          "border-t px-4 py-4",
-          isDark ? "border-slate-800 bg-slate-950" : "border-slate-100 bg-slate-50",
+          "mt-auto border-t px-4 py-4",
+          isDark ? "border-slate-800" : "border-slate-200",
         ].join(" ")}
       >
         <button
           type="button"
           onClick={() => navigate(routes.myProfile)}
           className={[
-            "mb-3 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition",
+            "flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left text-sm transition",
             isDark
-              ? "border-slate-700 bg-slate-900 hover:border-blue-500 hover:bg-slate-800"
-              : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50",
+              ? "text-slate-200 hover:bg-slate-800"
+              : "text-slate-700 hover:bg-slate-50",
           ].join(" ")}
         >
           <div
             className={[
-              "flex h-11 w-11 items-center justify-center rounded-full font-bold",
-              isDark ? "bg-slate-700 text-slate-100" : "bg-slate-200 text-slate-700",
+              "flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold",
+              isDark ? "bg-slate-800 text-slate-100" : "bg-brand-100 text-brand-800",
             ].join(" ")}
           >
             {getInitials(user?.name)}
           </div>
-
           <div className="min-w-0 flex-1">
-            <p className={["truncate text-sm font-bold", isDark ? "text-white" : "text-slate-800"].join(" ")}>
-              {user?.name ?? "-"}
-            </p>
-            <p className={["text-xs", isDark ? "text-slate-400" : "text-slate-500"].join(" ")}>
-              {user ? ROLE_LABEL[user.role] : "-"}
-            </p>
+            <div className="truncate font-semibold">{user?.name ?? "—"}</div>
+            <div
+              className={[
+                "truncate text-xs",
+                isDark ? "text-slate-400" : "text-slate-500",
+              ].join(" ")}
+            >
+              {user?.role ? ROLE_LABEL[user.role] : ""}
+            </div>
           </div>
-
-          <UserCircle2 size={18} className={isDark ? "text-slate-500" : "text-slate-400"} />
+          <UserCircle2 className="h-5 w-5 shrink-0 opacity-70" />
         </button>
       </div>
     </aside>

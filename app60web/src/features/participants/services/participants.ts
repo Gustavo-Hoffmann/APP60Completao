@@ -1,5 +1,4 @@
-import { supabase } from "../../../lib/supabase/client";
-import { mariaSilvaMock } from "../../../mocks/participants";
+import { apiJson } from "../../../lib/api/client";
 import type {
   IvcfClassification,
   IvcfSession,
@@ -20,9 +19,6 @@ type ParticipantRow = {
   cpf: string | null;
   birth_date: string | null;
   sex: string | null;
-  created_by: string;
-  owner_student_id: string | null;
-  owner_professor_id: string | null;
   city: string | null;
   state: string | null;
   created_at: string;
@@ -313,9 +309,6 @@ function mapParticipant(row: ParticipantRow): Participant {
     cpf: formatCpf(row.cpf),
     age: calcAgeFromDate(row.birth_date),
     sex: normalizeSex(row.sex),
-    createdByUserId: row.created_by,
-    professorId: row.owner_professor_id ?? undefined,
-    studentId: row.owner_student_id ?? undefined,
     dob: row.birth_date ?? undefined,
     city: row.city ?? undefined,
     state: row.state ?? undefined,
@@ -618,38 +611,14 @@ function buildParticipantWithResults(
   return applyLatestIvcf(base, tests);
 }
 
-export function getFallbackParticipant(): Participant {
-  return mariaSilvaMock;
-}
-
 export async function listParticipants(): Promise<Participant[]> {
-  const [participantsResult, resultsResult] = await Promise.all([
-    supabase
-      .from("participants")
-      .select(
-        "id, full_name, cpf, birth_date, sex, created_by, owner_student_id, owner_professor_id, city, state, created_at, updated_at",
-      )
-      .order("full_name", { ascending: true }),
+  const bundle = await apiJson<{
+    participants: ParticipantRow[];
+    results: TestSessionResultRow[];
+  }>("/api/participants");
 
-    supabase
-      .from("test_session_results")
-      .select(
-        "participant_id, test_type, session_number, metrics_json, plot_json, created_at, updated_at",
-      )
-      .in("test_type", ["MARCHA", "IVCF20"])
-      .order("session_number", { ascending: true }),
-  ]);
-
-  if (participantsResult.error) {
-    throw new Error(participantsResult.error.message);
-  }
-
-  if (resultsResult.error) {
-    throw new Error(resultsResult.error.message);
-  }
-
-  const rows = (participantsResult.data ?? []) as ParticipantRow[];
-  const results = (resultsResult.data ?? []) as TestSessionResultRow[];
+  const rows = bundle.participants ?? [];
+  const results = bundle.results ?? [];
 
   const resultsByParticipant = new Map<string, TestSessionResultRow[]>();
   for (const row of results) {
@@ -666,41 +635,12 @@ export async function listParticipants(): Promise<Participant[]> {
 }
 
 export async function getParticipantById(id: string): Promise<Participant | null> {
-  if (id === mariaSilvaMock.id) {
-    return mariaSilvaMock;
-  }
+  const data = await apiJson<{
+    participant: ParticipantRow;
+    results: TestSessionResultRow[];
+  }>(`/api/participants/${id}`);
 
-  const [participantResult, resultsResult] = await Promise.all([
-    supabase
-      .from("participants")
-      .select(
-        "id, full_name, cpf, birth_date, sex, created_by, owner_student_id, owner_professor_id, city, state, created_at, updated_at",
-      )
-      .eq("id", id)
-      .maybeSingle(),
+  if (!data?.participant) return null;
 
-    supabase
-      .from("test_session_results")
-      .select(
-        "participant_id, test_type, session_number, metrics_json, plot_json, created_at, updated_at",
-      )
-      .eq("participant_id", id)
-      .in("test_type", ["MARCHA", "SL30S", "IVCF20"])
-      .order("session_number", { ascending: true }),
-  ]);
-
-  if (participantResult.error) {
-    throw new Error(participantResult.error.message);
-  }
-
-  if (resultsResult.error) {
-    throw new Error(resultsResult.error.message);
-  }
-
-  if (!participantResult.data) return null;
-
-  return buildParticipantWithResults(
-    participantResult.data as ParticipantRow,
-    (resultsResult.data ?? []) as TestSessionResultRow[],
-  );
+  return buildParticipantWithResults(data.participant, data.results ?? []);
 }

@@ -1,7 +1,7 @@
-import type { Participant, SignalPoint, TwoMstSession } from "../types/participant";
+import type { Participant, TwoMstSession, TwoMstSignalPoint } from "../types/participant";
 
-function generateHumanSignal(durationSeconds = 120): SignalPoint[] {
-  const data: SignalPoint[] = [];
+function generateHumanSignal(durationSeconds = 120): TwoMstSignalPoint[] {
+  const data: TwoMstSignalPoint[] = [];
   const sampleRate = 5;
   const totalPoints = durationSeconds * sampleRate;
 
@@ -16,7 +16,7 @@ function generateHumanSignal(durationSeconds = 120): SignalPoint[] {
     phase += freq * (2 * Math.PI / sampleRate);
 
     data.push({
-      time: t.toFixed(1),
+      time: Number(t.toFixed(1)),
       value: Number((amplitude * Math.sin(phase)).toFixed(2)),
     });
   }
@@ -36,6 +36,7 @@ const maria2MstSessions: TwoMstSession[] = [
     cvTempoCiclo: 4.5,
     velMaxima: 350,
     velMinima: 210,
+    strategy: "Indefinida",
   },
   {
     sessao: 2,
@@ -48,6 +49,7 @@ const maria2MstSessions: TwoMstSession[] = [
     cvTempoCiclo: 4.1,
     velMaxima: 380,
     velMinima: 240,
+    strategy: "Indefinida",
   },
   {
     sessao: 3,
@@ -60,6 +62,7 @@ const maria2MstSessions: TwoMstSession[] = [
     cvTempoCiclo: 4.3,
     velMaxima: 365,
     velMinima: 225,
+    strategy: "Indefinida",
   },
   {
     sessao: 4,
@@ -72,6 +75,7 @@ const maria2MstSessions: TwoMstSession[] = [
     cvTempoCiclo: 3.2,
     velMaxima: 410,
     velMinima: 280,
+    strategy: "Indefinida",
   },
 ];
 

@@ -25,7 +25,7 @@ import {
 
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { Card } from "../../../components/ui/Card";
-import { supabase } from "../../../lib/supabase/client";
+import { apiJson } from "../../../lib/api/client";
 import { routes } from "../../../navigation/routes";
 import type { IvcfSession, Participant, Sl30sSession, TwoMstSession } from "../../../types/participant";
 import { getParticipantById } from "../services/participants";
@@ -680,22 +680,24 @@ export function ParticipantDetailPage() {
         return;
       }
 
-      const { data, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, name")
-        .in("id", ids);
-
-      if (!mounted) return;
-      if (profileError) {
+      let rows: Array<{ id: string; full_name: string }> = [];
+      try {
+        const q = ids.map(encodeURIComponent).join(",");
+        rows = await apiJson<Array<{ id: string; full_name: string }>>(
+          `/api/participants/meta/user-names?ids=${q}`
+        );
+      } catch {
+        if (!mounted) return;
         setRelatedNames({});
         return;
       }
 
+      if (!mounted) return;
+
       const nextNames: Record<string, string> = {};
-      for (const row of data ?? []) {
-        const item = row as { id?: string; name?: string | null };
-        if (item.id) {
-          nextNames[item.id] = item.name?.trim() || item.id;
+      for (const row of rows ?? []) {
+        if (row.id) {
+          nextNames[row.id] = row.full_name?.trim() || row.id;
         }
       }
       setRelatedNames(nextNames);
@@ -782,7 +784,9 @@ export function ParticipantDetailPage() {
   }
 
   const cityState = [participant.city, participant.state].filter(Boolean).join(" / ") || "—";
-  const createdByName = relatedNames[participant.createdByUserId] ?? participant.createdByUserId;
+  const createdByName = participant.createdByUserId
+    ? relatedNames[participant.createdByUserId] ?? participant.createdByUserId
+    : "—";
   const professorName = participant.professorId
     ? (relatedNames[participant.professorId] ?? participant.professorId)
     : null;

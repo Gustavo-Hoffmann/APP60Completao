@@ -9,6 +9,10 @@ const AuthContext = createContext<{
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  register: (
+    p: { name: string; dob: string; cpf: string; email: string },
+    password: string
+  ) => Promise<void>;
   update: (
     p: { name: string; dob: string; cpf: string; email: string },
     currentPw: string | null,
@@ -49,6 +53,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
       },
       refresh,
+      register: async (
+        p: { name: string; dob: string; cpf: string; email: string },
+        password: string
+      ) => {
+        await auth.registerResearcher(p, password);
+      },
       update: async (
         p: { name: string; dob: string; cpf: string; email: string },
         currentPw: string | null,

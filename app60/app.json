@@ -43,8 +43,10 @@
     ],
     "extra": {
       "appName": "app60",
-      "supabaseUrl": "https://rddcnbqlgusbfkdziqve.supabase.co",
-      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkZGNuYnFsZ3VzYmZrZHppcXZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM0MjA1NDUsImV4cCI6MjA4ODk5NjU0NX0.eVvGw1mnQnZmLjDRFXLS5lNLG5Wle547FLY6XeSES1M"
+      "apiBaseUrl": "https://api-staging.SEU_DOMINIO",
+      "cognitoRegion": "us-east-1",
+      "cognitoUserPoolId": "us-east-1_NdFHCZPAt",
+      "cognitoClientId": "4jpb6k00gflvri85cj47di10ep"
     }
   }
 }

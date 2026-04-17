@@ -14,4 +14,11 @@ export const routes = {
   testTug: "/tests/tug",
   testUtt: "/tests/utt",
   testLos: "/tests/los",
+  institutions: "/institutions",
+  institutionCreate: "/institutions/new",
+  institutionEdit: (id: string) => `/institutions/${id}/edit`,
+  myInstitution: "/my-institution",
+  myInstitutionUserCreate: "/my-institution/users/new",
+  myInstitutionUserEdit: (id: string) => `/my-institution/users/${id}/edit`,
+  knowledgeBase: "/knowledge-base",
 };

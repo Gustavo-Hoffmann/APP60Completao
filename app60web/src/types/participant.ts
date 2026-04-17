@@ -108,7 +108,7 @@ export type Participant = {
   cpf: string;
   age: number;
   sex: "Masculino" | "Feminino";
-  createdByUserId: string;
+  createdByUserId?: string;
   professorId?: string;
   studentId?: string;
   dob?: string;

@@ -8,7 +8,7 @@ import { T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
-import { uploadTugJsonToSupabase } from "../../../services/tests/uploadTestJson";
+import { uploadTugJsonToCollection } from "../../../services/tests/uploadTestJson";
 
 type Params = {
   participant: Participant & {
@@ -97,7 +97,7 @@ export default function TugResultScreen() {
       if (uploading) return;
 
       setUploading(true);
-      const sent = await uploadTugJsonToSupabase(result, participant);
+      const sent = await uploadTugJsonToCollection(result, participant);
 
       Alert.alert(
         "Upload concluído",

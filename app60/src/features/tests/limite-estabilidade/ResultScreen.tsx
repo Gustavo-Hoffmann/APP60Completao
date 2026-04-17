@@ -7,7 +7,7 @@ import { T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
-import { uploadLosJsonToSupabase } from "../../../services/tests/uploadTestJson";
+import { uploadLosJsonToCollection } from "../../../services/tests/uploadTestJson";
 
 type Params = {
   participant: Participant & {
@@ -92,7 +92,7 @@ export default function LimiteEstabilidadeResultScreen() {
       if (uploading) return;
 
       setUploading(true);
-      const sent = await uploadLosJsonToSupabase(result, participant);
+      const sent = await uploadLosJsonToCollection(result, participant);
 
       Alert.alert(
         "Upload concluído",

@@ -1,5 +1,6 @@
 import type { Participant } from "../models/types";
-import { supabase } from "./supabase/client";
+import { apiFetch, apiJson } from "./apiClient";
+import { getCurrentResearcher } from "./authLocal";
 
 export const TEST_PARTICIPANT_ID = "__participant_test__";
 
@@ -17,22 +18,15 @@ type ParticipantRow = {
   state: string | null;
   complement: string | null;
   notes: string | null;
-  created_by: string;
-  owner_student_id: string | null;
-  owner_professor_id: string;
   created_at: string;
   updated_at: string;
 };
 
-type MyProfile = {
-  id: string;
-  role: "ADMIN" | "PROFESSOR" | "ALUNO";
-  professor_id: string | null;
-};
-
 function isUuid(value?: string | null) {
   if (!value) return false;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
 }
 
 function formatCpf(value?: string | null) {
@@ -45,13 +39,19 @@ function formatCpf(value?: string | null) {
 }
 
 function mapRowToParticipant(row: ParticipantRow): Participant {
+  const bio =
+    row.sex === "M" || row.sex === "Masculino"
+      ? "Masculino"
+      : row.sex === "F" || row.sex === "Feminino"
+        ? "Feminino"
+        : undefined;
+
   return {
     id: row.id,
     name: row.full_name,
     cpf: row.cpf ?? "",
     dob: row.birth_date ?? "2000-01-01",
-    biologicalSex:
-      row.sex === "Masculino" || row.sex === "Feminino" ? row.sex : undefined,
+    biologicalSex: bio,
     cep: row.cep ?? undefined,
     address: {
       street: row.street ?? undefined,
@@ -88,95 +88,24 @@ export function getTestParticipant(): Participant {
   };
 }
 
-async function getMyProfile(): Promise<MyProfile> {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError) throw new Error(userError.message);
-  if (!user) throw new Error("Usuário não autenticado.");
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, role, professor_id")
-    .eq("id", user.id)
-    .single();
-
-  if (error || !data) {
-    throw new Error(error?.message ?? "Perfil não encontrado.");
-  }
-
-  return data as MyProfile;
+export function getParticipantSubtitle(p: Participant) {
+  const cpf = formatCpf(p.cpf);
+  return cpf ? `CPF: ${cpf}` : "Sem CPF";
 }
 
 export async function listParticipants(): Promise<Participant[]> {
-  const { data, error } = await supabase
-    .from("participants")
-    .select(`
-      id,
-      full_name,
-      cpf,
-      birth_date,
-      sex,
-      cep,
-      street,
-      number,
-      neighborhood,
-      city,
-      state,
-      complement,
-      notes,
-      created_by,
-      owner_student_id,
-      owner_professor_id,
-      created_at,
-      updated_at
-    `)
-    .order("full_name", { ascending: true });
-
-  if (error) {
-    throw new Error(`Erro ao listar participantes: ${error.message}`);
-  }
-
-  const others = (data ?? []).map((row) => mapRowToParticipant(row as ParticipantRow));
-  return [getTestParticipant(), ...others];
+  const bundle = await apiJson<{ participants: ParticipantRow[] }>("/api/participants");
+  const rows = bundle.participants ?? [];
+  const mapped = rows.map((row) => mapRowToParticipant(row));
+  return [getTestParticipant(), ...mapped];
 }
 
 export async function getParticipantById(id: string): Promise<Participant | null> {
   if (id === TEST_PARTICIPANT_ID) return getTestParticipant();
 
-  const { data, error } = await supabase
-    .from("participants")
-    .select(`
-      id,
-      full_name,
-      cpf,
-      birth_date,
-      sex,
-      cep,
-      street,
-      number,
-      neighborhood,
-      city,
-      state,
-      complement,
-      notes,
-      created_by,
-      owner_student_id,
-      owner_professor_id,
-      created_at,
-      updated_at
-    `)
-    .eq("id", id)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Erro ao carregar participante: ${error.message}`);
-  }
-
-  if (!data) return null;
-  return mapRowToParticipant(data as ParticipantRow);
+  const data = await apiJson<{ participant: ParticipantRow }>(`/api/participants/${id}`);
+  if (!data?.participant) return null;
+  return mapRowToParticipant(data.participant);
 }
 
 export async function upsertParticipant(p: Participant): Promise<Participant> {
@@ -184,91 +113,30 @@ export async function upsertParticipant(p: Participant): Promise<Participant> {
     throw new Error("O sujeito exemplo é fixo e não pode ser alterado.");
   }
 
-  const me = await getMyProfile();
-
-  let existing: Pick<
-    ParticipantRow,
-    "id" | "created_by" | "owner_student_id" | "owner_professor_id" | "created_at"
-  > | null = null;
-
-  if (isUuid(p.id)) {
-    const { data, error } = await supabase
-      .from("participants")
-      .select("id, created_by, owner_student_id, owner_professor_id, created_at")
-      .eq("id", p.id)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`Erro ao validar participante existente: ${error.message}`);
-    }
-
-    existing = data;
-  }
-
-  const ownerStudentId =
-    existing?.owner_student_id ??
-    (me.role === "ALUNO" ? me.id : null);
-
-  const ownerProfessorId =
-    existing?.owner_professor_id ??
-    (me.role === "ALUNO" ? me.professor_id : me.id);
-
-  if (!ownerProfessorId) {
-    throw new Error("Professor responsável não encontrado para este usuário.");
-  }
+  await getCurrentResearcher();
 
   const payload = {
-    ...(existing?.id ? { id: existing.id } : {}),
-    full_name: p.name.trim(),
+    id: isUuid(p.id) ? p.id : undefined,
+    fullName: p.name.trim(),
     cpf: String(p.cpf ?? "").replace(/\D/g, ""),
-    birth_date: p.dob,
-    sex: p.biologicalSex ?? null,
-    cep: p.cep ? String(p.cep).replace(/\D/g, "") : null,
-    street: p.address?.street?.trim() || null,
-    number: p.address?.number?.trim() || null,
-    neighborhood: p.address?.neighborhood?.trim() || null,
-    city: p.address?.city?.trim() || null,
-    state: p.address?.uf?.trim()?.toUpperCase() || null,
-    complement: p.address?.complement?.trim() || null,
-    notes: null,
-    created_by: existing?.created_by ?? me.id,
-    owner_student_id: ownerStudentId,
-    owner_professor_id: ownerProfessorId,
+    birthDate: p.dob,
+    sex:
+      p.biologicalSex === "Masculino" ? "M" : p.biologicalSex === "Feminino" ? "F" : undefined,
+    cep: p.cep ? String(p.cep).replace(/\D/g, "") : undefined,
+    street: p.address?.street?.trim() || undefined,
+    number: p.address?.number?.trim() || undefined,
+    neighborhood: p.address?.neighborhood?.trim() || undefined,
+    city: p.address?.city?.trim() || undefined,
+    state: p.address?.uf?.trim()?.toUpperCase() || undefined,
+    complement: p.address?.complement?.trim() || undefined,
   };
 
-  const { data, error } = await supabase
-    .from("participants")
-    .upsert(payload, { onConflict: "id" })
-    .select(`
-      id,
-      full_name,
-      cpf,
-      birth_date,
-      sex,
-      cep,
-      street,
-      number,
-      neighborhood,
-      city,
-      state,
-      complement,
-      notes,
-      created_by,
-      owner_student_id,
-      owner_professor_id,
-      created_at,
-      updated_at
-    `)
-    .single();
+  const created = await apiJson<ParticipantRow>("/api/participants", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 
-  if (error) {
-    if (error.message.toLowerCase().includes("duplicate")) {
-      throw new Error("Já existe participante com esse CPF.");
-    }
-    throw new Error(`Erro ao salvar participante: ${error.message}`);
-  }
-
-  return mapRowToParticipant(data as ParticipantRow);
+  return mapRowToParticipant(created);
 }
 
 export async function deleteParticipant(id: string) {
@@ -276,14 +144,9 @@ export async function deleteParticipant(id: string) {
     throw new Error("O sujeito exemplo é fixo e não pode ser removido.");
   }
 
-  const { error } = await supabase.from("participants").delete().eq("id", id);
-
-  if (error) {
-    throw new Error(`Erro ao excluir participante: ${error.message}`);
+  const res = await apiFetch(`/api/participants/${id}`, { method: "DELETE" });
+  if (!res.ok && res.status !== 204) {
+    const t = await res.text();
+    throw new Error(t || "Erro ao excluir.");
   }
-}
-
-export function getParticipantSubtitle(p: Participant) {
-  const cpf = formatCpf(p.cpf);
-  return cpf ? `CPF: ${cpf}` : "Sem CPF";
 }

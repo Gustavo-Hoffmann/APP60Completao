@@ -7,7 +7,7 @@ import { T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
-import { uploadUttJsonToSupabase } from "../../../services/tests/uploadTestJson";
+import { uploadUttJsonToCollection } from "../../../services/tests/uploadTestJson";
 
 type Params = {
   participant: Participant & {
@@ -91,7 +91,7 @@ export default function ElevacoesCalcanharesResultScreen() {
       if (uploading) return;
 
       setUploading(true);
-      const sent = await uploadUttJsonToSupabase(result, participant);
+      const sent = await uploadUttJsonToCollection(result, participant);
 
       Alert.alert(
         "Upload concluído",

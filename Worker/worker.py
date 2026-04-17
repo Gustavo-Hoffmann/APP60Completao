@@ -1,5 +1,6 @@
 # worker.py
 # -*- coding: utf-8 -*-
+# Processa fila em RDS (tabela collections) e lê arquivos brutos no S3.
 
 from __future__ import annotations
 
@@ -10,7 +11,10 @@ import traceback
 from datetime import datetime, timezone, date
 from typing import Any, Dict, Optional
 
-from supabase import create_client, Client
+import boto3
+import psycopg
+from psycopg.rows import dict_row
+from psycopg.types.json import Json
 
 from marcha_runtime import process_marcha_csv
 from sl30s_runtime import process_sl30s_csv
@@ -21,8 +25,8 @@ from ivcf20_runtime import process_ivcf20_file
 # CONFIG
 # ===========================================================
 
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_SERVER_KEY = os.environ["SUPABASE_SERVER_KEY"]
+DATABASE_URL = os.environ["DATABASE_URL"]
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 CALIBRATOR_PATH = os.environ.get(
     "CALIBRATOR_PATH",
@@ -30,7 +34,6 @@ CALIBRATOR_PATH = os.environ.get(
 )
 
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "10"))
-DEFAULT_BUCKET = os.environ.get("DEFAULT_BUCKET", "test-data")
 
 DEFAULT_SEX = os.environ.get("DEFAULT_SEX", "M")
 DEFAULT_AGE = int(os.environ.get("DEFAULT_AGE", "60"))
@@ -42,15 +45,17 @@ PARTICIPANT_AGE_COLUMN = os.environ.get("PARTICIPANT_AGE_COLUMN", "age")
 PARTICIPANT_BIRTHDATE_COLUMN = os.environ.get("PARTICIPANT_BIRTHDATE_COLUMN", "birth_date")
 PARTICIPANT_NAME_COLUMN = os.environ.get("PARTICIPANT_NAME_COLUMN", "full_name")
 
-# Se quiser limitar só alguns testes, usa:
-# ENABLED_TEST_TYPES=MARCHA,TUG,SL30S
 ENABLED_TEST_TYPES = {
     s.strip().upper()
     for s in os.environ.get("ENABLED_TEST_TYPES", "MARCHA,SL30S,IVCF20").split(",")
     if s.strip()
 }
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVER_KEY)
+s3_client = boto3.client("s3", region_name=AWS_REGION)
+
+
+def _connect() -> psycopg.Connection:
+    return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 
 # ===========================================================
@@ -120,15 +125,10 @@ def first_non_null(d: Dict[str, Any], keys: list[str]) -> Any:
 
 def fetch_participant_row(participant_id: str) -> Optional[Dict[str, Any]]:
     try:
-        resp = (
-            supabase.table(PARTICIPANTS_TABLE)
-            .select("*")
-            .eq(PARTICIPANT_ID_COLUMN, participant_id)
-            .limit(1)
-            .execute()
-        )
-        rows = resp.data or []
-        return rows[0] if rows else None
+        sql = f"SELECT * FROM {PARTICIPANTS_TABLE} WHERE {PARTICIPANT_ID_COLUMN} = %s LIMIT 1"
+        with _connect() as conn:
+            row = conn.execute(sql, (participant_id,)).fetchone()
+        return dict(row) if row else None
     except Exception as e:
         log(f"Lookup de participante ignorado: {e}")
         return None
@@ -168,72 +168,87 @@ def resolve_subject_meta(session_row: Dict[str, Any]) -> Dict[str, Any]:
 # STORAGE / DB
 # ===========================================================
 
-def download_raw_file(bucket: str, path: str) -> bytes:
-    return supabase.storage.from_(bucket).download(path)
+def download_raw_file(bucket: str, key: str) -> bytes:
+    obj = s3_client.get_object(Bucket=bucket, Key=key)
+    return obj["Body"].read()
 
 
 def claim_next_session() -> Optional[Dict[str, Any]]:
     """
-    Pega a próxima sessão pendente entre os testes habilitados.
-    Assumindo 1 worker/instância.
+    Próxima coleta com processing_status = pending entre os testes habilitados.
+    Um worker por instância; usa SKIP LOCKED para múltiplos workers.
     """
-    resp = (
-        supabase.table("test_sessions")
-        .select("*")
-        .eq("processing_status", "pending")
-        .order("created_at", desc=False)
-        .limit(50)
-        .execute()
-    )
-    rows = resp.data or []
-
-    # filtra em memória porque o supabase-python fica mais chato
-    # para OR dinâmico de múltiplos test_type
-    rows = [r for r in rows if str(r.get("test_type", "")).upper() in ENABLED_TEST_TYPES]
-
-    if not rows:
+    if not ENABLED_TEST_TYPES:
         return None
 
-    row = rows[0]
-
-    (
-        supabase.table("test_sessions")
-        .update({
-            "processing_status": "processing",
-            "processing_error": None,
-        })
-        .eq("id", row["id"])
-        .execute()
-    )
-
-    row["processing_status"] = "processing"
-    row["processing_error"] = None
-    return row
+    types = sorted(ENABLED_TEST_TYPES)
+    with _connect() as conn:
+        conn.autocommit = False
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id FROM collections
+                    WHERE processing_status = 'pending'
+                      AND test_type::text = ANY(%s)
+                    ORDER BY created_at ASC
+                    LIMIT 1
+                    FOR UPDATE SKIP LOCKED
+                    """,
+                    (types,),
+                )
+                hit = cur.fetchone()
+                if not hit:
+                    conn.rollback()
+                    return None
+                cid = hit["id"]
+                cur.execute(
+                    """
+                    UPDATE collections
+                    SET processing_status = 'processing',
+                        processing_error = NULL,
+                        updated_at = now()
+                    WHERE id = %s
+                    RETURNING *
+                    """,
+                    (cid,),
+                )
+                row = cur.fetchone()
+            conn.commit()
+            return dict(row) if row else None
+        except Exception:
+            conn.rollback()
+            raise
 
 
 def mark_done(session_id: str) -> None:
-    (
-        supabase.table("test_sessions")
-        .update({
-            "processing_status": "done",
-            "processed_at": now_iso(),
-            "processing_error": None,
-        })
-        .eq("id", session_id)
-        .execute()
-    )
+    with _connect() as conn:
+        conn.execute(
+            """
+            UPDATE collections
+            SET processing_status = 'done',
+                processing_error = NULL,
+                updated_at = now()
+            WHERE id = %s
+            """,
+            (session_id,),
+        )
+        conn.commit()
 
 
 def mark_error(session_id: str, err: Exception) -> None:
-    (
-        supabase.table("test_sessions")
-        .update({
-            "processing_status": "error",
-            "processing_error": safe_error_text(err),
-        })
-        .eq("id", session_id)
-        .execute()
-    )
+    with _connect() as conn:
+        conn.execute(
+            """
+            UPDATE collections
+            SET processing_status = 'error',
+                processing_error = %s,
+                updated_at = now()
+            WHERE id = %s
+            """,
+            (safe_error_text(err), session_id),
+        )
+        conn.commit()
 
 
 def upsert_result(
@@ -241,23 +256,35 @@ def upsert_result(
     metrics: Dict[str, Any],
     extra_payload: Optional[Dict[str, Any]] = None,
 ) -> None:
-    payload = {
-        "test_session_id": session_row["id"],
-        "participant_id": session_row["participant_id"],
-        "test_type": session_row["test_type"],
-        "session_number": session_row["session_number"],
-        "metrics_json": metrics,
-        "updated_at": now_iso(),
-    }
+    collection_id = session_row["id"]
+    participant_id = session_row["participant_id"]
+    test_type = session_row["test_type"]
+    session_number = session_row["session_number"]
+    plot_data = None
+    if extra_payload and "plot_json" in extra_payload:
+        plot_data = extra_payload.get("plot_json")
 
-    if extra_payload:
-        payload.update(extra_payload)
-
-    (
-        supabase.table("test_session_results")
-        .upsert(payload, on_conflict="test_session_id")
-        .execute()
-    )
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO collection_results (
+              collection_id, participant_id, test_type, session_number, metrics_json, plot_json
+            ) VALUES (%s, %s, %s::test_kind, %s, %s, %s)
+            ON CONFLICT (collection_id) DO UPDATE SET
+              metrics_json = EXCLUDED.metrics_json,
+              plot_json = EXCLUDED.plot_json,
+              updated_at = now()
+            """,
+            (
+                collection_id,
+                participant_id,
+                test_type,
+                session_number,
+                Json(metrics),
+                Json(plot_data) if plot_data is not None else None,
+            ),
+        )
+        conn.commit()
 
 
 # ===========================================================
@@ -334,6 +361,7 @@ def process_ivcf20(session_row: Dict[str, Any], raw_path: str) -> Dict[str, Any]
         },
     }
 
+
 TEST_PROCESSORS = {
     "MARCHA": process_marcha,
     "TUG": process_tug,
@@ -350,15 +378,15 @@ TEST_PROCESSORS = {
 
 def process_one(session_row: Dict[str, Any]) -> None:
     test_type = str(session_row["test_type"]).upper()
-    bucket = session_row.get("raw_bucket") or DEFAULT_BUCKET
-    raw_storage_path = session_row["raw_file_path"]
+    bucket = session_row["raw_s3_bucket"]
+    raw_storage_path = session_row["raw_s3_key"]
 
     if test_type not in TEST_PROCESSORS:
         raise ValueError(f"test_type não suportado no worker: {test_type}")
 
     processor = TEST_PROCESSORS[test_type]
 
-    log(f"Baixando raw do bucket={bucket} path={raw_storage_path}")
+    log(f"Baixando raw do bucket={bucket} key={raw_storage_path}")
     raw_bytes = download_raw_file(bucket, raw_storage_path)
 
     raw_ext = os.path.splitext(raw_storage_path)[1].strip() or ".bin"
@@ -378,12 +406,13 @@ def process_one(session_row: Dict[str, Any]) -> None:
         upsert_result(session_row, metrics, extra_payload=extra_payload)
         mark_done(session_row["id"])
 
+
 # ===========================================================
 # MAIN LOOP
 # ===========================================================
 
 def main() -> None:
-    log(f"Worker iniciado. Testes habilitados: {sorted(ENABLED_TEST_TYPES)}")
+    log(f"Worker iniciado (RDS+S3). Testes habilitados: {sorted(ENABLED_TEST_TYPES)}")
 
     while True:
         row: Optional[Dict[str, Any]] = None
@@ -395,7 +424,7 @@ def main() -> None:
                 continue
 
             log(
-                f"Processando sessão id={row['id']} "
+                f"Processando coleta id={row['id']} "
                 f"test_type={row['test_type']} "
                 f"participant_id={row['participant_id']} "
                 f"session={row['session_number']}"
@@ -403,7 +432,7 @@ def main() -> None:
 
             process_one(row)
 
-            log(f"OK sessão {row['id']} finalizada.")
+            log(f"OK coleta {row['id']} finalizada.")
             time.sleep(1)
 
         except Exception as e:
@@ -414,7 +443,7 @@ def main() -> None:
                 try:
                     mark_error(row["id"], e)
                 except Exception:
-                    log("Falha ao marcar sessão como error.")
+                    log("Falha ao marcar coleta como error.")
                     traceback.print_exc()
 
             time.sleep(POLL_SECONDS)

@@ -15,7 +15,7 @@ import { useTheme } from "../../contexts/ThemeContext";
 import type { Participant } from "../../models/types";
 import {
   getNextSessionNumber,
-  uploadIvcf20ResultToSupabase,
+  uploadIvcf20ResultToCollection,
   type Ivcf20CategoryScore,
   type Ivcf20Classification,
 } from "../../services/tests/uploadTestJson";
@@ -298,7 +298,7 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
       const sessionNumberToUse =
         nextSessionNumber ?? (await getNextSessionNumber(String(participant.id), "IVCF20"));
 
-      const sent = await uploadIvcf20ResultToSupabase({
+      const sent = await uploadIvcf20ResultToCollection({
         participant,
         sessionNumber: sessionNumberToUse,
         scoreTotal: Number(scoreTotal ?? 0),

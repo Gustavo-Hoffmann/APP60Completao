@@ -5,12 +5,15 @@ import { ThemedInput } from "../../components/ThemedInput";
 import { ThemedButton } from "../../components/ThemedButton";
 import { DateField } from "../../components/DateField";
 import { useAuth } from "../../contexts/AuthContext";
+import type { Role } from "../../models/auth";
 import { isValidCPF } from "../../models/validators";
 
-const ROLE_LABEL: Record<"ADMIN" | "PROFESSOR" | "ALUNO", string> = {
-  ADMIN: "Admin",
-  PROFESSOR: "Professor",
-  ALUNO: "Aluno",
+const ROLE_LABEL: Record<Role, string> = {
+  SUPER_ADMIN: "Super Admin",
+  ADMIN: "Administrador",
+  GESTOR: "Gestor",
+  SUPERVISOR: "Supervisor",
+  AVALIADOR: "Avaliador / Pesquisador",
 };
 
 export function SettingsScreen({ navigation }: any) {

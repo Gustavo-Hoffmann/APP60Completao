@@ -8,7 +8,7 @@ import { T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
-import { uploadMarchaJsonToSupabase } from "../../../services/tests/uploadTestJson";
+import { uploadMarchaJsonToCollection } from "../../../services/tests/uploadTestJson";
 
 type Params = {
   participant: Participant & {
@@ -366,7 +366,7 @@ export default function MarchaEstacionariaResultScreen() {
       if (uploading) return;
 
       setUploading(true);
-      const sent = await uploadMarchaJsonToSupabase(result, participant);
+      const sent = await uploadMarchaJsonToCollection(result, participant);
 
       Alert.alert(
         "Upload concluído",

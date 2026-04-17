@@ -15,7 +15,7 @@ type Patient = {
 
 function participantToPatient(p: Participant): Patient {
   return {
-    id: p.id,
+    id: p.id ?? "",
     name: (p as any).name,
     dateOfBirth: (p as any).dob ?? (p as any).dateOfBirth,
   };

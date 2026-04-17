@@ -23,30 +23,24 @@ import "react-datepicker/dist/react-datepicker.css";
 
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { useAuth } from "../../../contexts/AuthContext";
-import { supabase } from "../../../lib/supabase/client";
+import { apiFetch, apiJson } from "../../../lib/api/client";
+import { changeOwnPassword } from "../../../lib/cognito/session";
 import { routes } from "../../../navigation/routes";
 import type { Role } from "../../../types/auth";
 
 type EditableUser = {
   id: string;
-  name: string;
+  full_name: string;
   email: string | null;
   role: Role;
-  professor_id: string | null;
+  primary_institution_id: string | null;
   is_active: boolean;
   cpf: string | null;
   phone: string | null;
-  institution: string | null;
   country: string | null;
   city: string | null;
   state: string | null;
   birth_date: string | null;
-};
-
-type ProfessorOption = {
-  id: string;
-  name: string;
-  email: string | null;
 };
 
 type CountryOption = {
@@ -68,11 +62,9 @@ type FormState = {
   name: string;
   email: string;
   role: Role;
-  professor_id: string;
   is_active: boolean;
   cpf: string;
   phone: string;
-  institution: string;
   country: string;
   city: string;
   state: string;
@@ -234,12 +226,10 @@ export function UserEditPage() {
   const [form, setForm] = useState<FormState>({
     name: "",
     email: "",
-    role: "ALUNO",
-    professor_id: "",
+    role: "AVALIADOR",
     is_active: true,
     cpf: "",
     phone: "",
-    institution: "",
     country: "BR",
     city: "",
     state: "",
@@ -247,18 +237,17 @@ export function UserEditPage() {
   });
 
   const [initialData, setInitialData] = useState<EditableUser | null>(null);
-  const [professors, setProfessors] = useState<ProfessorOption[]>([]);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [brazilStates, setBrazilStates] = useState<BrazilStateOption[]>([]);
   const [brazilCities, setBrazilCities] = useState<BrazilCityOption[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [loadingProfessors, setLoadingProfessors] = useState(false);
   const [loadingCountries, setLoadingCountries] = useState(false);
   const [loadingStates, setLoadingStates] = useState(false);
   const [loadingCities, setLoadingCities] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
@@ -271,6 +260,8 @@ export function UserEditPage() {
   const isOwnProfile =
     !!currentUser && !!targetUserId && currentUser.id === targetUserId;
   const isAdmin = currentUser?.role === "ADMIN";
+  const isSuperAdminUser = currentUser?.role === "SUPER_ADMIN";
+  const isManagerUser = currentUser?.role === "GESTOR";
   const isBrazil = form.country === "BR";
 
   const pageTitle = isOwnProfile ? "Meu perfil" : "Editar usuário";
@@ -312,51 +303,22 @@ export function UserEditPage() {
 
       try {
         setLoading(true);
-        setLoadingProfessors(true);
         setError(null);
 
-        const [
-          { data: profile, error: profileError },
-          { data: professorRows, error: professorError },
-        ] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select(
-              "id, name, email, role, professor_id, is_active, cpf, phone, institution, country, city, state, birth_date"
-            )
-            .eq("id", targetUserId)
-            .maybeSingle(),
-          supabase
-            .from("profiles")
-            .select("id, name, email")
-            .eq("role", "PROFESSOR")
-            .eq("is_active", true)
-            .order("name", { ascending: true }),
-        ]);
-
-        if (profileError) throw profileError;
-        if (professorError) throw professorError;
-        if (!profile) throw new Error("Perfil não encontrado.");
-
-        const castedProfile = profile as EditableUser;
-        const castedProfessors = (professorRows ?? []) as ProfessorOption[];
-
-        setInitialData(castedProfile);
-        setProfessors(castedProfessors);
+        const profile = await apiJson<EditableUser>(`/api/users/${targetUserId}`);
+        setInitialData(profile);
 
         setForm({
-          name: castedProfile.name ?? "",
-          email: castedProfile.email ?? "",
-          role: castedProfile.role,
-          professor_id: castedProfile.professor_id ?? "",
-          is_active: castedProfile.is_active,
-          cpf: formatCpf(castedProfile.cpf ?? ""),
-          phone: formatPhone(castedProfile.phone ?? ""),
-          institution: castedProfile.institution ?? "",
-          country: castedProfile.country ?? "BR",
-          city: castedProfile.city ?? "",
-          state: castedProfile.state ?? "",
-          birth_date: castedProfile.birth_date ?? "",
+          name: profile.full_name ?? "",
+          email: profile.email ?? "",
+          role: profile.role,
+          is_active: profile.is_active,
+          cpf: formatCpf(profile.cpf ?? ""),
+          phone: formatPhone(profile.phone ?? ""),
+          country: profile.country ?? "BR",
+          city: profile.city ?? "",
+          state: profile.state ?? "",
+          birth_date: profile.birth_date ?? "",
         });
       } catch (err) {
         console.error("Erro ao carregar perfil:", err);
@@ -365,7 +327,6 @@ export function UserEditPage() {
         );
       } finally {
         setLoading(false);
-        setLoadingProfessors(false);
       }
     }
 
@@ -393,34 +354,60 @@ export function UserEditPage() {
     void loadCities();
   }, [form.state, isBrazil]);
 
-  const isLinkedStudentOfProfessor = useMemo(() => {
-    if (!currentUser || !initialData) return false;
-
-    return (
-      currentUser.role === "PROFESSOR" &&
-      initialData.role === "ALUNO" &&
-      initialData.professor_id === currentUser.id
-    );
-  }, [currentUser, initialData]);
+  const sameInstitution = useMemo(() => {
+    if (!initialData?.primary_institution_id || !currentUser?.institution_id) {
+      return false;
+    }
+    return initialData.primary_institution_id === currentUser.institution_id;
+  }, [initialData, currentUser]);
 
   const canChangeRole = useMemo(() => {
     if (!initialData || !currentUser) return false;
-    if (!isAdmin) return false;
     if (isOwnProfile) return false;
-    return true;
-  }, [initialData, currentUser, isAdmin, isOwnProfile]);
+    if (isSuperAdminUser) return initialData.role !== "SUPER_ADMIN";
+    if (isAdmin && sameInstitution) {
+      return initialData.role !== "SUPER_ADMIN" && initialData.role !== "ADMIN";
+    }
+    if (isManagerUser && sameInstitution) {
+      return initialData.role === "SUPERVISOR" || initialData.role === "AVALIADOR";
+    }
+    return false;
+  }, [
+    initialData,
+    currentUser,
+    isOwnProfile,
+    isSuperAdminUser,
+    isAdmin,
+    isManagerUser,
+    sameInstitution,
+  ]);
 
   const canChangeActive = useMemo(() => {
     if (!currentUser || !initialData) return false;
-    if (!isAdmin) return false;
     if (isOwnProfile) return false;
-    return true;
-  }, [currentUser, initialData, isAdmin, isOwnProfile]);
+    if (isSuperAdminUser) return true;
+    if (isAdmin && sameInstitution) {
+      return initialData.role !== "SUPER_ADMIN";
+    }
+    if (isManagerUser && sameInstitution) {
+      return initialData.role === "SUPERVISOR" || initialData.role === "AVALIADOR";
+    }
+    return false;
+  }, [
+    currentUser,
+    initialData,
+    isOwnProfile,
+    isSuperAdminUser,
+    isAdmin,
+    isManagerUser,
+    sameInstitution,
+  ]);
 
   const canEditThisProfile =
-    isAdmin || isOwnProfile || isLinkedStudentOfProfessor;
+    isOwnProfile || isSuperAdminUser || (isAdmin && sameInstitution) || (isManagerUser && sameInstitution);
 
-  const needsProfessorSelection = form.role === "ALUNO";
+  const backRoute =
+    !isOwnProfile && isManagerUser ? routes.myInstitution : isOwnProfile ? routes.dashboard : routes.users;
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -466,10 +453,8 @@ export function UserEditPage() {
 
     if (
       !form.name.trim() ||
-      !form.email.trim() ||
       !form.cpf.trim() ||
       !form.phone.trim() ||
-      !form.institution.trim() ||
       !form.country.trim() ||
       !form.city.trim() ||
       !form.birth_date
@@ -483,22 +468,15 @@ export function UserEditPage() {
       return;
     }
 
-    if (needsProfessorSelection && !form.professor_id) {
-      setError("Selecione o professor responsável.");
-      return;
-    }
-
     try {
       setSaving(true);
       setError(null);
       setSuccess(null);
 
       const payload: Record<string, unknown> = {
-        name: form.name.trim(),
-        email: form.email.trim().toLowerCase(),
+        fullName: form.name.trim(),
         cpf: onlyDigits(form.cpf),
         phone: form.phone.trim(),
-        institution: form.institution.trim(),
         country: form.country,
         city: form.city.trim(),
         state: isBrazil ? form.state.trim().toUpperCase() : null,
@@ -507,20 +485,20 @@ export function UserEditPage() {
 
       if (canChangeRole) {
         payload.role = form.role;
-        payload.professor_id =
-          form.role === "ALUNO" ? form.professor_id || null : null;
       }
 
       if (canChangeActive) {
         payload.is_active = form.is_active;
       }
 
-      const { error } = await supabase
-        .from("profiles")
-        .update(payload)
-        .eq("id", targetUserId);
-
-      if (error) throw error;
+      const res = await apiFetch(`/api/users/${targetUserId}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || "Falha ao salvar.");
+      }
 
       if (isOwnProfile) {
         await refreshProfile();
@@ -548,6 +526,11 @@ export function UserEditPage() {
     setPasswordError(null);
     setPasswordSuccess(null);
 
+    if (!currentPassword.trim()) {
+      setPasswordError("Informe a senha atual.");
+      return;
+    }
+
     if (!newPassword.trim() || !confirmPassword.trim()) {
       setPasswordError("Preencha a nova senha e a confirmação.");
       return;
@@ -563,16 +546,19 @@ export function UserEditPage() {
       return;
     }
 
+    const email = currentUser?.email?.trim();
+    if (!email) {
+      setPasswordError("E-mail da sessão não encontrado.");
+      return;
+    }
+
     try {
       setChangingPassword(true);
 
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) throw error;
+      await changeOwnPassword(email, currentPassword, newPassword);
 
       setPasswordSuccess("Senha alterada com sucesso.");
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
@@ -610,7 +596,7 @@ export function UserEditPage() {
           <button
             type="button"
             onClick={() =>
-              navigate(isOwnProfile ? routes.dashboard : routes.users)
+              navigate(backRoute)
             }
             className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
@@ -654,9 +640,10 @@ export function UserEditPage() {
                 <TextField
                   type="email"
                   value={form.email}
-                  onChange={(e) => updateField("email", e.target.value)}
+                  onChange={() => {}}
                   placeholder="email@exemplo.com"
-                  disabled={!canEditThisProfile}
+                  disabled
+                  title="E-mail é gerenciado no Amazon Cognito."
                 />
               </Field>
 
@@ -682,14 +669,15 @@ export function UserEditPage() {
                 />
               </Field>
 
-              <Field label="Instituição" className="md:col-span-2" required>
-                <TextField
-                  value={form.institution}
-                  onChange={(e) => updateField("institution", e.target.value)}
-                  placeholder="Ex.: UFPR"
-                  disabled={!canEditThisProfile}
-                />
-              </Field>
+              {initialData?.primary_institution_id ? (
+                <Field label="Instituição (ID)" className="md:col-span-2">
+                  <TextField
+                    value={initialData.primary_institution_id}
+                    onChange={() => {}}
+                    disabled
+                  />
+                </Field>
+              ) : null}
 
               <Field label="País" required>
                 <SelectField
@@ -767,7 +755,7 @@ export function UserEditPage() {
                 <div className="relative">
                   <DatePicker
                     selected={isoToDate(form.birth_date)}
-                    onChange={(date) =>
+                    onChange={(date: Date | null) =>
                       updateField("birth_date", dateToIso(date))
                     }
                     dateFormat="dd/MM/yyyy"
@@ -798,9 +786,10 @@ export function UserEditPage() {
                   onChange={(e) => updateField("role", e.target.value as Role)}
                   disabled={!canChangeRole}
                 >
-                  <option value="ADMIN">Admin</option>
-                  <option value="PROFESSOR">Professor</option>
-                  <option value="ALUNO">Aluno</option>
+                  {isSuperAdminUser ? <option value="ADMIN">Administrador</option> : null}
+                  {isSuperAdminUser || isAdmin ? <option value="GESTOR">Gestor</option> : null}
+                  <option value="SUPERVISOR">Supervisor</option>
+                  <option value="AVALIADOR">Avaliador</option>
                 </SelectField>
               </Field>
 
@@ -817,40 +806,13 @@ export function UserEditPage() {
                 </SelectField>
               </Field>
 
-              {needsProfessorSelection ? (
-                <Field
-                  label="Professor responsável"
-                  className="md:col-span-2"
-                  required
-                >
-                  <SelectField
-                    value={form.professor_id}
-                    onChange={(e) =>
-                      updateField("professor_id", e.target.value)
-                    }
-                    disabled={!canChangeRole || loadingProfessors}
-                  >
-                    <option value="">
-                      {loadingProfessors
-                        ? "Carregando professores..."
-                        : "Selecione um professor"}
-                    </option>
-                    {professors.map((professor) => (
-                      <option key={professor.id} value={professor.id}>
-                        {professor.name}
-                        {professor.email ? ` — ${professor.email}` : ""}
-                      </option>
-                    ))}
-                  </SelectField>
-                </Field>
-              ) : null}
             </div>
 
             <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-end">
               <button
                 type="button"
                 onClick={() =>
-                  navigate(isOwnProfile ? routes.dashboard : routes.users)
+                  navigate(backRoute)
                 }
                 className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
@@ -908,6 +870,19 @@ export function UserEditPage() {
               ) : null}
 
               <div className="grid gap-6 md:grid-cols-2">
+                <Field label="Senha atual" required className="md:col-span-2">
+                  <TextField
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => {
+                      setCurrentPassword(e.target.value);
+                      setPasswordError(null);
+                      setPasswordSuccess(null);
+                    }}
+                    placeholder="Senha atual (Cognito)"
+                    autoComplete="current-password"
+                  />
+                </Field>
                 <Field label="Nova senha" required>
                   <TextField
                     type="password"

@@ -1,0 +1,355 @@
+import { AlertTriangle, Loader2, Save, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+
+import { AppHeader } from "../../../components/layout/AppHeader";
+import { apiJson } from "../../../lib/api/client";
+import { routes } from "../../../navigation/routes";
+
+type InstitutionRow = {
+  id: string;
+  name: string;
+  acronym: string;
+  unit: string | null;
+  country: string;
+  state_or_county: string | null;
+  city: string;
+  street: string | null;
+  neighborhood: string | null;
+  postal_code: string | null;
+  street_number: string | null;
+  complement: string | null;
+  is_active: boolean;
+};
+
+function FieldLabel({ children, required = false }: { children: string; required?: boolean }) {
+  return (
+    <label className="mb-2 block text-sm font-semibold text-slate-700">
+      {children}
+      {required ? <span className="ml-1 text-rose-500">*</span> : null}
+    </label>
+  );
+}
+
+function TextField(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      {...props}
+      className={`w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${props.className ?? ""}`}
+    />
+  );
+}
+
+function SelectField(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      {...props}
+      className={`w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${props.className ?? ""}`}
+    />
+  );
+}
+
+export function InstitutionEditPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [form, setForm] = useState<InstitutionRow | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      if (!id) return;
+      try {
+        setLoading(true);
+        setLoadError(null);
+        const list = await apiJson<InstitutionRow[]>("/api/institutions");
+        const found = (list ?? []).find((r) => r.id === id) ?? null;
+        if (!found) {
+          setLoadError("Instituição não encontrada.");
+          setForm(null);
+          return;
+        }
+        setForm(found);
+      } catch (err) {
+        console.error(err);
+        setLoadError(err instanceof Error ? err.message : "Erro ao carregar instituição.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    void load();
+  }, [id]);
+
+  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!id || !form) return;
+    setFormError(null);
+
+    if (!form.name.trim() || !form.acronym.trim() || !form.country.trim() || !form.city.trim()) {
+      setFormError("Preencha os campos obrigatórios.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await apiJson(`/api/institutions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: form.name.trim(),
+          acronym: form.acronym.trim(),
+          unit: form.unit?.trim() || null,
+          country: form.country,
+          state_or_county: form.state_or_county?.trim() || null,
+          city: form.city.trim(),
+          postal_code: form.postal_code?.trim() || null,
+          street: form.street?.trim() || null,
+          neighborhood: form.neighborhood?.trim() || null,
+          street_number: form.street_number?.trim() || null,
+          complement: form.complement?.trim() || null,
+          is_active: form.is_active,
+        }),
+      });
+      navigate(routes.institutions);
+    } catch (err) {
+      console.error(err);
+      setFormError(err instanceof Error ? err.message : "Erro ao salvar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!id || !form) return;
+
+    const confirmed = window.confirm(
+      `Excluir a instituição "${form.name}${form.unit ? ` - ${form.unit}` : ""}"? Essa ação não pode ser desfeita.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeleting(true);
+      setFormError(null);
+      await apiJson(`/api/institutions/${id}`, { method: "DELETE" });
+      navigate(routes.institutions);
+    } catch (err) {
+      console.error(err);
+      setFormError(err instanceof Error ? err.message : "Erro ao excluir instituição.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-100">
+      <AppHeader title="Editar instituição" subtitle="Atualize dados cadastrais" />
+
+      <main className="mx-auto max-w-5xl px-6 py-8">
+        {loading ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="flex items-center gap-3 text-slate-500">
+              <Loader2 size={18} className="animate-spin" />
+              Carregando...
+            </div>
+          </div>
+        ) : loadError ? (
+          <div className="rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 text-red-600" size={18} />
+              <div>
+                <p className="font-semibold text-red-700">Erro</p>
+                <p className="mt-1 text-sm text-red-600">{loadError}</p>
+              </div>
+            </div>
+          </div>
+        ) : !form ? (
+          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            Instituição não encontrada.
+          </div>
+        ) : (
+          <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+            <form onSubmit={handleSave} className="space-y-6">
+              {formError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {formError}
+                </div>
+              ) : null}
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <FieldLabel required>Nome da instituição</FieldLabel>
+                  <TextField
+                    value={form.name}
+                    onChange={(e) => setForm((p) => (p ? { ...p, name: e.target.value } : p))}
+                  />
+                </div>
+
+                <div>
+                  <FieldLabel required>Sigla</FieldLabel>
+                  <TextField
+                    value={form.acronym}
+                    onChange={(e) => setForm((p) => (p ? { ...p, acronym: e.target.value } : p))}
+                  />
+                </div>
+
+                <div>
+                  <FieldLabel>Unidade</FieldLabel>
+                  <TextField
+                    value={form.unit ?? ""}
+                    onChange={(e) => setForm((p) => (p ? { ...p, unit: e.target.value } : p))}
+                  />
+                </div>
+
+                <div>
+                  <FieldLabel required>País</FieldLabel>
+                  <SelectField
+                    value={form.country}
+                    onChange={(e) => setForm((p) => (p ? { ...p, country: e.target.value } : p))}
+                  >
+                    <option value="BR">Brasil (BR)</option>
+                    <option value="US">Estados Unidos (US)</option>
+                    <option value="UK">Reino Unido (UK)</option>
+                    <option value={form.country}>{form.country}</option>
+                  </SelectField>
+                </div>
+
+                <div>
+                  <FieldLabel>State/County</FieldLabel>
+                  <TextField
+                    value={form.state_or_county ?? ""}
+                    onChange={(e) =>
+                      setForm((p) => (p ? { ...p, state_or_county: e.target.value } : p))
+                    }
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <FieldLabel required>Cidade</FieldLabel>
+                  <TextField
+                    value={form.city}
+                    onChange={(e) => setForm((p) => (p ? { ...p, city: e.target.value } : p))}
+                  />
+                </div>
+
+                <div>
+                  <FieldLabel>CEP / Postal code</FieldLabel>
+                  <TextField
+                    value={form.postal_code ?? ""}
+                    onChange={(e) =>
+                      setForm((p) => (p ? { ...p, postal_code: e.target.value } : p))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <FieldLabel>Número</FieldLabel>
+                  <TextField
+                    value={form.street_number ?? ""}
+                    onChange={(e) =>
+                      setForm((p) => (p ? { ...p, street_number: e.target.value } : p))
+                    }
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <FieldLabel>Complemento</FieldLabel>
+                  <TextField
+                    value={form.complement ?? ""}
+                    onChange={(e) =>
+                      setForm((p) => (p ? { ...p, complement: e.target.value } : p))
+                    }
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <FieldLabel>Rua / Logradouro</FieldLabel>
+                  <TextField
+                    value={form.street ?? ""}
+                    onChange={(e) => setForm((p) => (p ? { ...p, street: e.target.value } : p))}
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <FieldLabel>Bairro</FieldLabel>
+                  <TextField
+                    value={form.neighborhood ?? ""}
+                    onChange={(e) =>
+                      setForm((p) => (p ? { ...p, neighborhood: e.target.value } : p))
+                    }
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="inline-flex items-center gap-3 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.is_active}
+                      onChange={(e) =>
+                        setForm((p) => (p ? { ...p, is_active: e.target.checked } : p))
+                      }
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                    Instituição ativa
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  disabled={saving || deleting}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {deleting ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Excluindo...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={18} />
+                      Excluir instituição
+                    </>
+                  )}
+                </button>
+
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={() => navigate(routes.institutions)}
+                    disabled={saving || deleting}
+                    className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving || deleting}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} />
+                        Salvar alterações
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+

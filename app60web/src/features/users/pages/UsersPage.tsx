@@ -16,31 +16,33 @@ import { useNavigate } from "react-router-dom";
 
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { useAuth } from "../../../contexts/AuthContext";
-import { supabase } from "../../../lib/supabase/client";
+import { apiFetch, apiJson } from "../../../lib/api/client";
 import { routes } from "../../../navigation/routes";
-import type { UserRole } from "../../../types/auth";
+import type { Role } from "../../../types/auth";
 
 type UserRow = {
   id: string;
   name: string;
   email: string | null;
-  role: UserRole;
-  professor_id: string | null;
+  role: Role;
+  primary_institution_id: string | null;
   is_active: boolean;
   created_at?: string | null;
 };
 
-type TabKey = "TODOS" | "ADMIN" | "PROFESSOR" | "ALUNO";
+type TabKey = "TODOS" | Role;
 
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: "TODOS", label: "Todos" },
+  { key: "SUPER_ADMIN", label: "Super Admin" },
   { key: "ADMIN", label: "Admin" },
-  { key: "PROFESSOR", label: "Professor" },
-  { key: "ALUNO", label: "Aluno" },
+  { key: "GESTOR", label: "Gestor" },
+  { key: "SUPERVISOR", label: "Supervisor" },
+  { key: "AVALIADOR", label: "Avaliador" },
 ];
 
 const ROLE_META: Record<
-  UserRole,
+  Role,
   {
     label: string;
     icon: typeof Shield;
@@ -48,20 +50,32 @@ const ROLE_META: Record<
     glowClass: string;
   }
 > = {
-  ADMIN: {
-    label: "Admin",
+  SUPER_ADMIN: {
+    label: "Super Admin",
     icon: Shield,
     badgeClass: "border-violet-200 bg-violet-50 text-violet-700",
     glowClass: "from-violet-500/10 via-fuchsia-500/5 to-transparent",
   },
-  PROFESSOR: {
-    label: "Professor",
+  ADMIN: {
+    label: "Administrador",
+    icon: Shield,
+    badgeClass: "border-indigo-200 bg-indigo-50 text-indigo-700",
+    glowClass: "from-indigo-500/10 via-violet-500/5 to-transparent",
+  },
+  GESTOR: {
+    label: "Gestor",
     icon: GraduationCap,
     badgeClass: "border-blue-200 bg-blue-50 text-blue-700",
     glowClass: "from-blue-500/10 via-cyan-500/5 to-transparent",
   },
-  ALUNO: {
-    label: "Aluno",
+  SUPERVISOR: {
+    label: "Supervisor",
+    icon: GraduationCap,
+    badgeClass: "border-cyan-200 bg-cyan-50 text-cyan-800",
+    glowClass: "from-cyan-500/10 via-teal-500/5 to-transparent",
+  },
+  AVALIADOR: {
+    label: "Avaliador",
     icon: UserIcon,
     badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700",
     glowClass: "from-emerald-500/10 via-lime-500/5 to-transparent",
@@ -102,15 +116,29 @@ export function UsersPage() {
 
       setError(null);
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, name, email, role, professor_id, is_active, created_at")
-        .eq("is_active", true)
-        .order("created_at", { ascending: true });
+      const data = await apiJson<
+        Array<{
+          id: string;
+          full_name: string;
+          email: string | null;
+          role: Role;
+          primary_institution_id: string | null;
+          is_active: boolean;
+          created_at?: string | null;
+        }>
+      >("/api/users");
 
-      if (error) throw error;
-
-      setUsers((data ?? []) as UserRow[]);
+      setUsers(
+        (data ?? []).map((row) => ({
+          id: row.id,
+          name: row.full_name,
+          email: row.email,
+          role: row.role,
+          primary_institution_id: row.primary_institution_id,
+          is_active: row.is_active,
+          created_at: row.created_at,
+        }))
+      );
     } catch (err) {
       console.error("Erro ao carregar usuários:", err);
       setError(err instanceof Error ? err.message : "Não foi possível carregar os usuários.");
@@ -137,12 +165,14 @@ export function UsersPage() {
     try {
       setBusyUserId(target.id);
 
-      const { error } = await supabase
-        .from("profiles")
-        .update({ is_active: false })
-        .eq("id", target.id);
-
-      if (error) throw error;
+      const res = await apiFetch(`/api/users/${target.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_active: false }),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || "Falha ao desativar.");
+      }
 
       setUsers((prev) => prev.filter((item) => item.id !== target.id));
     } catch (err) {
@@ -156,9 +186,11 @@ export function UsersPage() {
   const stats = useMemo(() => {
     return {
       total: users.length,
+      superAdmins: users.filter((item) => item.role === "SUPER_ADMIN").length,
       admins: users.filter((item) => item.role === "ADMIN").length,
-      professores: users.filter((item) => item.role === "PROFESSOR").length,
-      alunos: users.filter((item) => item.role === "ALUNO").length,
+      gestores: users.filter((item) => item.role === "GESTOR").length,
+      supervisores: users.filter((item) => item.role === "SUPERVISOR").length,
+      avaliadores: users.filter((item) => item.role === "AVALIADOR").length,
     };
   }, [users]);
 
@@ -192,7 +224,7 @@ export function UsersPage() {
     <div className="min-h-screen bg-slate-100">
       <AppHeader
         title="Usuários"
-        subtitle="Gerencie administradores, professores e alunos"
+        subtitle="Gerencie perfis conforme a hierarquia institucional"
       />
 
       <main className="space-y-6 px-6 py-8">
@@ -233,11 +265,13 @@ export function UsersPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
           <MetricCard label="Total" value={stats.total} />
+          <MetricCard label="Super Admin" value={stats.superAdmins} />
           <MetricCard label="Admins" value={stats.admins} />
-          <MetricCard label="Professores" value={stats.professores} />
-          <MetricCard label="Alunos" value={stats.alunos} />
+          <MetricCard label="Gestores" value={stats.gestores} />
+          <MetricCard label="Supervisores" value={stats.supervisores} />
+          <MetricCard label="Avaliadores" value={stats.avaliadores} />
         </section>
 
         <section className="flex flex-wrap gap-3">

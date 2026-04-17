@@ -1,4 +1,4 @@
-import { Activity, ClipboardList, Footprints, Timer, Users } from "lucide-react";
+import { ClipboardList, Footprints, Timer, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
