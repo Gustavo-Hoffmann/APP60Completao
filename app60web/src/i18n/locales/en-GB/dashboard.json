@@ -11,8 +11,17 @@
     "collectionsTotal": "Total collections",
     "collectionsTotalSubtitle": "Cumulative",
     "collectionsMonth": "Collections this month",
-    "collectionsMonthSubtitle": "Current month"
+    "collectionsMonthSubtitle": "Current month",
+    "institutionsTotal": "Institutions",
+    "institutionsSubtitle": "Active registry",
+    "usersTotal": "Users",
+    "usersSubtitle": "Active accounts",
+    "topInstitutionUsers": "Institution with most users",
+    "topInstitutionCollections": "Institution with most collections",
+    "topInstitutionFallback": "No data"
   },
+  "cumulativeCollections": "Cumulative collections ({{year}})",
+  "dateLabel": "Date: {{date}}",
   "monthlyCollections": "Monthly collections ({{year}})",
   "collectionsTooltip": "Collections",
   "topTest": "Most collected test",

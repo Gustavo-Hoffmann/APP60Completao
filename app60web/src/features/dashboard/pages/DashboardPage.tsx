@@ -1,10 +1,12 @@
-import { Activity, BarChart3, ClipboardList, Loader2, Users } from "lucide-react";
+import { Activity, BarChart3, ClipboardList, Loader2, Trophy, TrendingUp, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -23,6 +25,11 @@ type DashboardSummary = {
   collectionsByMonth: Array<{ month: number; count: number }>;
   topTest: { testType: string; count: number } | null;
   ivcf: { robusto: number; preFragil: number; fragil: number };
+  institutionsTotal?: number;
+  usersTotal?: number;
+  topInstitutionByUsers?: { id: string; name: string; acronym: string; count: number } | null;
+  topInstitutionByCollections?: { id: string; name: string; acronym: string; count: number } | null;
+  collectionsCumulativeByDay?: Array<{ day: string; total: number }>;
 };
 
 function monthLabel(month: number) {
@@ -78,6 +85,7 @@ export function DashboardPage() {
       ? user.institution_name ?? t("dashboard:myInstitution")
       : t("dashboard:title");
   const headerSubtitle = user?.role === "GESTOR" ? undefined : t("dashboard:subtitle");
+  const isAdminDashboard = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
 
   const testLabel = (testType: string) => {
     const normalized = (testType ?? "").toUpperCase();
@@ -107,7 +115,7 @@ export function DashboardPage() {
           </div>
         ) : (
           <>
-            <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <section className={`grid grid-cols-1 gap-6 ${isAdminDashboard ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
               <StatCard
                 title={t("dashboard:stats.participantsTotal")}
                 value={data.participantsTotal}
@@ -126,7 +134,85 @@ export function DashboardPage() {
                 icon={ClipboardList}
                 subtitle={t("dashboard:stats.collectionsMonthSubtitle")}
               />
+              {isAdminDashboard ? (
+                <StatCard
+                  title={t("dashboard:stats.institutionsTotal")}
+                  value={data.institutionsTotal ?? 0}
+                  icon={BarChart3}
+                  subtitle={t("dashboard:stats.institutionsSubtitle")}
+                />
+              ) : null}
             </section>
+
+            {isAdminDashboard ? (
+              <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <StatCard
+                  title={t("dashboard:stats.usersTotal")}
+                  value={data.usersTotal ?? 0}
+                  icon={Users}
+                  subtitle={t("dashboard:stats.usersSubtitle")}
+                />
+                <StatCard
+                  title={t("dashboard:stats.topInstitutionUsers")}
+                  value={data.topInstitutionByUsers?.count ?? 0}
+                  icon={Trophy}
+                  subtitle={
+                    data.topInstitutionByUsers
+                      ? `${data.topInstitutionByUsers.name} • ${data.topInstitutionByUsers.acronym}`
+                      : t("dashboard:stats.topInstitutionFallback")
+                  }
+                />
+                <StatCard
+                  title={t("dashboard:stats.topInstitutionCollections")}
+                  value={data.topInstitutionByCollections?.count ?? 0}
+                  icon={TrendingUp}
+                  subtitle={
+                    data.topInstitutionByCollections
+                      ? `${data.topInstitutionByCollections.name} • ${data.topInstitutionByCollections.acronym}`
+                      : t("dashboard:stats.topInstitutionFallback")
+                  }
+                />
+              </section>
+            ) : null}
+
+            {isAdminDashboard ? (
+              <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <TrendingUp size={16} className="text-blue-600" />
+                  {t("dashboard:cumulativeCollections", { year: data.year })}
+                </div>
+
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={data.collectionsCumulativeByDay ?? []}
+                      margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="day"
+                        tick={{ fontSize: 12 }}
+                        minTickGap={28}
+                        tickFormatter={(v) => String(v).slice(5)}
+                      />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                      <Tooltip
+                        formatter={(value) => [`${value}`, t("dashboard:collectionsTooltip")]}
+                        labelFormatter={(label) => t("dashboard:dateLabel", { date: label })}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="total"
+                        stroke="#2563eb"
+                        strokeWidth={3}
+                        dot={false}
+                        activeDot={{ r: 6 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+            ) : null}
 
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">

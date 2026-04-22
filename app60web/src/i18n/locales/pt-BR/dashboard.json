@@ -11,8 +11,17 @@
     "collectionsTotal": "Coletas Totais",
     "collectionsTotalSubtitle": "Acumulado",
     "collectionsMonth": "Coletas no Mês",
-    "collectionsMonthSubtitle": "Mês atual"
+    "collectionsMonthSubtitle": "Mês atual",
+    "institutionsTotal": "Instituições",
+    "institutionsSubtitle": "Cadastro ativo",
+    "usersTotal": "Usuários",
+    "usersSubtitle": "Contas ativas",
+    "topInstitutionUsers": "Instituição com mais usuários",
+    "topInstitutionCollections": "Instituição com mais coletas",
+    "topInstitutionFallback": "Sem dados"
   },
+  "cumulativeCollections": "Coletas acumuladas ({{year}})",
+  "dateLabel": "Data: {{date}}",
   "monthlyCollections": "Coletas mensais ({{year}})",
   "collectionsTooltip": "Coletas",
   "topTest": "Teste com mais coletas",
