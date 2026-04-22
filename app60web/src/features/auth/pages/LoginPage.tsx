@@ -16,7 +16,7 @@ import {
 import { routes } from "../../../navigation/routes";
 
 export function LoginPage() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, authError } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation(["auth"]);
 
@@ -143,9 +143,9 @@ export function LoginPage() {
             {t("auth:login.rememberMe")}
           </label>
 
-          {localError ? (
+          {localError || authError ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {localError}
+              {localError ?? authError}
             </div>
           ) : null}
 

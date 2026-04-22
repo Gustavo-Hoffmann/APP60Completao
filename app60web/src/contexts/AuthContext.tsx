@@ -15,6 +15,7 @@ type AuthContextType = {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  authError: string | null;
   login: (payload: SignInPayload) => Promise<{ error: string | null }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -51,9 +52,11 @@ async function fetchMe(): Promise<AuthUser> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const clearAuthState = useCallback(() => {
     setUser(null);
+    setAuthError(null);
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -81,9 +84,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const profile = await fetchMe();
         if (!mounted) return;
         setUser(profile);
-      } catch {
+        setAuthError(null);
+      } catch (err: unknown) {
         if (!mounted) return;
-        clearAuthState();
+        const message =
+          err instanceof Error && err.message ? err.message : "Falha ao validar sessão.";
+        setAuthError(message);
+        setUser(null);
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -103,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signInWithPassword(email, password);
         const profile = await fetchMe();
         setUser(profile);
+        setAuthError(null);
         return { error: null };
       } catch (err: unknown) {
         signOutCognito();
@@ -111,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           err instanceof Error && err.message
             ? err.message
             : "E-mail ou senha inválidos.";
+        setAuthError(message);
         return { error: message };
       } finally {
         setIsLoading(false);
@@ -134,11 +143,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       isAuthenticated: !!user,
       isLoading,
+      authError,
       login,
       logout,
       refreshProfile,
     }),
-    [user, isLoading, login, logout, refreshProfile]
+    [user, isLoading, authError, login, logout, refreshProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
