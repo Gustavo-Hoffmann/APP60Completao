@@ -44,6 +44,14 @@ type EditableUser = {
   birth_date: string | null;
 };
 
+type InstitutionRow = {
+  id: string;
+  name: string;
+  acronym: string;
+  unit: string | null;
+  is_active: boolean;
+};
+
 type CountryOption = {
   code: string;
   name: string;
@@ -253,6 +261,7 @@ export function UserEditPage() {
   });
 
   const [initialData, setInitialData] = useState<EditableUser | null>(null);
+  const [institutionLabel, setInstitutionLabel] = useState<string>("");
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [brazilStates, setBrazilStates] = useState<BrazilStateOption[]>([]);
   const [brazilCities, setBrazilCities] = useState<BrazilCityOption[]>([]);
@@ -323,6 +332,23 @@ export function UserEditPage() {
 
         const profile = await apiJson<EditableUser>(`/api/users/${targetUserId}`);
         setInitialData(profile);
+
+        // Resolve "Nome - Sigla" da instituição (quando houver).
+        if (profile.primary_institution_id) {
+          try {
+            const list = await apiJson<InstitutionRow[]>("/api/institutions");
+            const inst = (list ?? []).find((r) => r.id === profile.primary_institution_id) ?? null;
+            if (inst) {
+              setInstitutionLabel(`${inst.name} - ${inst.acronym}`);
+            } else {
+              setInstitutionLabel(profile.primary_institution_id);
+            }
+          } catch {
+            setInstitutionLabel(profile.primary_institution_id);
+          }
+        } else {
+          setInstitutionLabel("");
+        }
 
         setForm({
           name: profile.full_name ?? "",
@@ -686,9 +712,9 @@ export function UserEditPage() {
               </Field>
 
               {initialData?.primary_institution_id ? (
-                <Field label={t("modules:userEdit.institutionId")} className="md:col-span-2">
+                <Field label={t("modules:userEdit.institution")} className="md:col-span-2">
                   <TextField
-                    value={initialData.primary_institution_id}
+                    value={institutionLabel || initialData.primary_institution_id}
                     onChange={() => {}}
                     disabled
                   />

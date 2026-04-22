@@ -205,7 +205,7 @@
     "backDashboard": "Back to dashboard",
     "backUsers": "Back to users",
     "permissionsWarning": "You do not have permission to edit this profile.",
-    "institutionId": "Institution (ID)",
+    "institution": "Institution",
     "emailManaged": "Email is managed by Amazon Cognito.",
     "status": "Status",
     "statusActive": "Active",
