@@ -86,6 +86,7 @@
     "collectionsLabel": "Coletas",
     "institutionLabel": "Instituição: {{label}}",
     "registeredTitle": "Instituições cadastradas",
+    "managerResponsible": "Gestor responsável:",
     "loading": "Carregando instituições...",
     "loadErrorTitle": "Erro ao carregar instituições",
     "emptyTitle": "Nenhuma instituição encontrada.",

@@ -37,6 +37,7 @@ type InstitutionRow = {
   street_number: string | null;
   complement: string | null;
   is_active: boolean;
+  manager_name?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -252,6 +253,15 @@ export function InstitutionsPage() {
                     {inst.neighborhood ? ` — ${inst.neighborhood}` : ""}
                     {inst.postal_code ? ` • ${t("institutions.postalCode", { value: inst.postal_code })}` : ""}
                   </div>
+
+                  {inst.manager_name ? (
+                    <div className="mt-2 text-sm text-slate-600">
+                      <span className="font-semibold text-slate-700">
+                        {t("institutions.managerResponsible")}
+                      </span>{" "}
+                      <span className="text-slate-700">{inst.manager_name}</span>
+                    </div>
+                  ) : null}
                 </button>
               ))}
             </div>

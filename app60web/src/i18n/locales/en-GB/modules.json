@@ -86,6 +86,7 @@
     "collectionsLabel": "Collections",
     "institutionLabel": "Institution: {{label}}",
     "registeredTitle": "Registered institutions",
+    "managerResponsible": "Responsible manager:",
     "loading": "Loading institutions...",
     "loadErrorTitle": "Error loading institutions",
     "emptyTitle": "No institutions found.",
