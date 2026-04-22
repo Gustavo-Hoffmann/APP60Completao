@@ -32,6 +32,19 @@ function getIvcfBadgeStyles(ivcfClass?: Participant["ivcfClass"]) {
   return "border-slate-200 bg-slate-100 text-slate-500";
 }
 
+function getIvcfPanelStyles(ivcfClass?: Participant["ivcfClass"]) {
+  if (ivcfClass === "Frágil") {
+    return "border-red-200 bg-red-50/80";
+  }
+  if (ivcfClass === "Pré-Frágil") {
+    return "border-amber-200 bg-amber-50/80";
+  }
+  if (ivcfClass === "Robusto") {
+    return "border-emerald-200 bg-emerald-50/80";
+  }
+  return "border-slate-200 bg-slate-50";
+}
+
 function PremiumMetricCard({
   label,
   value,
@@ -254,7 +267,7 @@ export function ParticipantsPage() {
               <p className="mt-1 text-sm text-red-600">{error}</p>
             </div>
           ) : (
-            <Card className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <Card className="overflow-hidden rounded-3xl border border-blue-200 bg-blue-50/60 shadow-sm">
               <div className="overflow-x-auto">
                 <table className="min-w-full">
                   <thead className="bg-white">
@@ -288,14 +301,14 @@ export function ParticipantsPage() {
                             }
                           }}
                           className={[
-                            "cursor-pointer border-t border-slate-100 transition-colors hover:bg-slate-50",
+                            "cursor-pointer border-t border-blue-100/80 transition-colors hover:bg-blue-50/70",
                             isExample ? "bg-slate-50/70" : "bg-white",
                             index === 0 ? "border-t-0" : "",
                           ].join(" ")}
                         >
                           <td className="px-6 py-5">
                             <div className="flex items-center gap-3">
-                              <span className="font-semibold text-slate-900">
+                              <span className="font-semibold text-blue-800">
                                 {participant.name}
                               </span>
 
@@ -313,7 +326,12 @@ export function ParticipantsPage() {
                           <td className="px-6 py-5 text-slate-600">{cityState}</td>
                           <td className="px-6 py-5">
                             {participant.ivcfClass ? (
-                              <div className="flex flex-col gap-2">
+                              <div
+                                className={[
+                                  "flex w-fit flex-col gap-2 rounded-2xl border px-4 py-3",
+                                  getIvcfPanelStyles(participant.ivcfClass),
+                                ].join(" ")}
+                              >
                                 <div className="text-sm font-black text-slate-900">
                                   {participant.ivcfScore ?? "—"} {t("participants.table.points")}
                                 </div>
