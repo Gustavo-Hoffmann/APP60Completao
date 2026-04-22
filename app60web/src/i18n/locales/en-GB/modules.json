@@ -52,12 +52,10 @@
     "subtitle": "Complete list of registered participants.",
     "searchPlaceholder": "Search by name, CPF or city...",
     "stats": {
-      "total": "Total",
-      "totalSub": "Registered participants",
-      "with2mst": "2MST available",
-      "with2mstSub": "Participants with processed gait data",
-      "fragile": "Frail IVCF",
-      "fragileSub": "Most recent classification with higher attention"
+      "totalCollections": "Total collections",
+      "totalCollectionsSub": "Sum of processed sessions (all tests)",
+      "ivcfDistribution": "IVCF (latest classification)",
+      "ivcfDistributionSub": "Distribution per participant with IVCF-20 collection"
     },
     "loading": "Loading participants...",
     "loadErrorTitle": "Error loading participants",

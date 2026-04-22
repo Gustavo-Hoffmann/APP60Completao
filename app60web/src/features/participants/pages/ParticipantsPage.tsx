@@ -1,7 +1,17 @@
-import { Activity, HeartPulse, Search, UserRound, ChevronRight } from "lucide-react";
+import { BarChart3, Search, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { Card } from "../../../components/ui/Card";
@@ -52,8 +62,81 @@ function PremiumMetricCard({
   );
 }
 
+function IvcfDistributionCard({
+  label,
+  subtitle,
+  robust,
+  preFragile,
+  fragile,
+}: {
+  label: string;
+  subtitle: string;
+  robust: number;
+  preFragile: number;
+  fragile: number;
+}) {
+  const data = [
+    { name: "Robusto", value: robust, color: "#10b981" },
+    { name: "Pré-frágil", value: preFragile, color: "#f59e0b" },
+    { name: "Frágil", value: fragile, color: "#ef4444" },
+  ];
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            {label}
+          </p>
+          <p className="mt-2 text-sm text-slate-500">{subtitle}</p>
+        </div>
+
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-700">
+          <BarChart3 size={20} />
+        </div>
+      </div>
+
+      <div className="mt-4 h-28">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 11, fill: "#64748b" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              allowDecimals={false}
+              tick={{ fontSize: 11, fill: "#64748b" }}
+              axisLine={false}
+              tickLine={false}
+              width={28}
+            />
+            <Tooltip
+              cursor={{ fill: "rgba(59, 130, 246, 0.12)" }}
+              contentStyle={{
+                borderRadius: 12,
+                border: "1px solid #e2e8f0",
+                boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
+              }}
+              formatter={(value) => [`${value}`, "Participantes"]}
+            />
+            <Bar dataKey="value" radius={[10, 10, 0, 0]}>
+              {data.map((entry) => (
+                <Cell key={entry.name} fill={entry.color} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 export function ParticipantsPage() {
   const { t } = useTranslation("modules");
+  const navigate = useNavigate();
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -99,10 +182,22 @@ export function ParticipantsPage() {
   }, [participants, search]);
 
   const stats = useMemo(() => {
+    const totalCollections = participants.reduce((acc, participant) => {
+      const tests = participant.tests;
+      if (!tests) return acc;
+      return (
+        acc +
+        (tests.twoMstSessions?.length ?? 0) +
+        (tests.sl30sSessions?.length ?? 0) +
+        (tests.ivcfSessions?.length ?? 0)
+      );
+    }, 0);
+
     return {
-      total: participants.length,
-      with2Mst: participants.filter((participant) => participant.tests?.has2MST).length,
-      fragile: participants.filter((participant) => participant.ivcfClass === "Frágil").length,
+      totalCollections,
+      ivcfRobust: participants.filter((participant) => participant.ivcfClass === "Robusto").length,
+      ivcfPreFragile: participants.filter((participant) => participant.ivcfClass === "Pré-Frágil").length,
+      ivcfFragile: participants.filter((participant) => participant.ivcfClass === "Frágil").length,
     };
   }, [participants]);
 
@@ -132,24 +227,19 @@ export function ParticipantsPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <section className="grid gap-4 sm:grid-cols-2">
           <PremiumMetricCard
-            label={t("participants.stats.total")}
-            value={stats.total}
-            subtitle={t("participants.stats.totalSub")}
+            label={t("participants.stats.totalCollections")}
+            value={stats.totalCollections}
+            subtitle={t("participants.stats.totalCollectionsSub")}
             icon={UserRound}
           />
-          <PremiumMetricCard
-            label={t("participants.stats.with2mst")}
-            value={stats.with2Mst}
-            subtitle={t("participants.stats.with2mstSub")}
-            icon={Activity}
-          />
-          <PremiumMetricCard
-            label={t("participants.stats.fragile")}
-            value={stats.fragile}
-            subtitle={t("participants.stats.fragileSub")}
-            icon={HeartPulse}
+          <IvcfDistributionCard
+            label={t("participants.stats.ivcfDistribution")}
+            subtitle={t("participants.stats.ivcfDistributionSub")}
+            robust={stats.ivcfRobust}
+            preFragile={stats.ivcfPreFragile}
+            fragile={stats.ivcfFragile}
           />
         </section>
 
@@ -175,7 +265,6 @@ export function ParticipantsPage() {
                       <th className="px-6 py-5">{t("participants.table.sex")}</th>
                       <th className="px-6 py-5">{t("participants.table.city")}</th>
                       <th className="px-6 py-5">{t("participants.table.ivcf")}</th>
-                      <th className="px-6 py-5 text-right">{t("participants.table.open")}</th>
                     </tr>
                   </thead>
 
@@ -189,8 +278,17 @@ export function ParticipantsPage() {
                       return (
                         <tr
                           key={participant.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => navigate(routes.participantDetail(participant.id))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              navigate(routes.participantDetail(participant.id));
+                            }
+                          }}
                           className={[
-                            "border-t border-slate-100 transition-colors hover:bg-slate-50",
+                            "cursor-pointer border-t border-slate-100 transition-colors hover:bg-slate-50",
                             isExample ? "bg-slate-50/70" : "bg-white",
                             index === 0 ? "border-t-0" : "",
                           ].join(" ")}
@@ -232,22 +330,13 @@ export function ParticipantsPage() {
                               <span className="text-slate-400">{t("participants.table.noCollection")}</span>
                             )}
                           </td>
-                          <td className="px-6 py-5 text-right">
-                            <Link
-                              to={routes.participantDetail(participant.id)}
-                              className="inline-flex items-center gap-1 font-semibold text-blue-700 transition hover:text-blue-900"
-                            >
-                              {t("participants.table.view")}
-                              <ChevronRight size={16} />
-                            </Link>
-                          </td>
                         </tr>
                       );
                     })}
 
                     {filtered.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-6 py-10 text-center">
+                        <td colSpan={6} className="px-6 py-10 text-center">
                           <p className="font-semibold text-slate-700">
                             {t("participants.emptyTitle")}
                           </p>

@@ -52,12 +52,10 @@
     "subtitle": "Lista geral de participantes cadastrados.",
     "searchPlaceholder": "Buscar por nome, CPF ou cidade...",
     "stats": {
-      "total": "Total",
-      "totalSub": "Participantes cadastrados",
-      "with2mst": "2MST disponível",
-      "with2mstSub": "Participantes com marcha processada",
-      "fragile": "IVCF frágil",
-      "fragileSub": "Última classificação com maior atenção"
+      "totalCollections": "Coletas totais",
+      "totalCollectionsSub": "Somatório de sessões processadas (todos os testes)",
+      "ivcfDistribution": "IVCF (última classificação)",
+      "ivcfDistributionSub": "Distribuição por participante com coleta IVCF-20"
     },
     "loading": "Carregando participantes...",
     "loadErrorTitle": "Erro ao carregar participantes",
