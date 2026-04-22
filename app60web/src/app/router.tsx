@@ -22,12 +22,14 @@ import { MyInstitutionPage } from "../features/my-institution/pages/MyInstitutio
 import { routes } from "../navigation/routes";
 import { useAuth } from "../contexts/AuthContext";
 import type { Role } from "../types/auth";
+import { useTranslation } from "react-i18next";
 
 function FullPageLoader() {
+  const { t } = useTranslation("navigation");
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
       <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
-        Carregando...
+        {t("loader")}
       </div>
     </div>
   );

@@ -9,14 +9,15 @@ import {
   Users,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { routes } from "../../navigation/routes";
+import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useAuth } from "../../contexts/AuthContext";
-import { ROLE_LABEL } from "../../lib/auth/roles";
 import type { Role } from "../../types/auth";
 
 type SidebarItem = {
   to: string;
-  label: string;
+  labelKey: string;
   icon: typeof Activity;
   roles: Role[];
 };
@@ -28,43 +29,43 @@ type Props = {
 const items: SidebarItem[] = [
   {
     to: routes.dashboard,
-    label: "Dashboard",
+    labelKey: "navigation:sidebar.dashboard",
     icon: LayoutDashboard,
     roles: ["SUPER_ADMIN", "ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"],
   },
   {
     to: routes.users,
-    label: "Usuários",
+    labelKey: "navigation:sidebar.users",
     icon: Users,
     roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     to: routes.institutions,
-    label: "Instituições",
+    labelKey: "navigation:sidebar.institutions",
     icon: Landmark,
     roles: ["SUPER_ADMIN", "ADMIN"],
   },
   {
     to: routes.participants,
-    label: "Participantes",
+    labelKey: "navigation:sidebar.participants",
     icon: Users,
     roles: ["SUPER_ADMIN", "ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"],
   },
   {
     to: routes.questionnaires,
-    label: "Questionários",
+    labelKey: "navigation:sidebar.questionnaires",
     icon: ClipboardList,
     roles: ["SUPER_ADMIN", "ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"],
   },
   {
     to: routes.tests,
-    label: "Testes",
+    labelKey: "navigation:sidebar.tests",
     icon: Activity,
     roles: ["SUPER_ADMIN", "ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"],
   },
   {
     to: routes.myInstitution,
-    label: "Minha Instituição",
+    labelKey: "navigation:sidebar.myInstitution",
     icon: School,
     roles: ["GESTOR"],
   },
@@ -85,6 +86,7 @@ function getInitials(name?: string) {
 export function AppSidebar({ isDark }: Props) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation(["navigation"]);
 
   const visibleItems = items.filter((item) => {
     if (!user?.role) return false;
@@ -137,7 +139,7 @@ export function AppSidebar({ isDark }: Props) {
               }
             >
               <Icon className="h-5 w-5 shrink-0 opacity-90" />
-              {item.label}
+              {t(item.labelKey)}
             </NavLink>
           );
         })}
@@ -160,7 +162,7 @@ export function AppSidebar({ isDark }: Props) {
           }
         >
           <Info className="h-4 w-4 shrink-0 opacity-90" />
-          Base de conhecimento
+          {t("navigation:sidebar.knowledgeBase")}
         </NavLink>
       </div>
 
@@ -196,11 +198,14 @@ export function AppSidebar({ isDark }: Props) {
                 isDark ? "text-slate-400" : "text-slate-500",
               ].join(" ")}
             >
-              {user?.role ? ROLE_LABEL[user.role] : ""}
+              {user?.role ? t(`navigation:role.${user.role}`) : ""}
             </div>
           </div>
           <UserCircle2 className="h-5 w-5 shrink-0 opacity-70" />
         </button>
+        <div className="mt-3">
+          <LanguageSwitcher compact />
+        </div>
       </div>
     </aside>
   );

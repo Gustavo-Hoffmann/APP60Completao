@@ -18,6 +18,7 @@ import {
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import DatePicker from "react-datepicker";
 import { ptBR } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -215,6 +216,7 @@ function Field({
 }
 
 export function UserEditPage() {
+  const { t, i18n } = useTranslation(["modules", "navigation"]);
   const navigate = useNavigate();
   const { id } = useParams();
   const location = useLocation();
@@ -264,10 +266,10 @@ export function UserEditPage() {
   const isManagerUser = currentUser?.role === "GESTOR";
   const isBrazil = form.country === "BR";
 
-  const pageTitle = isOwnProfile ? "Meu perfil" : "Editar usuário";
+  const pageTitle = isOwnProfile ? t("modules:userEdit.myProfileTitle") : t("modules:userEdit.editTitle");
   const pageSubtitle = isOwnProfile
-    ? "Atualize seus dados de acesso"
-    : "Atualize os dados do usuário selecionado";
+    ? t("modules:userEdit.myProfileSubtitle")
+    : t("modules:userEdit.editSubtitle");
 
   useEffect(() => {
     async function loadBaseOptions() {
@@ -296,7 +298,7 @@ export function UserEditPage() {
   useEffect(() => {
     async function loadPage() {
       if (!targetUserId) {
-        setError("Usuário não encontrado.");
+        setError(t("modules:userEdit.errors.userNotFound"));
         setLoading(false);
         return;
       }
@@ -323,7 +325,7 @@ export function UserEditPage() {
       } catch (err) {
         console.error("Erro ao carregar perfil:", err);
         setError(
-          err instanceof Error ? err.message : "Erro ao carregar perfil."
+          err instanceof Error ? err.message : t("modules:userEdit.errors.loadProfileFailed")
         );
       } finally {
         setLoading(false);
@@ -331,7 +333,7 @@ export function UserEditPage() {
     }
 
     void loadPage();
-  }, [targetUserId]);
+  }, [targetUserId, t]);
 
   useEffect(() => {
     async function loadCities() {
@@ -442,12 +444,12 @@ export function UserEditPage() {
     e.preventDefault();
 
     if (!targetUserId) {
-      setError("Usuário inválido.");
+      setError(t("modules:userEdit.errors.invalidUser"));
       return;
     }
 
     if (!canEditThisProfile) {
-      setError("Você não tem permissão para editar este perfil.");
+      setError(t("modules:userEdit.errors.noPermission"));
       return;
     }
 
@@ -459,12 +461,12 @@ export function UserEditPage() {
       !form.city.trim() ||
       !form.birth_date
     ) {
-      setError("Preencha todos os campos obrigatórios.");
+      setError(t("modules:userEdit.errors.requiredFields"));
       return;
     }
 
     if (isBrazil && !form.state.trim()) {
-      setError("Selecione o estado.");
+      setError(t("modules:userEdit.errors.selectState"));
       return;
     }
 
@@ -496,19 +498,19 @@ export function UserEditPage() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const t = await res.text();
-        throw new Error(t || "Falha ao salvar.");
+        const responseText = await res.text();
+        throw new Error(responseText || t("modules:userEdit.errors.saveFailed"));
       }
 
       if (isOwnProfile) {
         await refreshProfile();
       }
 
-      setSuccess("Perfil atualizado com sucesso.");
+      setSuccess(t("modules:userEdit.success.profileUpdated"));
     } catch (err) {
       console.error("Erro ao salvar perfil:", err);
       setError(
-        err instanceof Error ? err.message : "Erro ao salvar perfil."
+        err instanceof Error ? err.message : t("modules:userEdit.errors.saveProfileFailed")
       );
     } finally {
       setSaving(false);
@@ -519,7 +521,7 @@ export function UserEditPage() {
     e.preventDefault();
 
     if (!isOwnProfile) {
-      setPasswordError("Você só pode alterar a senha do seu próprio perfil.");
+      setPasswordError(t("modules:userEdit.errors.onlyOwnPassword"));
       return;
     }
 
@@ -527,28 +529,28 @@ export function UserEditPage() {
     setPasswordSuccess(null);
 
     if (!currentPassword.trim()) {
-      setPasswordError("Informe a senha atual.");
+      setPasswordError(t("modules:userEdit.errors.currentPasswordRequired"));
       return;
     }
 
     if (!newPassword.trim() || !confirmPassword.trim()) {
-      setPasswordError("Preencha a nova senha e a confirmação.");
+      setPasswordError(t("modules:userEdit.errors.newPasswordRequired"));
       return;
     }
 
     if (newPassword.length < 6) {
-      setPasswordError("A nova senha deve ter pelo menos 6 caracteres.");
+      setPasswordError(t("modules:userEdit.errors.newPasswordMin"));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordError("A confirmação da senha não confere.");
+      setPasswordError(t("modules:userEdit.errors.passwordMismatch"));
       return;
     }
 
     const email = currentUser?.email?.trim();
     if (!email) {
-      setPasswordError("E-mail da sessão não encontrado.");
+      setPasswordError(t("modules:userEdit.errors.sessionEmailMissing"));
       return;
     }
 
@@ -557,14 +559,14 @@ export function UserEditPage() {
 
       await changeOwnPassword(email, currentPassword, newPassword);
 
-      setPasswordSuccess("Senha alterada com sucesso.");
+      setPasswordSuccess(t("modules:userEdit.success.passwordUpdated"));
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
       console.error("Erro ao alterar senha:", err);
       setPasswordError(
-        err instanceof Error ? err.message : "Erro ao alterar senha."
+        err instanceof Error ? err.message : t("modules:userEdit.errors.changePasswordFailed")
       );
     } finally {
       setChangingPassword(false);
@@ -579,7 +581,7 @@ export function UserEditPage() {
           <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center gap-3 text-slate-500">
               <Loader2 size={18} className="animate-spin" />
-              Carregando perfil...
+              {t("modules:userEdit.loadingProfile")}
             </div>
           </div>
         </main>
@@ -601,7 +603,7 @@ export function UserEditPage() {
             className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             <ArrowLeft size={16} />
-            {isOwnProfile ? "Voltar ao dashboard" : "Voltar para usuários"}
+            {isOwnProfile ? t("modules:userEdit.backDashboard") : t("modules:userEdit.backUsers")}
           </button>
         </div>
 
@@ -622,55 +624,55 @@ export function UserEditPage() {
             {!canEditThisProfile ? (
               <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <ShieldAlert size={18} className="mt-0.5 shrink-0" />
-                Você não tem permissão para editar este perfil.
+                {t("modules:userEdit.permissionsWarning")}
               </div>
             ) : null}
 
             <div className="grid gap-6 md:grid-cols-2">
-              <Field label="Nome" required>
+              <Field label={t("modules:userForm.name")} required>
                 <TextField
                   value={form.name}
                   onChange={(e) => updateField("name", e.target.value)}
-                  placeholder="Nome completo"
+                  placeholder={t("modules:userForm.placeholder.fullName")}
                   disabled={!canEditThisProfile}
                 />
               </Field>
 
-              <Field label="Email" required>
+              <Field label={t("modules:userForm.email")} required>
                 <TextField
                   type="email"
                   value={form.email}
                   onChange={() => {}}
-                  placeholder="email@exemplo.com"
+                  placeholder={t("modules:userForm.placeholder.email")}
                   disabled
-                  title="E-mail é gerenciado no Amazon Cognito."
+                  title={t("modules:userEdit.emailManaged")}
                 />
               </Field>
 
-              <Field label="CPF" required>
+              <Field label={t("modules:userForm.cpf")} required>
                 <TextField
                   value={form.cpf}
                   onChange={(e) => updateField("cpf", formatCpf(e.target.value))}
-                  placeholder="000.000.000-00"
+                  placeholder={t("modules:userForm.placeholder.cpf")}
                   inputMode="numeric"
                   disabled={!canEditThisProfile}
                 />
               </Field>
 
-              <Field label="Celular" required>
+              <Field label={t("modules:userForm.phone")} required>
                 <TextField
                   value={form.phone}
                   onChange={(e) =>
                     updateField("phone", formatPhone(e.target.value))
                   }
-                  placeholder="(41) 99999-9999"
+                  placeholder={t("modules:userForm.placeholder.phone")}
                   inputMode="tel"
                   disabled={!canEditThisProfile}
                 />
               </Field>
 
               {initialData?.primary_institution_id ? (
-                <Field label="Instituição (ID)" className="md:col-span-2">
+                <Field label={t("modules:userEdit.institutionId")} className="md:col-span-2">
                   <TextField
                     value={initialData.primary_institution_id}
                     onChange={() => {}}
@@ -679,14 +681,14 @@ export function UserEditPage() {
                 </Field>
               ) : null}
 
-              <Field label="País" required>
+              <Field label={t("modules:userForm.country")} required>
                 <SelectField
                   value={form.country}
                   onChange={(e) => handleCountryChange(e.target.value)}
                   disabled={!canEditThisProfile || loadingCountries}
                 >
                   <option value="">
-                    {loadingCountries ? "Carregando países..." : "Selecione"}
+                    {loadingCountries ? t("modules:userForm.loading.countries") : t("modules:userForm.select.default")}
                   </option>
                   {countries.map((country) => (
                     <option key={country.code} value={country.code}>
@@ -697,14 +699,14 @@ export function UserEditPage() {
               </Field>
 
               {isBrazil ? (
-                <Field label="Estado" required>
+                <Field label={t("modules:userForm.state")} required>
                   <SelectField
                     value={form.state}
                     onChange={(e) => handleStateChange(e.target.value)}
                     disabled={!canEditThisProfile || loadingStates}
                   >
                     <option value="">
-                      {loadingStates ? "Carregando estados..." : "Selecione"}
+                      {loadingStates ? t("modules:userForm.loading.states") : t("modules:userForm.select.default")}
                     </option>
                     {brazilStates.map((state) => (
                       <option key={state.sigla} value={state.sigla}>
@@ -716,7 +718,7 @@ export function UserEditPage() {
               ) : null}
 
               <Field
-                label="Cidade"
+                label={t("modules:userForm.city")}
                 required
                 className={isBrazil ? "" : "md:col-span-2"}
               >
@@ -730,10 +732,10 @@ export function UserEditPage() {
                   >
                     <option value="">
                       {!form.state
-                        ? "Selecione o estado primeiro"
+                        ? t("modules:userForm.select.stateFirst")
                         : loadingCities
-                        ? "Carregando cidades..."
-                        : "Selecione"}
+                        ? t("modules:userForm.loading.cities")
+                        : t("modules:userForm.select.default")}
                     </option>
                     {brazilCities.map((city) => (
                       <option key={city.id} value={city.nome}>
@@ -745,13 +747,13 @@ export function UserEditPage() {
                   <TextField
                     value={form.city}
                     onChange={(e) => updateField("city", e.target.value)}
-                    placeholder="Digite a cidade"
+                    placeholder={t("modules:userForm.placeholder.city")}
                     disabled={!canEditThisProfile}
                   />
                 )}
               </Field>
 
-              <Field label="Data de nascimento" required>
+              <Field label={t("modules:userForm.birthDate")} required>
                 <div className="relative">
                   <DatePicker
                     selected={isoToDate(form.birth_date)}
@@ -759,11 +761,11 @@ export function UserEditPage() {
                       updateField("birth_date", dateToIso(date))
                     }
                     dateFormat="dd/MM/yyyy"
-                    locale={ptBR}
+                    locale={(i18n.resolvedLanguage ?? "pt-BR").startsWith("pt") ? ptBR : undefined}
                     showMonthDropdown
                     showYearDropdown
                     dropdownMode="select"
-                    placeholderText="Selecione a data"
+                    placeholderText={t("modules:userForm.placeholder.date")}
                     maxDate={new Date()}
                     yearDropdownItemNumber={120}
                     scrollableYearDropdown
@@ -780,20 +782,20 @@ export function UserEditPage() {
                 </div>
               </Field>
 
-              <Field label="Perfil" required>
+              <Field label={t("modules:userForm.role")} required>
                 <SelectField
                   value={form.role}
                   onChange={(e) => updateField("role", e.target.value as Role)}
                   disabled={!canChangeRole}
                 >
-                  {isSuperAdminUser ? <option value="ADMIN">Administrador</option> : null}
-                  {isSuperAdminUser || isAdmin ? <option value="GESTOR">Gestor</option> : null}
-                  <option value="SUPERVISOR">Supervisor</option>
-                  <option value="AVALIADOR">Avaliador</option>
+                  {isSuperAdminUser ? <option value="ADMIN">{t("modules:userForm.roles.admin")}</option> : null}
+                  {isSuperAdminUser || isAdmin ? <option value="GESTOR">{t("modules:userForm.roles.manager")}</option> : null}
+                  <option value="SUPERVISOR">{t("modules:userForm.roles.supervisor")}</option>
+                  <option value="AVALIADOR">{t("modules:userForm.roles.evaluator")}</option>
                 </SelectField>
               </Field>
 
-              <Field label="Status" required>
+              <Field label={t("modules:userEdit.status")} required>
                 <SelectField
                   value={form.is_active ? "ATIVO" : "INATIVO"}
                   onChange={(e) =>
@@ -801,8 +803,8 @@ export function UserEditPage() {
                   }
                   disabled={!canChangeActive}
                 >
-                  <option value="ATIVO">Ativo</option>
-                  <option value="INATIVO">Inativo</option>
+                  <option value="ATIVO">{t("modules:userEdit.statusActive")}</option>
+                  <option value="INATIVO">{t("modules:userEdit.statusInactive")}</option>
                 </SelectField>
               </Field>
 
@@ -816,7 +818,7 @@ export function UserEditPage() {
                 }
                 className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                Cancelar
+                {t("modules:userForm.actions.cancel")}
               </button>
 
               <button
@@ -827,12 +829,12 @@ export function UserEditPage() {
                 {saving ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    Salvando...
+                    {t("modules:userForm.actions.saving")}
                   </>
                 ) : (
                   <>
                     <Save size={18} />
-                    Salvar alterações
+                    {t("modules:userEdit.saveChanges")}
                   </>
                 )}
               </button>
@@ -848,10 +850,10 @@ export function UserEditPage() {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-slate-800">
-                  Alterar senha
+                  {t("modules:userEdit.changePasswordTitle")}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Esta opção aparece só no seu próprio perfil.
+                  {t("modules:userEdit.changePasswordSubtitle")}
                 </p>
               </div>
             </div>
@@ -870,7 +872,7 @@ export function UserEditPage() {
               ) : null}
 
               <div className="grid gap-6 md:grid-cols-2">
-                <Field label="Senha atual" required className="md:col-span-2">
+                <Field label={t("modules:userEdit.currentPassword")} required className="md:col-span-2">
                   <TextField
                     type="password"
                     value={currentPassword}
@@ -879,11 +881,11 @@ export function UserEditPage() {
                       setPasswordError(null);
                       setPasswordSuccess(null);
                     }}
-                    placeholder="Senha atual (Cognito)"
+                    placeholder={t("modules:userEdit.currentPasswordPlaceholder")}
                     autoComplete="current-password"
                   />
                 </Field>
-                <Field label="Nova senha" required>
+                <Field label={t("modules:userEdit.newPassword")} required>
                   <TextField
                     type="password"
                     value={newPassword}
@@ -892,11 +894,11 @@ export function UserEditPage() {
                       setPasswordError(null);
                       setPasswordSuccess(null);
                     }}
-                    placeholder="Digite a nova senha"
+                    placeholder={t("modules:userEdit.newPasswordPlaceholder")}
                   />
                 </Field>
 
-                <Field label="Confirmar nova senha" required>
+                <Field label={t("modules:userEdit.confirmNewPassword")} required>
                   <TextField
                     type="password"
                     value={confirmPassword}
@@ -905,7 +907,7 @@ export function UserEditPage() {
                       setPasswordError(null);
                       setPasswordSuccess(null);
                     }}
-                    placeholder="Repita a nova senha"
+                    placeholder={t("modules:userEdit.confirmNewPasswordPlaceholder")}
                   />
                 </Field>
               </div>
@@ -919,12 +921,12 @@ export function UserEditPage() {
                   {changingPassword ? (
                     <>
                       <Loader2 size={18} className="animate-spin" />
-                      Alterando...
+                      {t("modules:userEdit.changingPassword")}
                     </>
                   ) : (
                     <>
                       <LockKeyhole size={18} />
-                      Alterar senha
+                      {t("modules:userEdit.changePasswordButton")}
                     </>
                   )}
                 </button>

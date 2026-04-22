@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { AppHeader } from "../../../components/layout/AppHeader";
@@ -45,8 +46,6 @@ function roleLabel(role: Role) {
 function sortByName<T extends { full_name: string }>(arr: T[]) {
   return [...arr].sort((a, b) => a.full_name.localeCompare(b.full_name, "pt-BR"));
 }
-
-const EMPTY = "Ainda não cadastrados";
 
 const LINE = "stroke-slate-400 dark:stroke-slate-500";
 const LINE_FILL = "fill-slate-400 dark:fill-slate-500";
@@ -205,14 +204,16 @@ function TreeCircle({
 function ParticipantPill({
   participant,
   onOpen,
+  emptyLabel,
 }: {
   participant: ParticipantRow | null;
   onOpen: () => void;
+  emptyLabel: string;
 }) {
   if (!participant) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-500 shadow-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-400">
-        {EMPTY}
+        {emptyLabel}
       </div>
     );
   }
@@ -228,6 +229,7 @@ function ParticipantPill({
 }
 
 export function MyInstitutionPage() {
+  const { t } = useTranslation("modules");
   const navigate = useNavigate();
   const { user } = useAuth();
   const svgUid = useId().replace(/:/g, "");
@@ -251,7 +253,7 @@ export function MyInstitutionPage() {
         setParticipants(sortByName(partRes.participants ?? []));
       } catch (err) {
         console.error(err);
-        setError(err instanceof Error ? err.message : "Erro ao carregar dados.");
+        setError(err instanceof Error ? err.message : t("myInstitution.loadError"));
         setUsers([]);
         setParticipants([]);
       } finally {
@@ -259,7 +261,7 @@ export function MyInstitutionPage() {
       }
     }
     void load();
-  }, []);
+  }, [t]);
 
   const tree = useMemo(() => {
     const filtered = (users ?? []).filter((u) => u.role !== "SUPER_ADMIN" && u.role !== "ADMIN");
@@ -366,15 +368,15 @@ export function MyInstitutionPage() {
   return (
     <div className="min-h-screen bg-[#f3f6fb] text-slate-950 dark:bg-black dark:text-white">
       <AppHeader
-        title={user?.institution_name ?? "Minha Instituição"}
-        subtitle="Estrutura da equipe e usuários vinculados à sua instituição"
+        title={user?.institution_name ?? t("myInstitution.titleFallback")}
+        subtitle={t("myInstitution.subtitle")}
       />
 
       <main className="space-y-8 px-6 py-8">
         <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
             <Users size={16} />
-            Organograma
+            {t("myInstitution.orgChart")}
           </div>
 
           <button
@@ -383,7 +385,7 @@ export function MyInstitutionPage() {
             className="inline-flex items-center gap-2 rounded-2xl bg-[#004B87] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#003a6a]"
           >
             <Plus size={18} />
-            Cadastrar usuário
+            {t("myInstitution.createUser")}
           </button>
         </section>
 
@@ -391,7 +393,7 @@ export function MyInstitutionPage() {
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-black">
             <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
               <Loader2 size={18} className="animate-spin" />
-              Carregando equipe e participantes...
+              {t("myInstitution.loading")}
             </div>
           </div>
         ) : error ? (
@@ -399,7 +401,7 @@ export function MyInstitutionPage() {
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 text-red-600" size={18} />
               <div>
-                <p className="font-semibold text-red-700">Erro</p>
+                <p className="font-semibold text-red-700">{t("myInstitution.errorTitle")}</p>
                 <p className="mt-1 text-sm text-red-600">{error}</p>
               </div>
             </div>
@@ -412,7 +414,7 @@ export function MyInstitutionPage() {
                   type="button"
                   onClick={zoomOut}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm transition hover:border-[#008BB0] dark:border-slate-800 dark:bg-black dark:text-white"
-                  aria-label="Diminuir zoom"
+                  aria-label={t("myInstitution.zoomOut")}
                 >
                   <span className="text-lg font-extrabold leading-none">−</span>
                 </button>
@@ -420,7 +422,7 @@ export function MyInstitutionPage() {
                   type="button"
                   onClick={zoomReset}
                   className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 shadow-sm transition hover:border-[#008BB0] dark:border-slate-800 dark:bg-black dark:text-white"
-                  aria-label="Resetar zoom"
+                  aria-label={t("myInstitution.zoomReset")}
                 >
                   <RotateCcw size={16} className="mr-2" />
                   {Math.round(zoom * 100)}%
@@ -429,7 +431,7 @@ export function MyInstitutionPage() {
                   type="button"
                   onClick={zoomIn}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-900 shadow-sm transition hover:border-[#008BB0] dark:border-slate-800 dark:bg-black dark:text-white"
-                  aria-label="Aumentar zoom"
+                  aria-label={t("myInstitution.zoomIn")}
                 >
                   <span className="text-lg font-extrabold leading-none">+</span>
                 </button>
@@ -456,7 +458,7 @@ export function MyInstitutionPage() {
                 >
                   {gestoresDisplay.length === 0 ? (
                     <div className="max-w-md py-4 text-center text-sm font-semibold text-slate-600 dark:text-slate-400">
-                      Nenhum gestor cadastrado na instituição.
+                      {t("myInstitution.noManagers")}
                     </div>
                   ) : (
                     gestoresDisplay.map((g) => (
@@ -507,7 +509,11 @@ export function MyInstitutionPage() {
                             size="md"
                             icon={Users}
                             filled={!!sup}
-                            ariaLabel={sup ? `Abrir supervisor ${sup.full_name}` : "Supervisor vago"}
+                            ariaLabel={
+                              sup
+                                ? t("myInstitution.openSupervisor", { name: sup.full_name })
+                                : t("myInstitution.vacantSupervisor")
+                            }
                             onClick={
                               sup ? () => navigate(routes.myInstitutionUserEdit(sup.id)) : undefined
                             }
@@ -520,7 +526,7 @@ export function MyInstitutionPage() {
                               <>
                                 <div className="mt-1 text-sm font-extrabold text-slate-900 dark:text-white">
                                   {sup.full_name}
-                                  {!sup.is_active ? " • Inativo" : ""}
+                                  {!sup.is_active ? ` • ${t("myInstitution.inactive")}` : ""}
                                 </div>
                                 <div className="mt-1 break-all text-[11px] text-slate-600 dark:text-slate-400">
                                   {sup.email}
@@ -528,7 +534,7 @@ export function MyInstitutionPage() {
                               </>
                             ) : (
                               <div className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                {EMPTY}
+                                {t("myInstitution.emptySlot")}
                               </div>
                             )}
                           </div>
@@ -554,7 +560,9 @@ export function MyInstitutionPage() {
                                   icon={ClipboardList}
                                   filled={!!evaluator}
                                   ariaLabel={
-                                    evaluator ? `Abrir avaliador ${evaluator.full_name}` : "Avaliador vago"
+                                    evaluator
+                                      ? t("myInstitution.openEvaluator", { name: evaluator.full_name })
+                                      : t("myInstitution.vacantEvaluator")
                                   }
                                   onClick={
                                     evaluator
@@ -575,7 +583,7 @@ export function MyInstitutionPage() {
                                     </div>
                                   ) : (
                                     <div className="mt-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                                      {EMPTY}
+                                      {t("myInstitution.emptySlot")}
                                     </div>
                                   )}
                                 </div>
@@ -584,10 +592,12 @@ export function MyInstitutionPage() {
                                   <ParticipantPill
                                     participant={p0}
                                     onOpen={() => p0 && navigate(routes.participantDetail(p0.id))}
+                                    emptyLabel={t("myInstitution.emptySlot")}
                                   />
                                   <ParticipantPill
                                     participant={p1}
                                     onOpen={() => p1 && navigate(routes.participantDetail(p1.id))}
+                                    emptyLabel={t("myInstitution.emptySlot")}
                                   />
                                 </div>
                               </div>

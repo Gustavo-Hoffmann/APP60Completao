@@ -11,6 +11,7 @@ function requireEnv(name: keyof ImportMetaEnv): string {
 let pool: CognitoUserPool | null = null;
 
 const REMEMBER_ME_KEY = "app60.rememberMe";
+const REMEMBER_EMAIL_KEY = "app60.rememberEmail";
 
 function readRememberMe(): boolean {
   try {
@@ -34,6 +35,30 @@ export function setRememberMe(remember: boolean): void {
 
 export function getRememberMe(): boolean {
   return readRememberMe();
+}
+
+export function getRememberedEmail(): string {
+  try {
+    return window.localStorage.getItem(REMEMBER_EMAIL_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setRememberedEmail(email: string): void {
+  try {
+    window.localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+  } catch {
+    // ignore (storage indisponível)
+  }
+}
+
+export function clearRememberedEmail(): void {
+  try {
+    window.localStorage.removeItem(REMEMBER_EMAIL_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 function bestEffortStorage(): Storage {

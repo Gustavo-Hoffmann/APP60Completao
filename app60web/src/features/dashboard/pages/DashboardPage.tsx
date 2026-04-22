@@ -1,5 +1,6 @@
 import { Activity, BarChart3, ClipboardList, Loader2, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Bar,
   BarChart,
@@ -25,23 +26,13 @@ type DashboardSummary = {
 };
 
 function monthLabel(month: number) {
-  const labels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return labels[month - 1] ?? String(month);
-}
-
-function testLabel(testType: string) {
-  const t = (testType ?? "").toUpperCase();
-  if (t === "MARCHA") return "Marcha estacionária";
-  if (t === "SL30S") return "Sentar e levantar (30s)";
-  if (t === "IVCF20") return "IVCF-20";
-  if (t === "TUG") return "TUG";
-  if (t === "LOS") return "LOS";
-  if (t === "UTT") return "UTT";
-  return t || "—";
 }
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const { t } = useTranslation(["dashboard"]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardSummary | null>(null);
@@ -56,7 +47,7 @@ export function DashboardPage() {
         setData(summary ?? null);
       } catch (err) {
         console.error(err);
-        setError(err instanceof Error ? err.message : "Erro ao carregar dashboard.");
+        setError(err instanceof Error ? err.message : t("dashboard:errorTitle"));
         setData(null);
       } finally {
         setLoading(false);
@@ -76,17 +67,22 @@ export function DashboardPage() {
       return {
         year,
         month,
-        label: monthLabel(month),
+        label: t(`dashboard:monthsShort.${month - 1}`, { defaultValue: monthLabel(month) }),
         coletas: byMonth.get(month) ?? 0,
       };
     });
-  }, [data]);
+  }, [data, t]);
 
   const headerTitle =
     user?.role === "GESTOR"
-      ? user.institution_name ?? "Minha instituição"
-      : "Dashboard";
-  const headerSubtitle = user?.role === "GESTOR" ? undefined : "Visão geral operacional do sistema.";
+      ? user.institution_name ?? t("dashboard:myInstitution")
+      : t("dashboard:title");
+  const headerSubtitle = user?.role === "GESTOR" ? undefined : t("dashboard:subtitle");
+
+  const testLabel = (testType: string) => {
+    const normalized = (testType ?? "").toUpperCase();
+    return t(`dashboard:tests.${normalized}`, { defaultValue: normalized || "—" });
+  };
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -97,45 +93,45 @@ export function DashboardPage() {
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
             <div className="flex items-center gap-3 text-slate-500">
               <Loader2 size={18} className="animate-spin" />
-              Carregando dashboard...
+              {t("dashboard:loading")}
             </div>
           </div>
         ) : error ? (
           <div className="rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
-            <div className="text-sm font-semibold text-red-700">Erro</div>
+            <div className="text-sm font-semibold text-red-700">{t("dashboard:errorTitle")}</div>
             <div className="mt-1 text-sm text-red-600">{error}</div>
           </div>
         ) : !data ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-            Não foi possível carregar os dados.
+            {t("dashboard:noData")}
           </div>
         ) : (
           <>
             <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
               <StatCard
-                title="Participantes Totais"
+                title={t("dashboard:stats.participantsTotal")}
                 value={data.participantsTotal}
                 icon={Users}
-                subtitle="Base ativa vinculada"
+                subtitle={t("dashboard:stats.participantsSubtitle")}
               />
               <StatCard
-                title="Coletas Totais"
+                title={t("dashboard:stats.collectionsTotal")}
                 value={data.collectionsTotal}
                 icon={Activity}
-                subtitle="Acumulado"
+                subtitle={t("dashboard:stats.collectionsTotalSubtitle")}
               />
               <StatCard
-                title="Coletas no Mês"
+                title={t("dashboard:stats.collectionsMonth")}
                 value={data.collectionsMonth}
                 icon={ClipboardList}
-                subtitle="Mês atual"
+                subtitle={t("dashboard:stats.collectionsMonthSubtitle")}
               />
             </section>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <BarChart3 size={16} className="text-blue-600" />
-                Coletas mensais ({data.year})
+                {t("dashboard:monthlyCollections", { year: data.year })}
               </div>
 
               <div className="h-72">
@@ -144,7 +140,7 @@ export function DashboardPage() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value) => [`${value}`, "Coletas"]} />
+                    <Tooltip formatter={(value) => [`${value}`, t("dashboard:collectionsTooltip")]} />
                     <Bar dataKey="coletas" fill="#2563eb" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -152,7 +148,7 @@ export function DashboardPage() {
 
               <div className="mt-6 grid gap-4 lg:grid-cols-2">
                 <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                  <div className="text-sm font-semibold text-slate-700">Teste com mais coletas</div>
+                  <div className="text-sm font-semibold text-slate-700">{t("dashboard:topTest")}</div>
                   <div className="mt-2 flex items-baseline justify-between gap-4">
                     <div className="text-lg font-bold text-slate-900">
                       {data.topTest ? testLabel(data.topTest.testType) : "—"}
@@ -161,31 +157,31 @@ export function DashboardPage() {
                       {data.topTest ? data.topTest.count : 0}
                     </div>
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">Quantidade de coletas (total)</div>
+                  <div className="mt-1 text-xs text-slate-500">{t("dashboard:topTestSubtitle")}</div>
                 </div>
 
                 <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                  <div className="text-sm font-semibold text-slate-700">IVCF</div>
+                  <div className="text-sm font-semibold text-slate-700">{t("dashboard:ivcfTitle")}</div>
                   <div className="mt-3 h-32">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
                         data={[
-                          { label: "Robusto", value: data.ivcf.robusto },
-                          { label: "Pré", value: data.ivcf.preFragil },
-                          { label: "Frágil", value: data.ivcf.fragil },
+                          { label: t("dashboard:ivcfLabels.robusto"), value: data.ivcf.robusto },
+                          { label: t("dashboard:ivcfLabels.pre"), value: data.ivcf.preFragil },
+                          { label: t("dashboard:ivcfLabels.fragil"), value: data.ivcf.fragil },
                         ]}
                         margin={{ top: 8, right: 0, left: 0, bottom: 0 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} />
                         <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                        <Tooltip formatter={(value) => [`${value}`, "Participantes"]} />
+                        <Tooltip formatter={(value) => [`${value}`, t("dashboard:ivcfTooltip")]} />
                         <Bar dataKey="value" fill="#0ea5e9" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                   <div className="mt-2 text-xs text-slate-500">
-                    Última classificação IVCF-20 por participante (com coleta IVCF)
+                    {t("dashboard:ivcfFootnote")}
                   </div>
                 </div>
               </div>

@@ -1,0 +1,297 @@
+{
+  "testsHub": {
+    "title": "Testes",
+    "subtitle": "Selecione um módulo de teste.",
+    "openModule": "Abrir módulo",
+    "items": {
+      "2mst": "Marcha estacionária de 2 minutos",
+      "sl30s": "Sentar e levantar em 30 segundos",
+      "tug": "Timed Up and Go",
+      "los": "Limite de estabilidade",
+      "utt": "Up on the Toes Test"
+    }
+  },
+  "questionnaires": {
+    "title": "Questionários",
+    "subtitle": "Visão geral dos instrumentos aplicados.",
+    "stats": {
+      "evaluated": "Participantes avaliados",
+      "evaluatedSub": "Base com questionários",
+      "fragile": "Frágeis",
+      "preFragile": "Pré-frágeis"
+    },
+    "table": {
+      "participant": "Participante",
+      "score": "Pontuação",
+      "classification": "Classificação",
+      "empty": "Nenhum participante disponível."
+    }
+  },
+  "knowledgeBase": {
+    "title": "Base de conhecimento",
+    "subtitle": "Tutoriais e artigos científicos relevantes para a equipe",
+    "loadError": "Não foi possível carregar a base de conhecimento.",
+    "loading": "Carregando base de conhecimento...",
+    "errorTitle": "Erro ao carregar",
+    "addButton": "Adicionar base",
+    "kind": "Tipo",
+    "kindTutorial": "Tutorial",
+    "kindArticle": "Artigo científico",
+    "acronym": "Sigla",
+    "titleField": "Título",
+    "url": "URL",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "emptyList": "Nenhum item cadastrado ainda.",
+    "open": "Abrir",
+    "validationRequired": "Preencha tipo, sigla, título e URL.",
+    "saveErrorFallback": "Erro ao salvar."
+  },
+  "participants": {
+    "title": "Participantes",
+    "subtitle": "Lista geral de participantes cadastrados.",
+    "searchPlaceholder": "Buscar por nome, CPF ou cidade...",
+    "stats": {
+      "total": "Total",
+      "totalSub": "Participantes cadastrados",
+      "with2mst": "2MST disponível",
+      "with2mstSub": "Participantes com marcha processada",
+      "fragile": "IVCF frágil",
+      "fragileSub": "Última classificação com maior atenção"
+    },
+    "loading": "Carregando participantes...",
+    "loadErrorTitle": "Erro ao carregar participantes",
+    "table": {
+      "name": "Nome",
+      "cpf": "CPF",
+      "age": "Idade",
+      "sex": "Sexo",
+      "city": "Cidade",
+      "ivcf": "IVCF-20",
+      "open": "Abrir",
+      "example": "Exemplo",
+      "points": "pontos",
+      "noCollection": "Sem coleta",
+      "view": "Ver"
+    },
+    "emptyTitle": "Nenhum participante encontrado.",
+    "emptySubtitle": "Ajuste a busca ou confira os dados."
+  },
+  "institutions": {
+    "title": "Instituições",
+    "subtitle": "Cadastre e acompanhe instituições e coletas",
+    "createButton": "Cadastrar instituição",
+    "searchPlaceholder": "Buscar instituições (nome, sigla, cidade...)",
+    "chartTitle": "Distribuição de coletas por instituição (por país)",
+    "chartLoading": "Carregando gráfico...",
+    "chartEmpty": "Ainda não há coletas para compor o gráfico.",
+    "collectionsLabel": "Coletas",
+    "institutionLabel": "Instituição: {{label}}",
+    "registeredTitle": "Instituições cadastradas",
+    "loading": "Carregando instituições...",
+    "loadErrorTitle": "Erro ao carregar instituições",
+    "emptyTitle": "Nenhuma instituição encontrada.",
+    "emptySubtitle": "Ajuste a busca ou cadastre uma nova instituição.",
+    "edit": "Editar",
+    "addressUnavailable": "Endereço não informado",
+    "postalCode": "CEP {{value}}",
+    "country": {
+      "usa": "EUA",
+      "uk": "UK"
+    }
+  },
+  "users": {
+    "title": "Usuários",
+    "subtitle": "Gerencie perfis conforme a hierarquia institucional",
+    "createButton": "Cadastrar pesquisador",
+    "refreshButton": "Atualizar",
+    "searchPlaceholder": "Buscar por nome, email ou perfil...",
+    "stats": {
+      "total": "Total",
+      "superAdmin": "Super Admin",
+      "admins": "Admins",
+      "managers": "Gestores",
+      "supervisors": "Supervisores",
+      "evaluators": "Avaliadores"
+    },
+    "tabs": {
+      "all": "Todos"
+    },
+    "myAccount": "Sua conta",
+    "otherUsers": "Outros usuários",
+    "loading": "Carregando usuários...",
+    "loadErrorTitle": "Erro ao carregar usuários",
+    "emptyTitle": "Nenhum usuário encontrado.",
+    "emptySubtitle": "Ajuste o filtro, atualize a listagem ou cadastre outro usuário.",
+    "currentAccountBadge": "Conta atual",
+    "noEmail": "Sem e-mail cadastrado",
+    "active": "Ativo",
+    "createdAt": "Criado em {{date}}",
+    "editProfile": "Editar perfil",
+    "deactivate": "Desativar",
+    "confirmDeactivate": "Desativar o usuário \"{{name}}\"?\n\nEle deixará de aparecer na listagem ativa e não poderá acessar o sistema.",
+    "deactivateError": "Erro ao desativar usuário.",
+    "deactivateFail": "Falha ao desativar.",
+    "loadErrorFallback": "Não foi possível carregar os usuários."
+  },
+  "userForm": {
+    "name": "Nome",
+    "email": "Email",
+    "cpf": "CPF",
+    "phone": "Celular",
+    "institution": "Instituição",
+    "country": "País",
+    "state": "Estado",
+    "city": "Cidade",
+    "birthDate": "Data de nascimento",
+    "role": "Perfil",
+    "supervisor": "Supervisor responsável",
+    "passwordHintTitle": "Senha inicial automática",
+    "passwordHintBody": "A senha inicial será gerada com as 2 primeiras letras do primeiro nome + data de nascimento + #:",
+    "placeholder": {
+      "fullName": "Nome completo",
+      "email": "email@exemplo.com",
+      "cpf": "000.000.000-00",
+      "phone": "(41) 99999-9999",
+      "city": "Digite a cidade",
+      "date": "Selecione a data"
+    },
+    "loading": {
+      "default": "Carregando...",
+      "countries": "Carregando países...",
+      "states": "Carregando estados...",
+      "cities": "Carregando cidades...",
+      "supervisors": "Carregando supervisores..."
+    },
+    "select": {
+      "default": "Selecione",
+      "institution": "Selecione a instituição",
+      "supervisor": "Selecione um supervisor",
+      "stateFirst": "Selecione o estado primeiro"
+    },
+    "actions": {
+      "cancel": "Cancelar",
+      "save": "Salvar",
+      "saving": "Salvando..."
+    },
+    "roles": {
+      "admin": "Administrador",
+      "manager": "Gestor",
+      "supervisor": "Supervisor",
+      "evaluator": "Avaliador / Pesquisador"
+    }
+  },
+  "userCreate": {
+    "title": "Criar usuário",
+    "subtitle": "Cadastre perfis vinculados à instituição",
+    "createButton": "Criar usuário",
+    "errors": {
+      "loadCountryState": "Não foi possível carregar países/estados.",
+      "loadCities": "Não foi possível carregar as cidades.",
+      "requiredFields": "Preencha todos os campos obrigatórios.",
+      "selectInstitution": "Selecione a instituição.",
+      "selectState": "Selecione o estado.",
+      "initialPassword": "Não foi possível gerar a senha inicial.",
+      "selectSupervisor": "Selecione o supervisor do avaliador.",
+      "invalidInstitution": "Instituição inválida para o cadastro.",
+      "createFailed": "Erro ao cadastrar usuário."
+    },
+    "success": "Usuário criado com sucesso."
+  },
+  "userEdit": {
+    "myProfileTitle": "Meu perfil",
+    "myProfileSubtitle": "Atualize seus dados de acesso",
+    "editTitle": "Editar usuário",
+    "editSubtitle": "Atualize os dados do usuário selecionado",
+    "loadingProfile": "Carregando perfil...",
+    "backDashboard": "Voltar ao dashboard",
+    "backUsers": "Voltar para usuários",
+    "permissionsWarning": "Você não tem permissão para editar este perfil.",
+    "institutionId": "Instituição (ID)",
+    "emailManaged": "E-mail é gerenciado no Amazon Cognito.",
+    "status": "Status",
+    "statusActive": "Ativo",
+    "statusInactive": "Inativo",
+    "saveChanges": "Salvar alterações",
+    "changePasswordTitle": "Alterar senha",
+    "changePasswordSubtitle": "Esta opção aparece só no seu próprio perfil.",
+    "currentPassword": "Senha atual",
+    "newPassword": "Nova senha",
+    "confirmNewPassword": "Confirmar nova senha",
+    "currentPasswordPlaceholder": "Senha atual (Cognito)",
+    "newPasswordPlaceholder": "Digite a nova senha",
+    "confirmNewPasswordPlaceholder": "Repita a nova senha",
+    "changingPassword": "Alterando...",
+    "changePasswordButton": "Alterar senha",
+    "errors": {
+      "userNotFound": "Usuário não encontrado.",
+      "loadProfileFailed": "Erro ao carregar perfil.",
+      "invalidUser": "Usuário inválido.",
+      "noPermission": "Você não tem permissão para editar este perfil.",
+      "requiredFields": "Preencha todos os campos obrigatórios.",
+      "selectState": "Selecione o estado.",
+      "saveProfileFailed": "Erro ao salvar perfil.",
+      "saveFailed": "Falha ao salvar.",
+      "onlyOwnPassword": "Você só pode alterar a senha do seu próprio perfil.",
+      "currentPasswordRequired": "Informe a senha atual.",
+      "newPasswordRequired": "Preencha a nova senha e a confirmação.",
+      "newPasswordMin": "A nova senha deve ter pelo menos 6 caracteres.",
+      "passwordMismatch": "A confirmação da senha não confere.",
+      "sessionEmailMissing": "E-mail da sessão não encontrado.",
+      "changePasswordFailed": "Erro ao alterar senha."
+    },
+    "success": {
+      "profileUpdated": "Perfil atualizado com sucesso.",
+      "passwordUpdated": "Senha alterada com sucesso."
+    }
+  },
+  "institutionEdit": {
+    "title": "Editar instituição",
+    "subtitle": "Atualize dados cadastrais",
+    "name": "Nome da instituição",
+    "acronym": "Sigla",
+    "unit": "Unidade",
+    "countryBrazil": "Brasil (BR)",
+    "countryUsa": "Estados Unidos (US)",
+    "countryUk": "Reino Unido (UK)",
+    "errors": {
+      "notFound": "Instituição não encontrada.",
+      "loadFailed": "Erro ao carregar instituição.",
+      "requiredFields": "Preencha os campos obrigatórios.",
+      "saveFailed": "Erro ao salvar.",
+      "deleteFailed": "Erro ao excluir instituição."
+    },
+    "loading": "Carregando...",
+    "errorTitle": "Erro",
+    "stateCounty": "State/County",
+    "postalCode": "CEP / Postal code",
+    "number": "Número",
+    "complement": "Complemento",
+    "street": "Rua / Logradouro",
+    "neighborhood": "Bairro",
+    "activeInstitution": "Instituição ativa",
+    "deleteButton": "Excluir instituição",
+    "deleting": "Excluindo...",
+    "saveButton": "Salvar alterações",
+    "confirmDelete": "Excluir a instituição \"{{name}}\"? Essa ação não pode ser desfeita."
+  },
+  "myInstitution": {
+    "titleFallback": "Minha Instituição",
+    "subtitle": "Estrutura da equipe e usuários vinculados à sua instituição",
+    "orgChart": "Organograma",
+    "createUser": "Cadastrar usuário",
+    "loading": "Carregando equipe e participantes...",
+    "loadError": "Erro ao carregar dados.",
+    "errorTitle": "Erro",
+    "zoomOut": "Diminuir zoom",
+    "zoomReset": "Resetar zoom",
+    "zoomIn": "Aumentar zoom",
+    "noManagers": "Nenhum gestor cadastrado na instituição.",
+    "openSupervisor": "Abrir supervisor {{name}}",
+    "vacantSupervisor": "Supervisor vago",
+    "inactive": "Inativo",
+    "openEvaluator": "Abrir avaliador {{name}}",
+    "vacantEvaluator": "Avaliador vago",
+    "emptySlot": "Ainda não cadastrados"
+  }
+}

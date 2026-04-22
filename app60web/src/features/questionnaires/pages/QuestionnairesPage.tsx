@@ -1,11 +1,13 @@
 import { ClipboardList, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { StatCard } from "../../../components/ui/StatCard";
 import type { Participant } from "../../../types/participant";
 import { listParticipants } from "../../participants/services/participants";
 
 export function QuestionnairesPage() {
+  const { t } = useTranslation("modules");
   const [participants, setParticipants] = useState<Participant[]>([]);
 
   useEffect(() => {
@@ -37,26 +39,26 @@ export function QuestionnairesPage() {
   return (
     <div>
       <AppHeader
-        title="Questionários"
-        subtitle="Visão geral dos instrumentos aplicados."
+        title={t("questionnaires.title")}
+        subtitle={t("questionnaires.subtitle")}
       />
 
       <div className="space-y-6 p-6">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <StatCard
-            title="Participantes Avaliados"
+            title={t("questionnaires.stats.evaluated")}
             value={total}
             icon={Users}
-            subtitle="Base com questionários"
+            subtitle={t("questionnaires.stats.evaluatedSub")}
           />
           <StatCard
-            title="Frágeis"
+            title={t("questionnaires.stats.fragile")}
             value={fragile}
             icon={ClipboardList}
             subtitle="IVCF-20"
           />
           <StatCard
-            title="Pré-Frágeis"
+            title={t("questionnaires.stats.preFragile")}
             value={preFragile}
             icon={ClipboardList}
             subtitle="IVCF-20"
@@ -67,9 +69,9 @@ export function QuestionnairesPage() {
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
               <tr>
-                <th className="px-6 py-4">Participante</th>
-                <th className="px-6 py-4">Pontuação</th>
-                <th className="px-6 py-4">Classificação</th>
+                <th className="px-6 py-4">{t("questionnaires.table.participant")}</th>
+                <th className="px-6 py-4">{t("questionnaires.table.score")}</th>
+                <th className="px-6 py-4">{t("questionnaires.table.classification")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -90,7 +92,7 @@ export function QuestionnairesPage() {
               ) : (
                 <tr>
                   <td className="px-6 py-6 text-slate-500" colSpan={3}>
-                    Nenhum participante disponível.
+                    {t("questionnaires.table.empty")}
                   </td>
                 </tr>
               )}

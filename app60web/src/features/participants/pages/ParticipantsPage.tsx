@@ -1,5 +1,6 @@
 import { Activity, HeartPulse, Search, UserRound, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { AppHeader } from "../../../components/layout/AppHeader";
@@ -52,6 +53,7 @@ function PremiumMetricCard({
 }
 
 export function ParticipantsPage() {
+  const { t } = useTranslation("modules");
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -69,7 +71,7 @@ export function ParticipantsPage() {
         setParticipants(data);
       } catch (err) {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Erro ao carregar participantes.");
+        setError(err instanceof Error ? err.message : t("participants.loadErrorTitle"));
       } finally {
         if (!mounted) return;
         setIsLoading(false);
@@ -81,7 +83,7 @@ export function ParticipantsPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [t]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -107,8 +109,8 @@ export function ParticipantsPage() {
   return (
     <div className="min-h-screen bg-slate-100">
       <AppHeader
-        title="Participantes"
-        subtitle="Lista geral de participantes cadastrados."
+        title={t("participants.title")}
+        subtitle={t("participants.subtitle")}
       />
 
       <main className="space-y-6 px-6 py-8">
@@ -122,7 +124,7 @@ export function ParticipantsPage() {
             />
             <input
               type="text"
-              placeholder="Buscar por nome, CPF ou cidade..."
+              placeholder={t("participants.searchPlaceholder")}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
@@ -132,21 +134,21 @@ export function ParticipantsPage() {
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <PremiumMetricCard
-            label="Total"
+            label={t("participants.stats.total")}
             value={stats.total}
-            subtitle="Participantes cadastrados"
+            subtitle={t("participants.stats.totalSub")}
             icon={UserRound}
           />
           <PremiumMetricCard
-            label="2MST disponível"
+            label={t("participants.stats.with2mst")}
             value={stats.with2Mst}
-            subtitle="Participantes com marcha processada"
+            subtitle={t("participants.stats.with2mstSub")}
             icon={Activity}
           />
           <PremiumMetricCard
-            label="IVCF frágil"
+            label={t("participants.stats.fragile")}
             value={stats.fragile}
-            subtitle="Última classificação com maior atenção"
+            subtitle={t("participants.stats.fragileSub")}
             icon={HeartPulse}
           />
         </section>
@@ -154,11 +156,11 @@ export function ParticipantsPage() {
         <section>
           {isLoading ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-              <div className="text-slate-500">Carregando participantes...</div>
+              <div className="text-slate-500">{t("participants.loading")}</div>
             </div>
           ) : error ? (
             <div className="rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
-              <p className="font-semibold text-red-700">Erro ao carregar participantes</p>
+              <p className="font-semibold text-red-700">{t("participants.loadErrorTitle")}</p>
               <p className="mt-1 text-sm text-red-600">{error}</p>
             </div>
           ) : (
@@ -167,13 +169,13 @@ export function ParticipantsPage() {
                 <table className="min-w-full">
                   <thead className="bg-white">
                     <tr className="border-b border-slate-200 text-left text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                      <th className="px-6 py-5">Nome</th>
-                      <th className="px-6 py-5">CPF</th>
-                      <th className="px-6 py-5">Idade</th>
-                      <th className="px-6 py-5">Sexo</th>
-                      <th className="px-6 py-5">Cidade</th>
-                      <th className="px-6 py-5">IVCF-20</th>
-                      <th className="px-6 py-5 text-right">Abrir</th>
+                      <th className="px-6 py-5">{t("participants.table.name")}</th>
+                      <th className="px-6 py-5">{t("participants.table.cpf")}</th>
+                      <th className="px-6 py-5">{t("participants.table.age")}</th>
+                      <th className="px-6 py-5">{t("participants.table.sex")}</th>
+                      <th className="px-6 py-5">{t("participants.table.city")}</th>
+                      <th className="px-6 py-5">{t("participants.table.ivcf")}</th>
+                      <th className="px-6 py-5 text-right">{t("participants.table.open")}</th>
                     </tr>
                   </thead>
 
@@ -201,7 +203,7 @@ export function ParticipantsPage() {
 
                               {isExample ? (
                                 <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-700">
-                                  Exemplo
+                                  {t("participants.table.example")}
                                 </span>
                               ) : null}
                             </div>
@@ -215,7 +217,7 @@ export function ParticipantsPage() {
                             {participant.ivcfClass ? (
                               <div className="flex flex-col gap-2">
                                 <div className="text-sm font-black text-slate-900">
-                                  {participant.ivcfScore ?? "—"} pontos
+                                  {participant.ivcfScore ?? "—"} {t("participants.table.points")}
                                 </div>
                                 <span
                                   className={[
@@ -227,7 +229,7 @@ export function ParticipantsPage() {
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-slate-400">Sem coleta</span>
+                              <span className="text-slate-400">{t("participants.table.noCollection")}</span>
                             )}
                           </td>
                           <td className="px-6 py-5 text-right">
@@ -235,7 +237,7 @@ export function ParticipantsPage() {
                               to={routes.participantDetail(participant.id)}
                               className="inline-flex items-center gap-1 font-semibold text-blue-700 transition hover:text-blue-900"
                             >
-                              Ver
+                              {t("participants.table.view")}
                               <ChevronRight size={16} />
                             </Link>
                           </td>
@@ -247,10 +249,10 @@ export function ParticipantsPage() {
                       <tr>
                         <td colSpan={7} className="px-6 py-10 text-center">
                           <p className="font-semibold text-slate-700">
-                            Nenhum participante encontrado.
+                            {t("participants.emptyTitle")}
                           </p>
                           <p className="mt-1 text-sm text-slate-500">
-                            Ajusta a busca ou confere os dados.
+                            {t("participants.emptySubtitle")}
                           </p>
                         </td>
                       </tr>

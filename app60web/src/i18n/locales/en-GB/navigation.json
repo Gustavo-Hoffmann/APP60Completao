@@ -1,0 +1,20 @@
+{
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "institutions": "Institutions",
+    "participants": "Participants",
+    "questionnaires": "Questionnaires",
+    "tests": "Tests",
+    "myInstitution": "My institution",
+    "knowledgeBase": "Knowledge base"
+  },
+  "role": {
+    "SUPER_ADMIN": "Super Admin",
+    "ADMIN": "Administrator",
+    "GESTOR": "Manager",
+    "SUPERVISOR": "Supervisor",
+    "AVALIADOR": "Assessor"
+  },
+  "loader": "Loading..."
+}

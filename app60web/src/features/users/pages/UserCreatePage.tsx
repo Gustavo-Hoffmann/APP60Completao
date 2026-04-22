@@ -2,6 +2,7 @@ import { CalendarDays, Loader2, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import { ptBR } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import "react-datepicker/dist/react-datepicker.css";
@@ -193,6 +194,7 @@ function SelectField(
 }
 
 export function UserCreatePage() {
+  const { t, i18n } = useTranslation(["modules", "navigation"]);
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -260,7 +262,7 @@ export function UserCreatePage() {
         setBrazilStates(statesData);
       } catch (err) {
         console.error(err);
-        setError("Não foi possível carregar países/estados.");
+        setError(t("modules:userCreate.errors.loadCountryState"));
       } finally {
         setLoadingCountries(false);
         setLoadingStates(false);
@@ -268,7 +270,7 @@ export function UserCreatePage() {
     }
 
     void loadCountriesAndStates();
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     async function loadInstitutions() {
@@ -339,14 +341,14 @@ export function UserCreatePage() {
         setBrazilCities(cities);
       } catch (err) {
         console.error(err);
-        setError("Não foi possível carregar as cidades.");
+        setError(t("modules:userCreate.errors.loadCities"));
       } finally {
         setLoadingCities(false);
       }
     }
 
     void loadCities();
-  }, [form.state, isBrazil]);
+  }, [form.state, isBrazil, t]);
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -391,34 +393,34 @@ export function UserCreatePage() {
       !form.country.trim() ||
       !form.city.trim()
     ) {
-      setError("Preencha todos os campos obrigatórios.");
+      setError(t("modules:userCreate.errors.requiredFields"));
       return;
     }
 
     if (needsInstitutionSelection && !form.institutionId) {
-      setError("Selecione a instituição.");
+      setError(t("modules:userCreate.errors.selectInstitution"));
       return;
     }
 
     if (isBrazil && !form.state.trim()) {
-      setError("Selecione o estado.");
+      setError(t("modules:userCreate.errors.selectState"));
       return;
     }
 
     if (!initialPassword) {
-      setError("Não foi possível gerar a senha inicial.");
+      setError(t("modules:userCreate.errors.initialPassword"));
       return;
     }
 
     if (needsSupervisorSelection && !form.supervisorId) {
-      setError("Selecione o supervisor do avaliador.");
+      setError(t("modules:userCreate.errors.selectSupervisor"));
       return;
     }
 
     const institutionId =
       isSuperAdminUser ? form.institutionId : user?.institution_id ?? "";
     if (!institutionId) {
-      setError("Instituição inválida para o cadastro.");
+      setError(t("modules:userCreate.errors.invalidInstitution"));
       return;
     }
 
@@ -444,7 +446,7 @@ export function UserCreatePage() {
         }),
       });
 
-      setSuccess("Usuário criado com sucesso.");
+      setSuccess(t("modules:userCreate.success"));
 
       setForm({
         role: isSuperAdminUser ? "ADMIN" : isAdminUser ? "GESTOR" : "SUPERVISOR",
@@ -463,7 +465,7 @@ export function UserCreatePage() {
       setBrazilCities([]);
     } catch (err) {
       console.error("Erro ao cadastrar usuário:", err);
-      setError(err instanceof Error ? err.message : "Erro ao cadastrar usuário.");
+      setError(err instanceof Error ? err.message : t("modules:userCreate.errors.createFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -471,10 +473,7 @@ export function UserCreatePage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <AppHeader
-        title="Criar usuário"
-        subtitle="Cadastre perfis vinculados à instituição"
-      />
+      <AppHeader title={t("modules:userCreate.title")} subtitle={t("modules:userCreate.subtitle")} />
 
       <main className="mx-auto max-w-5xl px-6 py-8">
         <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
@@ -493,26 +492,26 @@ export function UserCreatePage() {
 
             <div className="grid gap-6 md:grid-cols-2">
               <div>
-                <FieldLabel required>Nome</FieldLabel>
+                <FieldLabel required>{t("modules:userForm.name")}</FieldLabel>
                 <TextField
                   value={form.name}
                   onChange={(e) => updateField("name", e.target.value)}
-                  placeholder="Nome completo"
+                  placeholder={t("modules:userForm.placeholder.fullName")}
                 />
               </div>
 
               <div>
-                <FieldLabel required>Email</FieldLabel>
+                <FieldLabel required>{t("modules:userForm.email")}</FieldLabel>
                 <TextField
                   type="email"
                   value={form.email}
                   onChange={(e) => updateField("email", e.target.value)}
-                  placeholder="email@exemplo.com"
+                  placeholder={t("modules:userForm.placeholder.email")}
                 />
               </div>
 
               <div>
-                <FieldLabel required>CPF</FieldLabel>
+                <FieldLabel required>{t("modules:userForm.cpf")}</FieldLabel>
                 <TextField
                   value={form.cpf}
                   onChange={(e) => updateField("cpf", formatCpf(e.target.value))}
@@ -522,25 +521,27 @@ export function UserCreatePage() {
               </div>
 
               <div>
-                <FieldLabel required>Celular</FieldLabel>
+                <FieldLabel required>{t("modules:userForm.phone")}</FieldLabel>
                 <TextField
                   value={form.phone}
                   onChange={(e) => updateField("phone", formatPhone(e.target.value))}
-                  placeholder="(41) 99999-9999"
+                  placeholder={t("modules:userForm.placeholder.phone")}
                   inputMode="tel"
                 />
               </div>
 
               {needsInstitutionSelection ? (
                 <div className="md:col-span-2">
-                  <FieldLabel required>Instituição</FieldLabel>
+                  <FieldLabel required>{t("modules:userForm.institution")}</FieldLabel>
                   <SelectField
                     value={form.institutionId}
                     onChange={(e) => updateField("institutionId", e.target.value)}
                     disabled={loadingInstitutions}
                   >
                     <option value="">
-                      {loadingInstitutions ? "Carregando..." : "Selecione a instituição"}
+                      {loadingInstitutions
+                        ? t("modules:userForm.loading.default")
+                        : t("modules:userForm.select.institution")}
                     </option>
                     {institutions.map((inst) => (
                       <option key={inst.id} value={inst.id}>
@@ -552,14 +553,14 @@ export function UserCreatePage() {
               ) : null}
 
               <div>
-                <FieldLabel required>País</FieldLabel>
+                <FieldLabel required>{t("modules:userForm.country")}</FieldLabel>
                 <SelectField
                   value={form.country}
                   onChange={(e) => handleCountryChange(e.target.value)}
                   disabled={loadingCountries}
                 >
                   <option value="">
-                    {loadingCountries ? "Carregando países..." : "Selecione"}
+                    {loadingCountries ? t("modules:userForm.loading.countries") : t("modules:userForm.select.default")}
                   </option>
                   {countries.map((country) => (
                     <option key={country.code} value={country.code}>
@@ -571,14 +572,14 @@ export function UserCreatePage() {
 
               {isBrazil ? (
                 <div>
-                  <FieldLabel required>Estado</FieldLabel>
+                  <FieldLabel required>{t("modules:userForm.state")}</FieldLabel>
                   <SelectField
                     value={form.state}
                     onChange={(e) => handleStateChange(e.target.value)}
                     disabled={loadingStates}
                   >
                     <option value="">
-                      {loadingStates ? "Carregando estados..." : "Selecione"}
+                      {loadingStates ? t("modules:userForm.loading.states") : t("modules:userForm.select.default")}
                     </option>
                     {brazilStates.map((state) => (
                       <option key={state.sigla} value={state.sigla}>
@@ -590,7 +591,7 @@ export function UserCreatePage() {
               ) : null}
 
               <div className={isBrazil ? "" : "md:col-span-2"}>
-                <FieldLabel required>Cidade</FieldLabel>
+                <FieldLabel required>{t("modules:userForm.city")}</FieldLabel>
                 {isBrazil ? (
                   <SelectField
                     value={form.city}
@@ -599,10 +600,10 @@ export function UserCreatePage() {
                   >
                     <option value="">
                       {!form.state
-                        ? "Selecione o estado primeiro"
+                        ? t("modules:userForm.select.stateFirst")
                         : loadingCities
-                        ? "Carregando cidades..."
-                        : "Selecione"}
+                        ? t("modules:userForm.loading.cities")
+                        : t("modules:userForm.select.default")}
                     </option>
                     {brazilCities.map((city) => (
                       <option key={city.id} value={city.nome}>
@@ -614,23 +615,23 @@ export function UserCreatePage() {
                   <TextField
                     value={form.city}
                     onChange={(e) => updateField("city", e.target.value)}
-                    placeholder="Digite a cidade"
+                    placeholder={t("modules:userForm.placeholder.city")}
                   />
                 )}
               </div>
 
               <div>
-                <FieldLabel required>Data de nascimento</FieldLabel>
+                <FieldLabel required>{t("modules:userForm.birthDate")}</FieldLabel>
                 <div className="relative">
                   <DatePicker
                     selected={isoToDate(form.birthDate)}
                     onChange={(date: Date | null) => updateField("birthDate", dateToIso(date))}
                     dateFormat="dd/MM/yyyy"
-                    locale={ptBR}
+                    locale={(i18n.resolvedLanguage ?? "pt-BR").startsWith("pt") ? ptBR : undefined}
                     showMonthDropdown
                     showYearDropdown
                     dropdownMode="select"
-                    placeholderText="Selecione a data"
+                    placeholderText={t("modules:userForm.placeholder.date")}
                     maxDate={new Date()}
                     yearDropdownItemNumber={120}
                     scrollableYearDropdown
@@ -647,7 +648,7 @@ export function UserCreatePage() {
               </div>
 
               <div>
-                <FieldLabel required>Perfil</FieldLabel>
+                <FieldLabel required>{t("modules:userForm.role")}</FieldLabel>
                 <SelectField
                   value={form.role}
                   onChange={(e) => updateField("role", e.target.value as RoleOption)}
@@ -655,12 +656,12 @@ export function UserCreatePage() {
                   {allowedRoles.map((role) => (
                     <option key={role} value={role}>
                       {role === "ADMIN"
-                        ? "Administrador"
+                        ? t("modules:userForm.roles.admin")
                         : role === "GESTOR"
-                          ? "Gestor"
+                          ? t("modules:userForm.roles.manager")
                           : role === "SUPERVISOR"
-                            ? "Supervisor"
-                            : "Avaliador / Pesquisador"}
+                            ? t("modules:userForm.roles.supervisor")
+                            : t("modules:userForm.roles.evaluator")}
                     </option>
                   ))}
                 </SelectField>
@@ -668,7 +669,7 @@ export function UserCreatePage() {
 
               {needsSupervisorSelection ? (
                 <div className="md:col-span-2">
-                  <FieldLabel required>Supervisor responsável</FieldLabel>
+                  <FieldLabel required>{t("modules:userForm.supervisor")}</FieldLabel>
                   <SelectField
                     value={form.supervisorId}
                     onChange={(e) => updateField("supervisorId", e.target.value)}
@@ -676,8 +677,8 @@ export function UserCreatePage() {
                   >
                     <option value="">
                       {loadingSupervisors
-                        ? "Carregando supervisores..."
-                        : "Selecione um supervisor"}
+                        ? t("modules:userForm.loading.supervisors")
+                        : t("modules:userForm.select.supervisor")}
                     </option>
                     {supervisors.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -692,10 +693,10 @@ export function UserCreatePage() {
               <div className="md:col-span-2">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                   <div className="text-sm font-semibold text-slate-700">
-                    Senha inicial automática
+                    {t("modules:userForm.passwordHintTitle")}
                   </div>
                   <div className="mt-1 text-sm text-slate-500">
-                    A senha inicial será gerada com as 2 primeiras letras do primeiro nome + data de nascimento + #:
+                    {t("modules:userForm.passwordHintBody")}
                   </div>
                   <div className="mt-2 font-mono text-lg font-bold text-brand-700">
                     {initialPassword || "An230265#"}
@@ -710,7 +711,7 @@ export function UserCreatePage() {
                 onClick={() => navigate(routes.users)}
                 className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                Cancelar
+                {t("modules:userForm.actions.cancel")}
               </button>
 
               <button
@@ -721,12 +722,12 @@ export function UserCreatePage() {
                 {submitting ? (
                   <>
                     <Loader2 size={18} className="animate-spin" />
-                    Salvando...
+                    {t("modules:userForm.actions.saving")}
                   </>
                 ) : (
                   <>
                     <UserPlus size={18} />
-                    Criar usuário
+                    {t("modules:userCreate.createButton")}
                   </>
                 )}
               </button>

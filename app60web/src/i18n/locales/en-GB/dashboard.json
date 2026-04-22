@@ -1,0 +1,37 @@
+{
+  "title": "Dashboard",
+  "subtitle": "System operational overview.",
+  "myInstitution": "My institution",
+  "loading": "Loading dashboard...",
+  "errorTitle": "Error",
+  "noData": "Could not load data.",
+  "stats": {
+    "participantsTotal": "Total participants",
+    "participantsSubtitle": "Active linked base",
+    "collectionsTotal": "Total collections",
+    "collectionsTotalSubtitle": "Cumulative",
+    "collectionsMonth": "Collections this month",
+    "collectionsMonthSubtitle": "Current month"
+  },
+  "monthlyCollections": "Monthly collections ({{year}})",
+  "collectionsTooltip": "Collections",
+  "topTest": "Most collected test",
+  "topTestSubtitle": "Total collection count",
+  "ivcfTitle": "IVCF",
+  "ivcfTooltip": "Participants",
+  "ivcfFootnote": "Latest IVCF-20 classification per participant (with IVCF collection)",
+  "ivcfLabels": {
+    "robusto": "Robust",
+    "pre": "Pre-frail",
+    "fragil": "Frail"
+  },
+  "tests": {
+    "MARCHA": "2-minute step test",
+    "SL30S": "Sit-to-stand (30s)",
+    "IVCF20": "IVCF-20",
+    "TUG": "TUG",
+    "LOS": "LOS",
+    "UTT": "UTT"
+  },
+  "monthsShort": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+}

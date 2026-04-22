@@ -7,6 +7,7 @@ import {
   Search,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Bar,
@@ -47,11 +48,11 @@ type CollectionsStatRow = {
   collections_count: number;
 };
 
-function countryLabel(code: string) {
+function countryLabel(code: string, t: (key: string) => string) {
   const c = (code ?? "").toUpperCase();
   if (c === "BR") return "BR";
-  if (c === "US" || c === "USA") return "EUA";
-  if (c === "UK" || c === "GB") return "UK";
+  if (c === "US" || c === "USA") return t("institutions.country.usa");
+  if (c === "UK" || c === "GB") return t("institutions.country.uk");
   return c || "—";
 }
 
@@ -65,6 +66,7 @@ function groupByCountry(rows: CollectionsStatRow[]) {
 }
 
 export function InstitutionsPage() {
+  const { t } = useTranslation("modules");
   const navigate = useNavigate();
 
   const [institutions, setInstitutions] = useState<InstitutionRow[]>([]);
@@ -85,7 +87,7 @@ export function InstitutionsPage() {
       setStats(st ?? []);
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : "Não foi possível carregar as instituições.");
+      setError(err instanceof Error ? err.message : t("institutions.loadErrorTitle"));
     } finally {
       setLoading(false);
     }
@@ -93,7 +95,7 @@ export function InstitutionsPage() {
 
   useEffect(() => {
     void loadAll();
-  }, []);
+  }, [t]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -103,17 +105,17 @@ export function InstitutionsPage() {
         i.name.toLowerCase().includes(term) ||
         i.acronym.toLowerCase().includes(term) ||
         (i.unit ?? "").toLowerCase().includes(term) ||
-        countryLabel(i.country).toLowerCase().includes(term) ||
+        countryLabel(i.country, t).toLowerCase().includes(term) ||
         i.city.toLowerCase().includes(term)
       );
     });
-  }, [institutions, search]);
+  }, [institutions, search, t]);
 
   const chartGroups = useMemo(() => groupByCountry(stats), [stats]);
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <AppHeader title="Instituições" subtitle="Cadastre e acompanhe instituições e coletas" />
+      <AppHeader title={t("institutions.title")} subtitle={t("institutions.subtitle")} />
 
       <main className="space-y-6 px-6 py-8">
         <section className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -123,7 +125,7 @@ export function InstitutionsPage() {
             className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
             <Plus size={18} />
-            Cadastrar instituição
+            {t("institutions.createButton")}
           </button>
 
           <div className="relative w-full max-w-md">
@@ -133,7 +135,7 @@ export function InstitutionsPage() {
             />
             <input
               type="text"
-              placeholder="Buscar instituições (nome, sigla, cidade...)"
+              placeholder={t("institutions.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
@@ -144,13 +146,13 @@ export function InstitutionsPage() {
         <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
             <BarChart3 size={16} className="text-blue-600" />
-            Distribuição de coletas por instituição (por país)
+            {t("institutions.chartTitle")}
           </div>
 
           {loading ? (
             <div className="flex items-center gap-3 text-slate-500">
               <Loader2 size={18} className="animate-spin" />
-              Carregando gráfico...
+              {t("institutions.chartLoading")}
             </div>
           ) : error ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -158,14 +160,14 @@ export function InstitutionsPage() {
             </div>
           ) : stats.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
-              Ainda não há coletas para compor o gráfico.
+              {t("institutions.chartEmpty")}
             </div>
           ) : (
             <div className="grid gap-6 xl:grid-cols-3">
               {chartGroups.map(([country, rows]) => (
                 <div key={country} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                   <div className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">
-                    {countryLabel(country)}
+                    {countryLabel(country, t)}
                   </div>
                   <div className="h-56">
                     <ResponsiveContainer width="100%" height="100%">
@@ -174,8 +176,8 @@ export function InstitutionsPage() {
                         <XAxis dataKey="acronym" tick={{ fontSize: 12 }} interval={0} />
                         <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                         <Tooltip
-                          formatter={(value) => [`${value}`, "Coletas"]}
-                          labelFormatter={(label) => `Instituição: ${label}`}
+                          formatter={(value) => [`${value}`, t("institutions.collectionsLabel")]}
+                          labelFormatter={(label) => t("institutions.institutionLabel", { label })}
                         />
                         <Bar dataKey="collections_count" fill="#2563eb" radius={[8, 8, 0, 0]} />
                       </BarChart>
@@ -190,14 +192,14 @@ export function InstitutionsPage() {
         <section className="space-y-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
             <Building2 size={16} />
-            Instituições cadastradas
+            {t("institutions.registeredTitle")}
           </div>
 
           {loading ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
               <div className="flex items-center gap-3 text-slate-500">
                 <Loader2 size={18} className="animate-spin" />
-                Carregando instituições...
+                {t("institutions.loading")}
               </div>
             </div>
           ) : error ? (
@@ -205,16 +207,16 @@ export function InstitutionsPage() {
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 text-red-600" size={18} />
                 <div>
-                  <p className="font-semibold text-red-700">Erro ao carregar instituições</p>
+                  <p className="font-semibold text-red-700">{t("institutions.loadErrorTitle")}</p>
                   <p className="mt-1 text-sm text-red-600">{error}</p>
                 </div>
               </div>
             </div>
           ) : filtered.length === 0 ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-              <p className="text-base font-semibold text-slate-700">Nenhuma instituição encontrada.</p>
+              <p className="text-base font-semibold text-slate-700">{t("institutions.emptyTitle")}</p>
               <p className="mt-1 text-sm text-slate-500">
-                Ajuste a busca ou cadastre uma nova instituição.
+                {t("institutions.emptySubtitle")}
               </p>
             </div>
           ) : (
@@ -229,7 +231,7 @@ export function InstitutionsPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                        {countryLabel(inst.country)} {inst.state_or_county ? `• ${inst.state_or_county}` : ""} •{" "}
+                        {countryLabel(inst.country, t)} {inst.state_or_county ? `• ${inst.state_or_county}` : ""} •{" "}
                         {inst.city}
                       </div>
                       <div className="mt-1 text-xl font-bold text-slate-900">{inst.name}</div>
@@ -240,15 +242,15 @@ export function InstitutionsPage() {
                     </div>
                     <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition group-hover:bg-slate-50">
                       <BarChart3 size={14} />
-                      Editar
+                      {t("institutions.edit")}
                     </div>
                   </div>
 
                   <div className="mt-4 text-sm text-slate-600">
-                    {inst.street ? `${inst.street}` : "Endereço não informado"}
+                    {inst.street ? `${inst.street}` : t("institutions.addressUnavailable")}
                     {inst.street_number ? `, ${inst.street_number}` : ""}
                     {inst.neighborhood ? ` — ${inst.neighborhood}` : ""}
-                    {inst.postal_code ? ` • CEP ${inst.postal_code}` : ""}
+                    {inst.postal_code ? ` • ${t("institutions.postalCode", { value: inst.postal_code })}` : ""}
                   </div>
                 </button>
               ))}

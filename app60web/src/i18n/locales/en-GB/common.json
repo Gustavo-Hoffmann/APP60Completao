@@ -1,0 +1,13 @@
+{
+  "language": {
+    "pt": "PT",
+    "en": "EN",
+    "switchToPt": "Switch language to Portuguese",
+    "switchToEn": "Switch language to English"
+  },
+  "actions": {
+    "logout": "Sign out",
+    "loading": "Loading..."
+  },
+  "searchPlaceholder": "Search..."
+}

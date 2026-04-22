@@ -1,0 +1,37 @@
+{
+  "title": "Dashboard",
+  "subtitle": "Visão geral operacional do sistema.",
+  "myInstitution": "Minha instituição",
+  "loading": "Carregando dashboard...",
+  "errorTitle": "Erro",
+  "noData": "Não foi possível carregar os dados.",
+  "stats": {
+    "participantsTotal": "Participantes Totais",
+    "participantsSubtitle": "Base ativa vinculada",
+    "collectionsTotal": "Coletas Totais",
+    "collectionsTotalSubtitle": "Acumulado",
+    "collectionsMonth": "Coletas no Mês",
+    "collectionsMonthSubtitle": "Mês atual"
+  },
+  "monthlyCollections": "Coletas mensais ({{year}})",
+  "collectionsTooltip": "Coletas",
+  "topTest": "Teste com mais coletas",
+  "topTestSubtitle": "Quantidade de coletas (total)",
+  "ivcfTitle": "IVCF",
+  "ivcfTooltip": "Participantes",
+  "ivcfFootnote": "Última classificação IVCF-20 por participante (com coleta IVCF)",
+  "ivcfLabels": {
+    "robusto": "Robusto",
+    "pre": "Pré",
+    "fragil": "Frágil"
+  },
+  "tests": {
+    "MARCHA": "Marcha estacionária",
+    "SL30S": "Sentar e levantar (30s)",
+    "IVCF20": "IVCF-20",
+    "TUG": "TUG",
+    "LOS": "LOS",
+    "UTT": "UTT"
+  },
+  "monthsShort": ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+}

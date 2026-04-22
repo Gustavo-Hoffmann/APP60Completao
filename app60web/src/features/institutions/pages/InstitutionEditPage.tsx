@@ -1,5 +1,6 @@
 import { AlertTriangle, Loader2, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppHeader } from "../../../components/layout/AppHeader";
@@ -50,6 +51,7 @@ function SelectField(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
 }
 
 export function InstitutionEditPage() {
+  const { t } = useTranslation("modules");
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -69,20 +71,20 @@ export function InstitutionEditPage() {
         const list = await apiJson<InstitutionRow[]>("/api/institutions");
         const found = (list ?? []).find((r) => r.id === id) ?? null;
         if (!found) {
-          setLoadError("Instituição não encontrada.");
+          setLoadError(t("institutionEdit.errors.notFound"));
           setForm(null);
           return;
         }
         setForm(found);
       } catch (err) {
         console.error(err);
-        setLoadError(err instanceof Error ? err.message : "Erro ao carregar instituição.");
+        setLoadError(err instanceof Error ? err.message : t("institutionEdit.errors.loadFailed"));
       } finally {
         setLoading(false);
       }
     }
     void load();
-  }, [id]);
+  }, [id, t]);
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -90,7 +92,7 @@ export function InstitutionEditPage() {
     setFormError(null);
 
     if (!form.name.trim() || !form.acronym.trim() || !form.country.trim() || !form.city.trim()) {
-      setFormError("Preencha os campos obrigatórios.");
+      setFormError(t("institutionEdit.errors.requiredFields"));
       return;
     }
 
@@ -116,7 +118,7 @@ export function InstitutionEditPage() {
       navigate(routes.institutions);
     } catch (err) {
       console.error(err);
-      setFormError(err instanceof Error ? err.message : "Erro ao salvar.");
+      setFormError(err instanceof Error ? err.message : t("institutionEdit.errors.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -126,7 +128,9 @@ export function InstitutionEditPage() {
     if (!id || !form) return;
 
     const confirmed = window.confirm(
-      `Excluir a instituição "${form.name}${form.unit ? ` - ${form.unit}` : ""}"? Essa ação não pode ser desfeita.`
+      t("institutionEdit.confirmDelete", {
+        name: `${form.name}${form.unit ? ` - ${form.unit}` : ""}`,
+      })
     );
     if (!confirmed) return;
 
@@ -137,7 +141,7 @@ export function InstitutionEditPage() {
       navigate(routes.institutions);
     } catch (err) {
       console.error(err);
-      setFormError(err instanceof Error ? err.message : "Erro ao excluir instituição.");
+      setFormError(err instanceof Error ? err.message : t("institutionEdit.errors.deleteFailed"));
     } finally {
       setDeleting(false);
     }
@@ -145,14 +149,14 @@ export function InstitutionEditPage() {
 
   return (
     <div className="min-h-screen bg-slate-100">
-      <AppHeader title="Editar instituição" subtitle="Atualize dados cadastrais" />
+      <AppHeader title={t("institutionEdit.title")} subtitle={t("institutionEdit.subtitle")} />
 
       <main className="mx-auto max-w-5xl px-6 py-8">
         {loading ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
             <div className="flex items-center gap-3 text-slate-500">
               <Loader2 size={18} className="animate-spin" />
-              Carregando...
+              {t("institutionEdit.loading")}
             </div>
           </div>
         ) : loadError ? (
@@ -160,14 +164,14 @@ export function InstitutionEditPage() {
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 text-red-600" size={18} />
               <div>
-                <p className="font-semibold text-red-700">Erro</p>
+                <p className="font-semibold text-red-700">{t("institutionEdit.errorTitle")}</p>
                 <p className="mt-1 text-sm text-red-600">{loadError}</p>
               </div>
             </div>
           </div>
         ) : !form ? (
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-            Instituição não encontrada.
+            {t("institutionEdit.errors.notFound")}
           </div>
         ) : (
           <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
@@ -180,7 +184,7 @@ export function InstitutionEditPage() {
 
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="md:col-span-2">
-                  <FieldLabel required>Nome da instituição</FieldLabel>
+                  <FieldLabel required>{t("institutionEdit.name")}</FieldLabel>
                   <TextField
                     value={form.name}
                     onChange={(e) => setForm((p) => (p ? { ...p, name: e.target.value } : p))}
@@ -188,7 +192,7 @@ export function InstitutionEditPage() {
                 </div>
 
                 <div>
-                  <FieldLabel required>Sigla</FieldLabel>
+                  <FieldLabel required>{t("institutionEdit.acronym")}</FieldLabel>
                   <TextField
                     value={form.acronym}
                     onChange={(e) => setForm((p) => (p ? { ...p, acronym: e.target.value } : p))}
@@ -196,7 +200,7 @@ export function InstitutionEditPage() {
                 </div>
 
                 <div>
-                  <FieldLabel>Unidade</FieldLabel>
+                  <FieldLabel>{t("institutionEdit.unit")}</FieldLabel>
                   <TextField
                     value={form.unit ?? ""}
                     onChange={(e) => setForm((p) => (p ? { ...p, unit: e.target.value } : p))}
@@ -204,20 +208,20 @@ export function InstitutionEditPage() {
                 </div>
 
                 <div>
-                  <FieldLabel required>País</FieldLabel>
+                  <FieldLabel required>{t("userForm.country")}</FieldLabel>
                   <SelectField
                     value={form.country}
                     onChange={(e) => setForm((p) => (p ? { ...p, country: e.target.value } : p))}
                   >
-                    <option value="BR">Brasil (BR)</option>
-                    <option value="US">Estados Unidos (US)</option>
-                    <option value="UK">Reino Unido (UK)</option>
+                    <option value="BR">{t("institutionEdit.countryBrazil")}</option>
+                    <option value="US">{t("institutionEdit.countryUsa")}</option>
+                    <option value="UK">{t("institutionEdit.countryUk")}</option>
                     <option value={form.country}>{form.country}</option>
                   </SelectField>
                 </div>
 
                 <div>
-                  <FieldLabel>State/County</FieldLabel>
+                  <FieldLabel>{t("institutionEdit.stateCounty")}</FieldLabel>
                   <TextField
                     value={form.state_or_county ?? ""}
                     onChange={(e) =>
@@ -227,7 +231,7 @@ export function InstitutionEditPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <FieldLabel required>Cidade</FieldLabel>
+                  <FieldLabel required>{t("userForm.city")}</FieldLabel>
                   <TextField
                     value={form.city}
                     onChange={(e) => setForm((p) => (p ? { ...p, city: e.target.value } : p))}
@@ -235,7 +239,7 @@ export function InstitutionEditPage() {
                 </div>
 
                 <div>
-                  <FieldLabel>CEP / Postal code</FieldLabel>
+                  <FieldLabel>{t("institutionEdit.postalCode")}</FieldLabel>
                   <TextField
                     value={form.postal_code ?? ""}
                     onChange={(e) =>
@@ -245,7 +249,7 @@ export function InstitutionEditPage() {
                 </div>
 
                 <div>
-                  <FieldLabel>Número</FieldLabel>
+                  <FieldLabel>{t("institutionEdit.number")}</FieldLabel>
                   <TextField
                     value={form.street_number ?? ""}
                     onChange={(e) =>
@@ -255,7 +259,7 @@ export function InstitutionEditPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <FieldLabel>Complemento</FieldLabel>
+                  <FieldLabel>{t("institutionEdit.complement")}</FieldLabel>
                   <TextField
                     value={form.complement ?? ""}
                     onChange={(e) =>
@@ -265,7 +269,7 @@ export function InstitutionEditPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <FieldLabel>Rua / Logradouro</FieldLabel>
+                  <FieldLabel>{t("institutionEdit.street")}</FieldLabel>
                   <TextField
                     value={form.street ?? ""}
                     onChange={(e) => setForm((p) => (p ? { ...p, street: e.target.value } : p))}
@@ -273,7 +277,7 @@ export function InstitutionEditPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <FieldLabel>Bairro</FieldLabel>
+                  <FieldLabel>{t("institutionEdit.neighborhood")}</FieldLabel>
                   <TextField
                     value={form.neighborhood ?? ""}
                     onChange={(e) =>
@@ -292,7 +296,7 @@ export function InstitutionEditPage() {
                       }
                       className="h-4 w-4 rounded border-slate-300"
                     />
-                    Instituição ativa
+                    {t("institutionEdit.activeInstitution")}
                   </label>
                 </div>
               </div>
@@ -307,12 +311,12 @@ export function InstitutionEditPage() {
                   {deleting ? (
                     <>
                       <Loader2 size={18} className="animate-spin" />
-                      Excluindo...
+                      {t("institutionEdit.deleting")}
                     </>
                   ) : (
                     <>
                       <Trash2 size={18} />
-                      Excluir instituição
+                      {t("institutionEdit.deleteButton")}
                     </>
                   )}
                 </button>
@@ -324,7 +328,7 @@ export function InstitutionEditPage() {
                     disabled={saving || deleting}
                     className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Cancelar
+                    {t("userForm.actions.cancel")}
                   </button>
                   <button
                     type="submit"
@@ -334,12 +338,12 @@ export function InstitutionEditPage() {
                     {saving ? (
                       <>
                         <Loader2 size={18} className="animate-spin" />
-                        Salvando...
+                        {t("userForm.actions.saving")}
                       </>
                     ) : (
                       <>
                         <Save size={18} />
-                        Salvar alterações
+                        {t("institutionEdit.saveButton")}
                       </>
                     )}
                   </button>

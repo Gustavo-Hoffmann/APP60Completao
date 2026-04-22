@@ -1,8 +1,10 @@
 import { Bell, LogOut, Moon, Search, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { routes } from "../../navigation/routes";
+import { LanguageSwitcher } from "../LanguageSwitcher";
 import { Input } from "../ui/Input";
 
 type Props = {
@@ -14,6 +16,7 @@ export function AppHeader({ title, subtitle }: Props) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [isDark, setIsDark] = useState(false);
+  const { t } = useTranslation(["common"]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -69,8 +72,9 @@ export function AppHeader({ title, subtitle }: Props) {
         <div className="flex items-center gap-3">
           <div className="relative hidden md:block">
             <Search size={16} className="absolute left-3 top-3 text-slate-400" />
-            <Input placeholder="Buscar..." className="w-72 pl-10" />
+            <Input placeholder={t("common:searchPlaceholder")} className="w-72 pl-10" />
           </div>
+          <LanguageSwitcher compact />
 
           <button
             type="button"
@@ -110,7 +114,7 @@ export function AppHeader({ title, subtitle }: Props) {
             ].join(" ")}
           >
             <LogOut size={16} />
-            Sair
+            {t("common:actions.logout")}
           </button>
         </div>
       </div>

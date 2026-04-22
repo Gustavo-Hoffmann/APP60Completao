@@ -1,17 +1,28 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "../../../components/ui/Button";
 import { Input } from "../../../components/ui/Input";
+import { LanguageSwitcher } from "../../../components/LanguageSwitcher";
 import { useAuth } from "../../../contexts/AuthContext";
-import { getRememberMe, setRememberMe } from "../../../lib/cognito/pool";
+import {
+  clearRememberedEmail,
+  getRememberedEmail,
+  getRememberMe,
+  setRememberedEmail,
+  setRememberMe,
+} from "../../../lib/cognito/pool";
 import { routes } from "../../../navigation/routes";
 
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation(["auth"]);
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() =>
+    getRememberMe() ? getRememberedEmail() : ""
+  );
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMeState] = useState(() => getRememberMe());
@@ -31,7 +42,7 @@ export function LoginPage() {
     setLocalError(null);
 
     if (!email.trim() || !password.trim()) {
-      setLocalError("Preencha email e senha.");
+      setLocalError(t("auth:login.requiredFields"));
       return;
     }
 
@@ -39,6 +50,12 @@ export function LoginPage() {
       setSubmitting(true);
 
       setRememberMe(rememberMe);
+      if (rememberMe) {
+        setRememberedEmail(email.trim());
+      } else {
+        clearRememberedEmail();
+      }
+
       const result = await login({
         email: email.trim(),
         password,
@@ -58,6 +75,9 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-10">
       <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-soft">
+        <div className="mb-3 flex justify-end">
+          <LanguageSwitcher />
+        </div>
         <div className="mb-8">
           <img
             src="/logo-seniorsense.png"
@@ -65,19 +85,19 @@ export function LoginPage() {
             className="mx-auto h-20 w-full max-w-[320px] object-contain"
           />
           <p className="mt-4 text-center text-sm text-slate-500">
-            Entre com seu email e senha cadastrados pelo administrador.
+            {t("auth:login.subtitle")}
           </p>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <label htmlFor="email" className="text-sm font-medium text-slate-700">
-              Email
+              {t("auth:login.emailLabel")}
             </label>
             <Input
               id="email"
               type="email"
-              placeholder="seuemail@exemplo.com"
+              placeholder={t("auth:login.emailPlaceholder")}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -87,13 +107,13 @@ export function LoginPage() {
 
           <div className="space-y-2">
             <label htmlFor="password" className="text-sm font-medium text-slate-700">
-              Senha
+              {t("auth:login.passwordLabel")}
             </label>
             <div className="relative">
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="Digite sua senha"
+                placeholder={t("auth:login.passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -104,7 +124,7 @@ export function LoginPage() {
                 type="button"
                 className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 hover:text-slate-700 disabled:opacity-50"
                 onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                aria-label={showPassword ? t("auth:login.hidePassword") : t("auth:login.showPassword")}
                 disabled={submitting}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -120,7 +140,7 @@ export function LoginPage() {
               disabled={submitting}
               className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-200"
             />
-            Lembrar de mim
+            {t("auth:login.rememberMe")}
           </label>
 
           {localError ? (
@@ -130,7 +150,7 @@ export function LoginPage() {
           ) : null}
 
           <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? "Entrando..." : "Entrar"}
+            {submitting ? t("auth:login.submitting") : t("auth:login.submit")}
           </Button>
         </form>
       </div>

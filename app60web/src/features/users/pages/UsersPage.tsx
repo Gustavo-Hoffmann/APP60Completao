@@ -12,6 +12,7 @@ import {
   UserRoundX,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { AppHeader } from "../../../components/layout/AppHeader";
@@ -32,50 +33,37 @@ type UserRow = {
 
 type TabKey = "TODOS" | Role;
 
-const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: "TODOS", label: "Todos" },
-  { key: "SUPER_ADMIN", label: "Super Admin" },
-  { key: "ADMIN", label: "Admin" },
-  { key: "GESTOR", label: "Gestor" },
-  { key: "SUPERVISOR", label: "Supervisor" },
-  { key: "AVALIADOR", label: "Avaliador" },
-];
+const TABS: TabKey[] = ["TODOS", "SUPER_ADMIN", "ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"];
 
 const ROLE_META: Record<
   Role,
   {
-    label: string;
     icon: typeof Shield;
     badgeClass: string;
     glowClass: string;
   }
 > = {
   SUPER_ADMIN: {
-    label: "Super Admin",
     icon: Shield,
     badgeClass: "border-violet-200 bg-violet-50 text-violet-700",
     glowClass: "from-violet-500/10 via-fuchsia-500/5 to-transparent",
   },
   ADMIN: {
-    label: "Administrador",
     icon: Shield,
     badgeClass: "border-indigo-200 bg-indigo-50 text-indigo-700",
     glowClass: "from-indigo-500/10 via-violet-500/5 to-transparent",
   },
   GESTOR: {
-    label: "Gestor",
     icon: GraduationCap,
     badgeClass: "border-blue-200 bg-blue-50 text-blue-700",
     glowClass: "from-blue-500/10 via-cyan-500/5 to-transparent",
   },
   SUPERVISOR: {
-    label: "Supervisor",
     icon: GraduationCap,
     badgeClass: "border-cyan-200 bg-cyan-50 text-cyan-800",
     glowClass: "from-cyan-500/10 via-teal-500/5 to-transparent",
   },
   AVALIADOR: {
-    label: "Avaliador",
     icon: UserIcon,
     badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700",
     glowClass: "from-emerald-500/10 via-lime-500/5 to-transparent",
@@ -92,12 +80,13 @@ function getInitials(name: string) {
     .join("");
 }
 
-function formatDate(value?: string | null) {
+function formatDate(value: string | null | undefined, locale: string) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString("pt-BR");
+  return new Date(value).toLocaleDateString(locale);
 }
 
 export function UsersPage() {
+  const { t, i18n } = useTranslation(["modules", "navigation"]);
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
 
@@ -108,6 +97,10 @@ export function UsersPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+
+  const roleLabel = (role: Role) => t(`navigation:role.${role}`);
+  const tabLabel = (tabKey: TabKey) =>
+    tabKey === "TODOS" ? t("modules:users.tabs.all") : roleLabel(tabKey);
 
   async function loadUsers(mode: "initial" | "refresh" = "initial") {
     try {
@@ -141,7 +134,7 @@ export function UsersPage() {
       );
     } catch (err) {
       console.error("Erro ao carregar usuários:", err);
-      setError(err instanceof Error ? err.message : "Não foi possível carregar os usuários.");
+      setError(err instanceof Error ? err.message : t("modules:users.loadErrorFallback"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -150,14 +143,14 @@ export function UsersPage() {
 
   useEffect(() => {
     void loadUsers("initial");
-  }, []);
+  }, [t]);
 
   async function handleDeactivate(target: UserRow) {
     if (!currentUser) return;
     if (target.id === currentUser.id) return;
 
     const confirmed = window.confirm(
-      `Desativar o usuário "${target.name}"?\n\nEle deixará de aparecer na listagem ativa e não poderá acessar o sistema.`
+      t("modules:users.confirmDeactivate", { name: target.name })
     );
 
     if (!confirmed) return;
@@ -170,14 +163,14 @@ export function UsersPage() {
         body: JSON.stringify({ is_active: false }),
       });
       if (!res.ok) {
-        const t = await res.text();
-        throw new Error(t || "Falha ao desativar.");
+        const responseText = await res.text();
+        throw new Error(responseText || t("modules:users.deactivateFail"));
       }
 
       setUsers((prev) => prev.filter((item) => item.id !== target.id));
     } catch (err) {
       console.error("Erro ao desativar usuário:", err);
-      window.alert(err instanceof Error ? err.message : "Erro ao desativar usuário.");
+      window.alert(err instanceof Error ? err.message : t("modules:users.deactivateError"));
     } finally {
       setBusyUserId(null);
     }
@@ -204,11 +197,11 @@ export function UsersPage() {
         !term ||
         item.name.toLowerCase().includes(term) ||
         (item.email ?? "").toLowerCase().includes(term) ||
-        ROLE_META[item.role].label.toLowerCase().includes(term);
+        roleLabel(item.role).toLowerCase().includes(term);
 
       return matchesTab && matchesSearch;
     });
-  }, [users, search, tab]);
+  }, [users, search, tab, t]);
 
   const currentUserCard = useMemo(() => {
     if (!currentUser) return null;
@@ -223,8 +216,8 @@ export function UsersPage() {
   return (
     <div className="min-h-screen bg-slate-100">
       <AppHeader
-        title="Usuários"
-        subtitle="Gerencie perfis conforme a hierarquia institucional"
+        title={t("modules:users.title")}
+        subtitle={t("modules:users.subtitle")}
       />
 
       <main className="space-y-6 px-6 py-8">
@@ -236,7 +229,7 @@ export function UsersPage() {
               className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
             >
               <Plus size={18} />
-              Cadastrar pesquisador
+              {t("modules:users.createButton")}
             </button>
 
             <button
@@ -246,7 +239,7 @@ export function UsersPage() {
               className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
             >
               <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
-              Atualizar
+              {t("modules:users.refreshButton")}
             </button>
           </div>
 
@@ -257,7 +250,7 @@ export function UsersPage() {
             />
             <input
               type="text"
-              placeholder="Buscar por nome, email ou perfil..."
+              placeholder={t("modules:users.searchPlaceholder")}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
@@ -266,30 +259,30 @@ export function UsersPage() {
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-          <MetricCard label="Total" value={stats.total} />
-          <MetricCard label="Super Admin" value={stats.superAdmins} />
-          <MetricCard label="Admins" value={stats.admins} />
-          <MetricCard label="Gestores" value={stats.gestores} />
-          <MetricCard label="Supervisores" value={stats.supervisores} />
-          <MetricCard label="Avaliadores" value={stats.avaliadores} />
+          <MetricCard label={t("modules:users.stats.total")} value={stats.total} />
+          <MetricCard label={t("modules:users.stats.superAdmin")} value={stats.superAdmins} />
+          <MetricCard label={t("modules:users.stats.admins")} value={stats.admins} />
+          <MetricCard label={t("modules:users.stats.managers")} value={stats.gestores} />
+          <MetricCard label={t("modules:users.stats.supervisors")} value={stats.supervisores} />
+          <MetricCard label={t("modules:users.stats.evaluators")} value={stats.avaliadores} />
         </section>
 
         <section className="flex flex-wrap gap-3">
           {TABS.map((item) => {
-            const isActive = tab === item.key;
+            const isActive = tab === item;
 
             return (
               <button
-                key={item.key}
+                key={item}
                 type="button"
-                onClick={() => setTab(item.key)}
+                onClick={() => setTab(item)}
                 className={`rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
                   isActive
                     ? "border-blue-600 bg-blue-600 text-white shadow-sm"
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                 }`}
               >
-                {item.label}
+                {tabLabel(item)}
               </button>
             );
           })}
@@ -299,7 +292,7 @@ export function UsersPage() {
           <section>
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-600">
               <BadgeCheck size={16} className="text-blue-600" />
-              Sua conta
+              {t("modules:users.myAccount")}
             </div>
 
             <UserPremiumCard
@@ -310,6 +303,7 @@ export function UsersPage() {
               onEdit={() => {}}
               onDeactivate={() => {}}
               loading={false}
+              locale={i18n.resolvedLanguage ?? "pt-BR"}
             />
           </section>
         ) : null}
@@ -317,14 +311,14 @@ export function UsersPage() {
         <section className="space-y-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
             <UserIcon size={16} />
-            Outros usuários
+            {t("modules:users.otherUsers")}
           </div>
 
           {loading ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
               <div className="flex items-center gap-3 text-slate-500">
                 <Loader2 size={18} className="animate-spin" />
-                Carregando usuários...
+                {t("modules:users.loading")}
               </div>
             </div>
           ) : error ? (
@@ -332,7 +326,7 @@ export function UsersPage() {
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 text-red-600" size={18} />
                 <div>
-                  <p className="font-semibold text-red-700">Erro ao carregar usuários</p>
+                  <p className="font-semibold text-red-700">{t("modules:users.loadErrorTitle")}</p>
                   <p className="mt-1 text-sm text-red-600">{error}</p>
                 </div>
               </div>
@@ -340,10 +334,10 @@ export function UsersPage() {
           ) : otherUsers.length === 0 ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
               <p className="text-base font-semibold text-slate-700">
-                Nenhum usuário encontrado.
+                {t("modules:users.emptyTitle")}
               </p>
               <p className="mt-1 text-sm text-slate-500">
-                Ajusta o filtro, atualiza a listagem ou cadastra outro usuário.
+                {t("modules:users.emptySubtitle")}
               </p>
             </div>
           ) : (
@@ -357,6 +351,7 @@ export function UsersPage() {
                 onEdit={() => navigate(routes.userEdit(item.id))}
                 onDeactivate={() => void handleDeactivate(item)}
                 loading={busyUserId === item.id}
+                locale={i18n.resolvedLanguage ?? "pt-BR"}
               />
             ))
           )}
@@ -383,6 +378,7 @@ function UserPremiumCard({
   onEdit,
   onDeactivate,
   loading,
+  locale,
 }: {
   user: UserRow;
   highlighted: boolean;
@@ -391,7 +387,9 @@ function UserPremiumCard({
   onEdit: () => void;
   onDeactivate: () => void;
   loading: boolean;
+  locale: string;
 }) {
+  const { t } = useTranslation(["modules", "navigation"]);
   const roleMeta = ROLE_META[user.role];
   const RoleIcon = roleMeta.icon;
 
@@ -428,13 +426,13 @@ function UserPremiumCard({
               </h2>
               {highlighted ? (
                 <span className="rounded-full border border-white/25 bg-white/12 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                  Conta atual
+                  {t("modules:users.currentAccountBadge")}
                 </span>
               ) : null}
             </div>
 
             <p className={`mt-1 text-sm ${highlighted ? "text-blue-50/90" : "text-slate-500"}`}>
-              {user.email || "Sem e-mail cadastrado"}
+              {user.email || t("modules:users.noEmail")}
             </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -446,7 +444,7 @@ function UserPremiumCard({
                 }`}
               >
                 <RoleIcon size={14} />
-                {roleMeta.label}
+                {t(`navigation:role.${user.role}`)}
               </span>
 
               <span
@@ -456,7 +454,7 @@ function UserPremiumCard({
                     : "border-slate-200 bg-slate-50 text-slate-600"
                 }`}
               >
-                Ativo
+                {t("modules:users.active")}
               </span>
 
               <span
@@ -466,7 +464,7 @@ function UserPremiumCard({
                     : "border-slate-200 bg-slate-50 text-slate-600"
                 }`}
               >
-                Criado em {formatDate(user.created_at)}
+                {t("modules:users.createdAt", { date: formatDate(user.created_at, locale) })}
               </span>
             </div>
           </div>
@@ -482,7 +480,7 @@ function UserPremiumCard({
                 className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
               >
                 <Pencil size={16} />
-                Editar perfil
+                {t("modules:users.editProfile")}
               </button>
             ) : null}
 
@@ -498,7 +496,7 @@ function UserPremiumCard({
                 ) : (
                   <UserRoundX size={16} />
                 )}
-                Desativar
+                {t("modules:users.deactivate")}
               </button>
             ) : null}
           </div>

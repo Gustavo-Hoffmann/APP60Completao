@@ -1,0 +1,297 @@
+{
+  "testsHub": {
+    "title": "Tests",
+    "subtitle": "Select a test module.",
+    "openModule": "Open module",
+    "items": {
+      "2mst": "2-minute step test",
+      "sl30s": "30-second sit-to-stand",
+      "tug": "Timed Up and Go",
+      "los": "Limits of stability",
+      "utt": "Up on the Toes Test"
+    }
+  },
+  "questionnaires": {
+    "title": "Questionnaires",
+    "subtitle": "Overview of applied instruments.",
+    "stats": {
+      "evaluated": "Evaluated participants",
+      "evaluatedSub": "Questionnaire dataset",
+      "fragile": "Frail",
+      "preFragile": "Pre-frail"
+    },
+    "table": {
+      "participant": "Participant",
+      "score": "Score",
+      "classification": "Classification",
+      "empty": "No participants available."
+    }
+  },
+  "knowledgeBase": {
+    "title": "Knowledge base",
+    "subtitle": "Tutorials and scientific papers relevant to the team",
+    "loadError": "Could not load the knowledge base.",
+    "loading": "Loading knowledge base...",
+    "errorTitle": "Loading error",
+    "addButton": "Add entry",
+    "kind": "Type",
+    "kindTutorial": "Tutorial",
+    "kindArticle": "Scientific article",
+    "acronym": "Acronym",
+    "titleField": "Title",
+    "url": "URL",
+    "cancel": "Cancel",
+    "save": "Save",
+    "emptyList": "No entries registered yet.",
+    "open": "Open",
+    "validationRequired": "Fill in type, acronym, title and URL.",
+    "saveErrorFallback": "Failed to save."
+  },
+  "participants": {
+    "title": "Participants",
+    "subtitle": "Complete list of registered participants.",
+    "searchPlaceholder": "Search by name, CPF or city...",
+    "stats": {
+      "total": "Total",
+      "totalSub": "Registered participants",
+      "with2mst": "2MST available",
+      "with2mstSub": "Participants with processed gait data",
+      "fragile": "Frail IVCF",
+      "fragileSub": "Most recent classification with higher attention"
+    },
+    "loading": "Loading participants...",
+    "loadErrorTitle": "Error loading participants",
+    "table": {
+      "name": "Name",
+      "cpf": "CPF",
+      "age": "Age",
+      "sex": "Sex",
+      "city": "City",
+      "ivcf": "IVCF-20",
+      "open": "Open",
+      "example": "Example",
+      "points": "points",
+      "noCollection": "No collection",
+      "view": "View"
+    },
+    "emptyTitle": "No participants found.",
+    "emptySubtitle": "Adjust the search or check the data."
+  },
+  "institutions": {
+    "title": "Institutions",
+    "subtitle": "Register and monitor institutions and collections",
+    "createButton": "Create institution",
+    "searchPlaceholder": "Search institutions (name, acronym, city...)",
+    "chartTitle": "Collection distribution by institution (by country)",
+    "chartLoading": "Loading chart...",
+    "chartEmpty": "No collections yet to build the chart.",
+    "collectionsLabel": "Collections",
+    "institutionLabel": "Institution: {{label}}",
+    "registeredTitle": "Registered institutions",
+    "loading": "Loading institutions...",
+    "loadErrorTitle": "Error loading institutions",
+    "emptyTitle": "No institutions found.",
+    "emptySubtitle": "Adjust your search or create a new institution.",
+    "edit": "Edit",
+    "addressUnavailable": "Address not provided",
+    "postalCode": "ZIP {{value}}",
+    "country": {
+      "usa": "USA",
+      "uk": "UK"
+    }
+  },
+  "users": {
+    "title": "Users",
+    "subtitle": "Manage profiles according to institutional hierarchy",
+    "createButton": "Create researcher",
+    "refreshButton": "Refresh",
+    "searchPlaceholder": "Search by name, email or role...",
+    "stats": {
+      "total": "Total",
+      "superAdmin": "Super Admin",
+      "admins": "Admins",
+      "managers": "Managers",
+      "supervisors": "Supervisors",
+      "evaluators": "Assessors"
+    },
+    "tabs": {
+      "all": "All"
+    },
+    "myAccount": "Your account",
+    "otherUsers": "Other users",
+    "loading": "Loading users...",
+    "loadErrorTitle": "Error loading users",
+    "emptyTitle": "No users found.",
+    "emptySubtitle": "Adjust filters, refresh the list or create another user.",
+    "currentAccountBadge": "Current account",
+    "noEmail": "No email registered",
+    "active": "Active",
+    "createdAt": "Created on {{date}}",
+    "editProfile": "Edit profile",
+    "deactivate": "Deactivate",
+    "confirmDeactivate": "Deactivate user \"{{name}}\"?\n\nThey will no longer appear in the active list and will not be able to access the system.",
+    "deactivateError": "Error deactivating user.",
+    "deactivateFail": "Failed to deactivate.",
+    "loadErrorFallback": "Could not load users."
+  },
+  "userForm": {
+    "name": "Name",
+    "email": "Email",
+    "cpf": "CPF",
+    "phone": "Mobile",
+    "institution": "Institution",
+    "country": "Country",
+    "state": "State",
+    "city": "City",
+    "birthDate": "Birth date",
+    "role": "Role",
+    "supervisor": "Responsible supervisor",
+    "passwordHintTitle": "Automatic initial password",
+    "passwordHintBody": "The initial password will be generated from the first 2 letters of the first name + birth date + #:",
+    "placeholder": {
+      "fullName": "Full name",
+      "email": "email@example.com",
+      "cpf": "000.000.000-00",
+      "phone": "(41) 99999-9999",
+      "city": "Enter city",
+      "date": "Select date"
+    },
+    "loading": {
+      "default": "Loading...",
+      "countries": "Loading countries...",
+      "states": "Loading states...",
+      "cities": "Loading cities...",
+      "supervisors": "Loading supervisors..."
+    },
+    "select": {
+      "default": "Select",
+      "institution": "Select institution",
+      "supervisor": "Select a supervisor",
+      "stateFirst": "Select state first"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving..."
+    },
+    "roles": {
+      "admin": "Administrator",
+      "manager": "Manager",
+      "supervisor": "Supervisor",
+      "evaluator": "Assessor / Researcher"
+    }
+  },
+  "userCreate": {
+    "title": "Create user",
+    "subtitle": "Register profiles linked to the institution",
+    "createButton": "Create user",
+    "errors": {
+      "loadCountryState": "Could not load countries/states.",
+      "loadCities": "Could not load cities.",
+      "requiredFields": "Fill in all required fields.",
+      "selectInstitution": "Select an institution.",
+      "selectState": "Select a state.",
+      "initialPassword": "Could not generate initial password.",
+      "selectSupervisor": "Select the assessor supervisor.",
+      "invalidInstitution": "Invalid institution for this registration.",
+      "createFailed": "Error creating user."
+    },
+    "success": "User created successfully."
+  },
+  "userEdit": {
+    "myProfileTitle": "My profile",
+    "myProfileSubtitle": "Update your access data",
+    "editTitle": "Edit user",
+    "editSubtitle": "Update selected user data",
+    "loadingProfile": "Loading profile...",
+    "backDashboard": "Back to dashboard",
+    "backUsers": "Back to users",
+    "permissionsWarning": "You do not have permission to edit this profile.",
+    "institutionId": "Institution (ID)",
+    "emailManaged": "Email is managed by Amazon Cognito.",
+    "status": "Status",
+    "statusActive": "Active",
+    "statusInactive": "Inactive",
+    "saveChanges": "Save changes",
+    "changePasswordTitle": "Change password",
+    "changePasswordSubtitle": "This option only appears on your own profile.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmNewPassword": "Confirm new password",
+    "currentPasswordPlaceholder": "Current password (Cognito)",
+    "newPasswordPlaceholder": "Enter new password",
+    "confirmNewPasswordPlaceholder": "Repeat new password",
+    "changingPassword": "Changing...",
+    "changePasswordButton": "Change password",
+    "errors": {
+      "userNotFound": "User not found.",
+      "loadProfileFailed": "Error loading profile.",
+      "invalidUser": "Invalid user.",
+      "noPermission": "You do not have permission to edit this profile.",
+      "requiredFields": "Fill in all required fields.",
+      "selectState": "Select a state.",
+      "saveProfileFailed": "Error saving profile.",
+      "saveFailed": "Failed to save.",
+      "onlyOwnPassword": "You can only change your own password.",
+      "currentPasswordRequired": "Enter current password.",
+      "newPasswordRequired": "Fill in new password and confirmation.",
+      "newPasswordMin": "New password must have at least 6 characters.",
+      "passwordMismatch": "Password confirmation does not match.",
+      "sessionEmailMissing": "Session email not found.",
+      "changePasswordFailed": "Error changing password."
+    },
+    "success": {
+      "profileUpdated": "Profile updated successfully.",
+      "passwordUpdated": "Password changed successfully."
+    }
+  },
+  "institutionEdit": {
+    "title": "Edit institution",
+    "subtitle": "Update registration data",
+    "name": "Institution name",
+    "acronym": "Acronym",
+    "unit": "Unit",
+    "countryBrazil": "Brazil (BR)",
+    "countryUsa": "United States (US)",
+    "countryUk": "United Kingdom (UK)",
+    "errors": {
+      "notFound": "Institution not found.",
+      "loadFailed": "Error loading institution.",
+      "requiredFields": "Fill in required fields.",
+      "saveFailed": "Error saving.",
+      "deleteFailed": "Error deleting institution."
+    },
+    "loading": "Loading...",
+    "errorTitle": "Error",
+    "stateCounty": "State/County",
+    "postalCode": "ZIP / Postal code",
+    "number": "Number",
+    "complement": "Complement",
+    "street": "Street",
+    "neighborhood": "Neighborhood",
+    "activeInstitution": "Active institution",
+    "deleteButton": "Delete institution",
+    "deleting": "Deleting...",
+    "saveButton": "Save changes",
+    "confirmDelete": "Delete institution \"{{name}}\"? This action cannot be undone."
+  },
+  "myInstitution": {
+    "titleFallback": "My institution",
+    "subtitle": "Team structure and users linked to your institution",
+    "orgChart": "Org chart",
+    "createUser": "Create user",
+    "loading": "Loading team and participants...",
+    "loadError": "Error loading data.",
+    "errorTitle": "Error",
+    "zoomOut": "Zoom out",
+    "zoomReset": "Reset zoom",
+    "zoomIn": "Zoom in",
+    "noManagers": "No managers registered in this institution.",
+    "openSupervisor": "Open supervisor {{name}}",
+    "vacantSupervisor": "Vacant supervisor",
+    "inactive": "Inactive",
+    "openEvaluator": "Open assessor {{name}}",
+    "vacantEvaluator": "Vacant assessor",
+    "emptySlot": "Not registered yet"
+  }
+}
