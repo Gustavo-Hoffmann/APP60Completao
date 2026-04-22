@@ -11,7 +11,6 @@ import {
 import { NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { routes } from "../../navigation/routes";
-import { LanguageSwitcher } from "../LanguageSwitcher";
 import { useAuth } from "../../contexts/AuthContext";
 import type { Role } from "../../types/auth";
 
@@ -203,9 +202,6 @@ export function AppSidebar({ isDark }: Props) {
           </div>
           <UserCircle2 className="h-5 w-5 shrink-0 opacity-70" />
         </button>
-        <div className="mt-3">
-          <LanguageSwitcher compact />
-        </div>
       </div>
     </aside>
   );
