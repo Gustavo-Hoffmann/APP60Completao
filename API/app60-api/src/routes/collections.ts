@@ -44,6 +44,10 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
     return q.rows[0]?.supervisor_user_id ?? null;
   }
 
+  // Linhas em 'uploading' mais antigas que esse TTL são consideradas órfãs
+  // (presigned URL expira em 15 min — damos folga para retry/rede).
+  const UPLOADING_TTL_INTERVAL = "30 minutes";
+
   r.get("/next-session/:participantId/:testType", async (req, res) => {
     const u = req.authUser as AuthedUser;
     const participantId = req.params.participantId;
@@ -62,6 +66,10 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
       const q = await pool.query(
         `SELECT session_number FROM collections
          WHERE participant_id = $1 AND test_type = $2::test_kind
+           AND (
+             processing_status <> 'uploading'
+             OR created_at >= now() - interval '${UPLOADING_TTL_INTERVAL}'
+           )
          ORDER BY session_number DESC LIMIT 1`,
         [participantId, testType]
       );
@@ -76,14 +84,15 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
   const reserveSchema = z.object({
     participantId: z.string().uuid(),
     testType: TEST_TYPES,
-    sessionNumber: z.number().int().positive(),
-    samplingHz: z.number().optional().default(60),
-    performedAt: z.string().optional(),
-    participantName: z.string().optional(),
-    sex: z.string().optional(),
-    age: z.number().optional(),
-    fileExtension: z.string().optional().default("csv"),
-    contentType: z.string().optional().default("text/csv"),
+    // sessionNumber é apenas dica do cliente; o servidor decide o valor final.
+    sessionNumber: z.number().int().positive().nullish(),
+    samplingHz: z.number().nullish().transform((v) => v ?? 60),
+    performedAt: z.string().nullish(),
+    participantName: z.string().nullish(),
+    sex: z.string().nullish(),
+    age: z.number().nullish(),
+    fileExtension: z.string().nullish().transform((v) => v ?? "csv"),
+    contentType: z.string().nullish().transform((v) => v ?? "text/csv"),
   });
 
   r.post("/reserve", async (req, res) => {
@@ -108,11 +117,40 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
       u.role === "AVALIADOR" ? await resolveSupervisorId(u.id, inst) : null;
 
     const ext = b.fileExtension.replace(/^\./, "");
-    const key = buildRawKey(b.testType, b.participantId, b.sessionNumber, ext);
 
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+
+      // Serializa concorrência por (participant, test_type) para evitar
+      // race conditions ao calcular o próximo session_number.
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+        `${b.participantId}|${b.testType}`,
+      ]);
+
+      // Limpa "buracos" deixados por uploads que nunca terminaram (linha
+      // ficou em 'uploading' além do TTL). Sem isso, S1 órfã força a
+      // próxima coleta a virar S2 mesmo sem arquivo no S3.
+      await client.query(
+        `DELETE FROM collections
+         WHERE participant_id = $1
+           AND test_type = $2::test_kind
+           AND processing_status = 'uploading'
+           AND created_at < now() - interval '${UPLOADING_TTL_INTERVAL}'`,
+        [b.participantId, b.testType]
+      );
+
+      // Servidor decide o session_number (cliente pode mandar como dica,
+      // mas o valor canônico vem daqui).
+      const snRes = await client.query(
+        `SELECT COALESCE(MAX(session_number), 0) + 1 AS next
+         FROM collections
+         WHERE participant_id = $1 AND test_type = $2::test_kind`,
+        [b.participantId, b.testType]
+      );
+      const sessionNumber: number = snRes.rows[0].next;
+      const key = buildRawKey(b.testType, b.participantId, sessionNumber, ext);
+
       const ins = await client.query(
         `INSERT INTO collections (
            participant_id, institution_id_at_collection, performed_by_user_id, supervisor_user_id,
@@ -126,7 +164,7 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
           u.id,
           supervisorId,
           b.testType,
-          b.sessionNumber,
+          sessionNumber,
           cfg.S3_RAW_BUCKET,
           key,
           b.samplingHz,
@@ -157,7 +195,7 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
       console.error(e);
       const msg = e instanceof Error ? e.message : "Erro";
       if (msg.includes("unique") || msg.includes("duplicate")) {
-        res.status(409).json({ error: "Sessão já existe. Recalcule sessionNumber." });
+        res.status(409).json({ error: "Sessão já existe. Tente novamente." });
         return;
       }
       res.status(400).json({ error: msg });
