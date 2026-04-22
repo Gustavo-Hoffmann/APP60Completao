@@ -82,7 +82,9 @@ function getInitials(name: string) {
 
 function formatDate(value: string | null | undefined, locale: string) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString(locale);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(locale);
 }
 
 export function UsersPage() {
