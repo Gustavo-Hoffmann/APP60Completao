@@ -9,6 +9,7 @@ import { InstitutionsPage } from "../features/institutions/pages/InstitutionsPag
 import { InstitutionCreatePage } from "../features/institutions/pages/InstitutionCreatePage";
 import { InstitutionEditPage } from "../features/institutions/pages/InstitutionEditPage";
 import { ParticipantsPage } from "../features/participants/pages/ParticipantsPage";
+import { ParticipantCreatePage } from "../features/participants/pages/ParticipantCreatePage";
 import { ParticipantDetailPage } from "../features/participants/pages/ParticipantDetailPage";
 import { QuestionnairesPage } from "../features/questionnaires/pages/QuestionnairesPage";
 import { TestsHubPage } from "../features/tests/pages/TestsHubPage";
@@ -107,7 +108,10 @@ export const router = createBrowserRouter([
           },
           {
             element: <RequireRole allowedRoles={STAFF_ROLES} />,
-            children: [{ path: routes.participants.slice(1), element: <ParticipantsPage /> }],
+            children: [
+              { path: routes.participants.slice(1), element: <ParticipantsPage /> },
+              { path: routes.participantCreate.slice(1), element: <ParticipantCreatePage /> },
+            ],
           },
           { path: "participants/:id", element: <ParticipantDetailPage /> },
           {

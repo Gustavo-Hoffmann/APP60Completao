@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Activity,
   ArrowLeft,
@@ -37,6 +38,17 @@ function formatDisplayValue(value?: string | number | null) {
   return value;
 }
 
+function formatShortDate(value?: string | null, locale = "pt-BR") {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
 function formatOptionalNumber(value?: number | null, decimals = 1) {
   if (value === null || value === undefined || !Number.isFinite(value)) return null;
   return Number(value).toFixed(decimals);
@@ -66,6 +78,7 @@ function TinyMetricChart<T extends { sessao: number }>({
   unit: string;
   color: string;
 }) {
+  const { t } = useTranslation("modules");
   return (
     <Card className="p-4 shadow-sm">
       <div className="mb-3 flex items-end justify-between gap-2">
@@ -93,7 +106,7 @@ function TinyMetricChart<T extends { sessao: number }>({
                 boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
               }}
               formatter={(value) => [`${value}`, title]}
-              labelFormatter={(label) => `Sessão ${label}`}
+              labelFormatter={(label) => t("participantDetail.sessionLabel", { session: label })}
             />
             <Bar dataKey={dataKey} radius={[8, 8, 0, 0]}>
               {data.map((entry) => (
@@ -107,7 +120,13 @@ function TinyMetricChart<T extends { sessao: number }>({
   );
 }
 
-function IvcfBadge({ value }: { value?: Participant["ivcfClass"] }) {
+function IvcfBadge({
+  value,
+  emptyLabel,
+}: {
+  value?: Participant["ivcfClass"];
+  emptyLabel: string;
+}) {
   const styles =
     value === "Frágil"
       ? "bg-red-100 text-red-700 border-red-200"
@@ -119,7 +138,7 @@ function IvcfBadge({ value }: { value?: Participant["ivcfClass"] }) {
 
   return (
     <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${styles}`}>
-      {value || "Sem classificação"}
+      {value || emptyLabel}
     </span>
   );
 }
@@ -134,6 +153,7 @@ function Ivcf20Section({
   selectedSession: number;
   onSelectSession: (session: number) => void;
 }) {
+  const { t } = useTranslation("modules");
   const lastSession = sessions[sessions.length - 1];
   const selectedData =
     sessions.find((session) => session.sessao === selectedSession) ?? lastSession;
@@ -150,14 +170,14 @@ function Ivcf20Section({
               <h2 className="text-lg font-black text-slate-900">IVCF-20</h2>
             </div>
             <p className="text-sm text-slate-500">
-              Histórico e classificação por blocos da sessão selecionada.
+              {t("participantDetail.ivcf20.subtitle")}
             </p>
           </div>
 
           {sessions.length > 1 ? (
             <label className="block min-w-[260px]">
               <span className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                Sessão selecionada
+                {t("participantDetail.ivcf20.selectedSession")}
               </span>
 
               <div className="relative">
@@ -168,7 +188,10 @@ function Ivcf20Section({
                 >
                   {orderedSessions.map((session) => (
                     <option key={session.sessao} value={session.sessao}>
-                      Sessão {session.sessao} — {session.scoreTotal} pontos
+                      {t("participantDetail.sessionOptionPoints", {
+                        session: session.sessao,
+                        points: session.scoreTotal,
+                      })}
                     </option>
                   ))}
                 </select>
@@ -187,7 +210,7 @@ function Ivcf20Section({
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                  Última sessão
+                  {t("participantDetail.lastSession")}
                 </p>
                 <div className="mt-2 text-3xl font-black text-slate-900">
                   {lastSession?.sessao ?? "—"}
@@ -205,7 +228,7 @@ function Ivcf20Section({
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                  Sessão em foco
+                  {t("participantDetail.sessionInFocus")}
                 </p>
                 <div className="mt-2 text-3xl font-black text-slate-900">
                   {selectedData?.sessao ?? "—"}
@@ -223,12 +246,12 @@ function Ivcf20Section({
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                  Pontuação total
+                  {t("participantDetail.totalScore")}
                 </p>
                 <div className="mt-2 text-3xl font-black text-slate-900">
                   {selectedData?.scoreTotal ?? "—"}
                 </div>
-                <p className="mt-2 text-sm text-slate-500">Sessão selecionada</p>
+                <p className="mt-2 text-sm text-slate-500">{t("participantDetail.selectedSessionHint")}</p>
               </div>
 
               <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-700">
@@ -241,11 +264,11 @@ function Ivcf20Section({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                  Classificação geral
+                  {t("participantDetail.overallClassification")}
                 </p>
 
                 <div className="mt-3">
-                  <IvcfBadge value={selectedData?.classification} />
+                  <IvcfBadge value={selectedData?.classification} emptyLabel={t("participantDetail.unclassified")} />
                 </div>
               </div>
 
@@ -260,10 +283,10 @@ function Ivcf20Section({
           <Card className="p-5 shadow-sm">
             <div className="mb-4">
               <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-500">
-                Histórico de sessões
+                {t("participantDetail.ivcf20.sessionHistoryTitle")}
               </h3>
               <p className="mt-1 text-sm text-slate-500">
-                Sessões clicáveis para trocar o foco. Sem gráfico de barra feioso.
+                {t("participantDetail.ivcf20.sessionHistorySubtitle")}
               </p>
             </div>
 
@@ -286,18 +309,18 @@ function Ivcf20Section({
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-sm font-black text-slate-900">
-                          Sessão {session.sessao}
+                      {t("participantDetail.sessionLabel", { session: session.sessao })}
                         </div>
                         <div className="mt-1 text-xs text-slate-500">{session.date}</div>
                       </div>
 
-                      <IvcfBadge value={session.classification} />
+                      <IvcfBadge value={session.classification} emptyLabel={t("participantDetail.unclassified")} />
                     </div>
 
                     <div className="mt-4 flex items-end justify-between gap-3">
                       <div>
                         <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-                          Pontuação
+                          {t("participantDetail.score")}
                         </div>
                         <div className="mt-1 text-2xl font-black text-blue-700">
                           {session.scoreTotal}
@@ -306,7 +329,7 @@ function Ivcf20Section({
 
                       {isActive ? (
                         <span className="rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-                          Em foco
+                          {t("participantDetail.inFocus")}
                         </span>
                       ) : null}
                     </div>
@@ -320,14 +343,17 @@ function Ivcf20Section({
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-black uppercase tracking-[0.18em] text-slate-500">
-                  Classificação por blocos
+                  {t("participantDetail.ivcf20.blockClassificationTitle")}
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Sessão {selectedData?.sessao ?? "—"} • {selectedData?.date ?? "—"}
+                  {t("participantDetail.sessionDotDate", {
+                    session: selectedData?.sessao ?? "—",
+                    date: selectedData?.date ?? "—",
+                  })}
                 </p>
               </div>
 
-              <IvcfBadge value={selectedData?.classification} />
+              <IvcfBadge value={selectedData?.classification} emptyLabel={t("participantDetail.unclassified")} />
             </div>
 
             {selectedBlocks.length ? (
@@ -346,7 +372,7 @@ function Ivcf20Section({
               </div>
             ) : (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                Nenhum bloco detalhado foi encontrado nesta sessão.
+                {t("participantDetail.ivcf20.noBlocks")}
               </div>
             )}
           </Card>
@@ -367,6 +393,7 @@ function IvcfCard({
   date?: string;
   onClick?: () => void;
 }) {
+  const { t } = useTranslation("modules");
   const tone =
     ivcfClass === "Frágil"
       ? {
@@ -395,15 +422,17 @@ function IvcfCard({
   const content = (
     <>
       <div className={`text-xs font-bold uppercase tracking-[0.18em] ${tone.title}`}>
-        Status clínico
+        {t("participantDetail.statusClinical")}
       </div>
       <div className="mt-3 flex items-center justify-between gap-4">
         <div>
-          <div className="text-sm text-slate-500">Último IVCF-20</div>
+          <div className="text-sm text-slate-500">{t("participantDetail.lastIvcf20")}</div>
           <div className={`mt-2 text-3xl font-black ${tone.value}`}>{score ?? "—"}</div>
-          <div className="mt-2 text-sm text-slate-500">{date ?? "Sem coleta processada"}</div>
+          <div className="mt-2 text-sm text-slate-500">
+            {date ?? t("participantDetail.noProcessedCollection")}
+          </div>
         </div>
-        <IvcfBadge value={ivcfClass} />
+        <IvcfBadge value={ivcfClass} emptyLabel={t("participantDetail.unclassified")} />
       </div>
     </>
   );
@@ -413,10 +442,10 @@ function IvcfCard({
       <button
         type="button"
         onClick={onClick}
-        className="text-left"
+        className="block h-full w-full text-left"
       >
         <Card
-          className={`min-w-[240px] p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${tone.wrap}`}
+          className={`h-full w-full min-w-0 p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${tone.wrap}`}
         >
           {content}
         </Card>
@@ -424,7 +453,9 @@ function IvcfCard({
     );
   }
 
-  return <Card className={`min-w-[240px] p-5 shadow-sm ${tone.wrap}`}>{content}</Card>;
+  return (
+    <Card className={`h-full w-full min-w-0 p-5 shadow-sm ${tone.wrap}`}>{content}</Card>
+  );
 }
 
 type StatusTone = {
@@ -468,6 +499,7 @@ function StatusCard({
 }
 
 function StrategyCard({ strategy }: { strategy?: TwoMstSession["strategy"] }) {
+  const { t } = useTranslation("modules");
   const isDefined = strategy && strategy !== "Indefinida";
 
   const tone = isDefined
@@ -476,19 +508,19 @@ function StrategyCard({ strategy }: { strategy?: TwoMstSession["strategy"] }) {
         icon: "border-blue-100 bg-white text-blue-700",
         title: "text-blue-700",
         value: "text-blue-800",
-        sub: "Estratégia identificada",
+        sub: t("participantDetail.strategy.definedSub"),
       }
     : {
         wrap: "border-slate-200 bg-slate-100",
         icon: "border-slate-200 bg-white text-slate-500",
         title: "text-slate-500",
         value: "text-slate-700",
-        sub: "Estratégia não definida",
+        sub: t("participantDetail.strategy.undefinedSub"),
       };
 
   return (
     <StatusCard
-      label="Estratégia"
+      label={t("participantDetail.strategy.label")}
       value={strategy ?? "—"}
       subtitle={tone.sub}
       tone={tone}
@@ -497,6 +529,7 @@ function StrategyCard({ strategy }: { strategy?: TwoMstSession["strategy"] }) {
 }
 
 function GodaCard({ value }: { value?: Sl30sSession["goda"] }) {
+  const { t } = useTranslation("modules");
   const isDefined = value && value !== "—";
 
   const tone = isDefined
@@ -505,17 +538,24 @@ function GodaCard({ value }: { value?: Sl30sSession["goda"] }) {
         icon: "border-blue-100 bg-white text-blue-700",
         title: "text-blue-700",
         value: "text-blue-800",
-        sub: "Padrão temporal identificado",
+        sub: t("participantDetail.goda.definedSub"),
       }
     : {
         wrap: "border-slate-200 bg-slate-100",
         icon: "border-slate-200 bg-white text-slate-500",
         title: "text-slate-500",
         value: "text-slate-700",
-        sub: "Sem classificação disponível",
+        sub: t("participantDetail.goda.undefinedSub"),
       };
 
-  return <StatusCard label="Classificação Goda" value={value ?? "—"} subtitle={tone.sub} tone={tone} />;
+  return (
+    <StatusCard
+      label={t("participantDetail.goda.label")}
+      value={value ?? "—"}
+      subtitle={tone.sub}
+      tone={tone}
+    />
+  );
 }
 
 function RikliJonesCard({
@@ -529,6 +569,7 @@ function RikliJonesCard({
   zScore?: number | null;
   ageBin?: string;
 }) {
+  const { t } = useTranslation("modules");
   const tone =
     value === "Acima da média"
       ? {
@@ -562,12 +603,18 @@ function RikliJonesCard({
   const zScoreLabel = formatOptionalNumber(zScore, 2);
 
   const subtitle = percentileLabel
-    ? `Percentil ${percentileLabel}${ageBin ? ` • ${ageBin}` : ""}`
+    ? t("participantDetail.rikliJones.percentile", {
+        value: percentileLabel,
+        ageBin: ageBin ? ` • ${ageBin}` : "",
+      })
     : zScoreLabel
-      ? `z = ${zScoreLabel}${ageBin ? ` • ${ageBin}` : ""}`
+      ? t("participantDetail.rikliJones.zscore", {
+          value: zScoreLabel,
+          ageBin: ageBin ? ` • ${ageBin}` : "",
+        })
       : ageBin
-        ? `Faixa etária ${ageBin}`
-        : "Comparação normativa";
+        ? t("participantDetail.rikliJones.ageBin", { ageBin })
+        : t("participantDetail.rikliJones.defaultSubtitle");
 
   return (
     <StatusCard
@@ -593,6 +640,7 @@ function TestCard({
   active?: boolean;
   onClick?: () => void;
 }) {
+  const { t } = useTranslation("modules");
   return (
     <button
       type="button"
@@ -613,7 +661,7 @@ function TestCard({
 
         {active ? (
           <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-700">
-            Ativo
+            {t("participantDetail.active")}
           </span>
         ) : null}
       </div>
@@ -622,6 +670,7 @@ function TestCard({
 }
 
 export function ParticipantDetailPage() {
+  const { t, i18n } = useTranslation("modules");
   const { id = "" } = useParams();
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -632,6 +681,16 @@ export function ParticipantDetailPage() {
   const [selectedTwoMstSession, setSelectedTwoMstSession] = useState<number>(1);
   const [selectedSl30sSession, setSelectedSl30sSession] = useState<number>(1);
   const [selectedIvcfSession, setSelectedIvcfSession] = useState<number>(1);
+  const [twoMstMetricRange, setTwoMstMetricRange] = useState<{ from: number | null; to: number | null }>({
+    from: null,
+    to: null,
+  });
+  const [sl30sMetricRange, setSl30sMetricRange] = useState<{ from: number | null; to: number | null }>({
+    from: null,
+    to: null,
+  });
+  const [twoMstFilterOpen, setTwoMstFilterOpen] = useState(false);
+  const [sl30sFilterOpen, setSl30sFilterOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -642,15 +701,17 @@ export function ParticipantDetailPage() {
         setError(null);
 
         const data = await getParticipantById(id);
-        if (!mounted) return;
-
-        setParticipant(data);
+        if (mounted) {
+          setParticipant(data);
+        }
       } catch (err) {
-        if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Erro ao carregar participante.");
+        if (mounted) {
+          setError(err instanceof Error ? err.message : "Erro ao carregar participante.");
+        }
       } finally {
-        if (!mounted) return;
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -669,7 +730,7 @@ export function ParticipantDetailPage() {
 
       const ids = Array.from(
         new Set(
-          [participant.createdByUserId, participant.professorId, participant.studentId]
+          [participant.createdByUserId]
             .filter(Boolean)
             .map((value) => String(value)),
         ),
@@ -714,6 +775,170 @@ export function ParticipantDetailPage() {
   const sl30sSessions = useMemo(() => participant?.tests?.sl30sSessions ?? [], [participant]);
   const ivcfSessions = useMemo(() => participant?.tests?.ivcfSessions ?? [], [participant]);
 
+  const twoMstSessionIds = useMemo(() => twoMstSessions.map((s) => s.sessao), [twoMstSessions]);
+  const sl30sSessionIds = useMemo(() => sl30sSessions.map((s) => s.sessao), [sl30sSessions]);
+
+  useEffect(() => {
+    setTwoMstMetricRange((current) => {
+      if (!twoMstSessionIds.length) return { from: null, to: null };
+      if (current.from === null && current.to === null) {
+        return { from: twoMstSessionIds[0], to: twoMstSessionIds[twoMstSessionIds.length - 1] };
+      }
+      const set = new Set(twoMstSessionIds);
+      const fromOk = current.from !== null && set.has(current.from);
+      const toOk = current.to !== null && set.has(current.to);
+      if (!fromOk && !toOk) return { from: null, to: null };
+      return { from: fromOk ? current.from : null, to: toOk ? current.to : null };
+    });
+  }, [twoMstSessionIds]);
+
+  useEffect(() => {
+    setSl30sMetricRange((current) => {
+      if (!sl30sSessionIds.length) return { from: null, to: null };
+      if (current.from === null && current.to === null) {
+        return { from: sl30sSessionIds[0], to: sl30sSessionIds[sl30sSessionIds.length - 1] };
+      }
+      const set = new Set(sl30sSessionIds);
+      const fromOk = current.from !== null && set.has(current.from);
+      const toOk = current.to !== null && set.has(current.to);
+      if (!fromOk && !toOk) return { from: null, to: null };
+      return { from: fromOk ? current.from : null, to: toOk ? current.to : null };
+    });
+  }, [sl30sSessionIds]);
+
+  function normalizeRange(range: { from: number; to: number }) {
+    return range.from <= range.to ? range : { from: range.to, to: range.from };
+  }
+
+  const filteredTwoMstSessionsForMetrics = useMemo(() => {
+    const { from, to } = twoMstMetricRange;
+    if (from === null || to === null) return twoMstSessions;
+    const r = normalizeRange({ from, to });
+    return twoMstSessions.filter((s) => s.sessao >= r.from && s.sessao <= r.to);
+  }, [twoMstSessions, twoMstMetricRange]);
+
+  const filteredSl30sSessionsForMetrics = useMemo(() => {
+    const { from, to } = sl30sMetricRange;
+    if (from === null || to === null) return sl30sSessions;
+    const r = normalizeRange({ from, to });
+    return sl30sSessions.filter((s) => s.sessao >= r.from && s.sessao <= r.to);
+  }, [sl30sSessions, sl30sMetricRange]);
+
+  function clearMetricRange(test: "2mst" | "sl30s") {
+    if (test === "2mst") setTwoMstMetricRange({ from: null, to: null });
+    else setSl30sMetricRange({ from: null, to: null });
+  }
+
+  function SessionsMetricFilter({
+    test,
+    sessions,
+    range,
+    isOpen,
+    onToggleOpen,
+  }: {
+    test: "2mst" | "sl30s";
+    sessions: number[];
+    range: { from: number | null; to: number | null };
+    isOpen: boolean;
+    onToggleOpen: (next: boolean) => void;
+  }) {
+    const ordered = [...sessions].sort((a, b) => a - b);
+    const hasRange = range.from !== null && range.to !== null;
+    if (!ordered.length) return null;
+
+    const rangeLabel = hasRange
+      ? t("participantDetail.metricsFilter.rangeLabel", {
+          from: range.from,
+          to: range.to,
+        })
+      : t("participantDetail.metricsFilter.allSessions");
+
+    const fromValue = hasRange ? range.from! : ordered[0];
+    const toValue = hasRange ? range.to! : ordered[ordered.length - 1];
+
+    const fromIdx = Math.max(0, ordered.indexOf(fromValue));
+    const toIdx = Math.max(0, ordered.indexOf(toValue));
+
+    return (
+      <div className="flex items-start gap-3">
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => onToggleOpen(!isOpen)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            {t("participantDetail.metricsFilter.button")}
+          </button>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold text-slate-700">{rangeLabel}</div>
+          {isOpen ? (
+            <Card className="mt-3 p-4 shadow-sm">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                    {t("participantDetail.metricsFilter.title")}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">{t("participantDetail.metricsFilter.hint")}</div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => clearMetricRange(test)}
+                  className="w-fit rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  {t("participantDetail.metricsFilter.clear")}
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <div className="relative h-8">
+                  <input
+                    type="range"
+                    min={0}
+                    max={ordered.length - 1}
+                    step={1}
+                    value={Math.min(fromIdx, toIdx)}
+                    onChange={(e) => {
+                      const nextFromIdx = Number(e.target.value);
+                      const nextFrom = ordered[nextFromIdx];
+                      const nextTo = ordered[Math.max(nextFromIdx, Math.max(fromIdx, toIdx))];
+                      if (test === "2mst") setTwoMstMetricRange({ from: nextFrom, to: nextTo });
+                      else setSl30sMetricRange({ from: nextFrom, to: nextTo });
+                    }}
+                    className="absolute inset-x-0 top-1/2 h-1 w-full -translate-y-1/2 accent-blue-600"
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={ordered.length - 1}
+                    step={1}
+                    value={Math.max(fromIdx, toIdx)}
+                    onChange={(e) => {
+                      const nextToIdx = Number(e.target.value);
+                      const nextFromIdx = Math.min(Math.min(fromIdx, toIdx), nextToIdx);
+                      const nextFrom = ordered[nextFromIdx];
+                      const nextTo = ordered[nextToIdx];
+                      if (test === "2mst") setTwoMstMetricRange({ from: nextFrom, to: nextTo });
+                      else setSl30sMetricRange({ from: nextFrom, to: nextTo });
+                    }}
+                    className="absolute inset-x-0 top-1/2 h-1 w-full -translate-y-1/2 accent-blue-600"
+                  />
+                </div>
+
+                <div className="mt-2 flex justify-between text-xs font-semibold text-slate-600">
+                  <span>{t("participantDetail.sessionLabel", { session: ordered[Math.min(fromIdx, toIdx)] })}</span>
+                  <span>{t("participantDetail.sessionLabel", { session: ordered[Math.max(fromIdx, toIdx)] })}</span>
+                </div>
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   const selectedTwoMstSignal =
     participant?.tests?.twoMstSignals?.[selectedTwoMstSession] ?? [];
   const selectedSl30sSignal =
@@ -746,10 +971,10 @@ export function ParticipantDetailPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-100">
-        <AppHeader title="Participante" subtitle="Carregando dados do participante..." />
+        <AppHeader title={t("participantDetail.headerTitle")} subtitle={t("participantDetail.loadingSubtitle")} />
         <main className="px-6 py-8">
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-            <div className="text-sm text-slate-500">Carregando participante...</div>
+            <div className="text-sm text-slate-500">{t("participantDetail.loadingBody")}</div>
           </div>
         </main>
       </div>
@@ -759,10 +984,10 @@ export function ParticipantDetailPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-slate-100">
-        <AppHeader title="Participante" subtitle="Erro ao carregar os dados." />
+        <AppHeader title={t("participantDetail.headerTitle")} subtitle={t("participantDetail.errorSubtitle")} />
         <main className="px-6 py-8">
           <div className="rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
-            <p className="font-semibold text-red-700">Erro ao carregar participante</p>
+            <p className="font-semibold text-red-700">{t("participantDetail.errorTitle")}</p>
             <p className="mt-1 text-sm text-red-600">{error}</p>
           </div>
         </main>
@@ -773,10 +998,10 @@ export function ParticipantDetailPage() {
   if (!participant) {
     return (
       <div className="min-h-screen bg-slate-100">
-        <AppHeader title="Participante" subtitle="Registro não encontrado." />
+        <AppHeader title={t("participantDetail.headerTitle")} subtitle={t("participantDetail.notFoundSubtitle")} />
         <main className="px-6 py-8">
           <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-            <div className="text-sm text-slate-500">Participante não encontrado.</div>
+            <div className="text-sm text-slate-500">{t("participantDetail.notFoundBody")}</div>
           </div>
         </main>
       </div>
@@ -787,12 +1012,6 @@ export function ParticipantDetailPage() {
   const createdByName = participant.createdByUserId
     ? relatedNames[participant.createdByUserId] ?? participant.createdByUserId
     : "—";
-  const professorName = participant.professorId
-    ? (relatedNames[participant.professorId] ?? participant.professorId)
-    : null;
-  const studentName = participant.studentId
-    ? (relatedNames[participant.studentId] ?? participant.studentId)
-    : null;
 
   const has2Mst = Boolean(participant.tests?.has2MST && twoMstSessions.length);
   const hasSl30s = Boolean(participant.tests?.hasSL30S && sl30sSessions.length);
@@ -832,60 +1051,75 @@ export function ParticipantDetailPage() {
     ? selectedSl30sSignal[selectedSl30sSignal.length - 1].time.toFixed(1)
     : "0.0";
 
+  const activeLocale = i18n.resolvedLanguage ?? i18n.language ?? "pt-BR";
+  const dobLabel = formatShortDate(participant.dob ?? null, activeLocale);
+  const nat = String(participant.nationality ?? "BR")
+    .trim()
+    .toUpperCase();
+  const identityLabel =
+    nat === "BR" ? t("participantDetail.fields.cpf") : t("participantDetail.fields.identity");
+
   return (
     <div className="min-h-screen bg-slate-100">
       <AppHeader
         title={participant.name}
         subtitle={
           isDemoParticipant
-            ? "Perfil mockado para demo com marcha estacionária e métricas biomecânicas."
+            ? t("participantDetail.demoSubtitle")
             : has2Mst || hasSl30s || hasIvcf
-              ? "Dados detalhados do participante e testes processados."
-              : "Dados detalhados do participante."
+              ? t("participantDetail.subtitleWithTests")
+              : t("participantDetail.subtitle")
         }
       />
 
       <main className="space-y-6 px-6 py-8">
-        <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <Link
-              to={routes.participants}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900"
-            >
-              <ArrowLeft size={16} />
-              Voltar para participantes
-            </Link>
+        <section>
+          <Link
+            to={routes.participants}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900"
+          >
+            <ArrowLeft size={16} />
+            {t("participantDetail.backToParticipants")}
+          </Link>
 
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-black tracking-tight text-slate-900">
-                {participant.name}
-              </h1>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-black tracking-tight text-slate-900">{participant.name}</h1>
 
-              {isDemoParticipant ? (
-                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">
-                  Sujeito exemplo
-                </span>
-              ) : null}
-            </div>
+            {isDemoParticipant ? (
+              <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700">
+                {t("participantDetail.exampleBadge")}
+              </span>
+            ) : null}
           </div>
-
-          <IvcfCard
-            score={participant.ivcfScore}
-            ivcfClass={participant.ivcfClass}
-            date={lastIvcfSession?.date}
-            onClick={hasIvcf ? handleIvcfCardClick : undefined}
-          />
         </section>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <DetailItem label="CPF" value={participant.cpf} />
-          <DetailItem label="Idade" value={participant.age ? `${participant.age} anos` : "—"} />
-          <DetailItem label="Sexo" value={participant.sex} />
-          <DetailItem label="Cidade / Estado" value={cityState} />
-          <DetailItem label="Data de nascimento" value={participant.dob} />
-          <DetailItem label="Criado por" value={createdByName} />
-          <DetailItem label="Professor" value={professorName} />
-          <DetailItem label="Aluno/Pesquisador" value={studentName} />
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] lg:items-stretch">
+          <div className="grid grid-cols-2 gap-4">
+            <DetailItem label={t("participantDetail.fields.nationality")} value={nat} />
+            <DetailItem label={identityLabel} value={participant.cpf} />
+            <DetailItem label={t("participantDetail.fields.birthDate")} value={dobLabel} />
+            <DetailItem
+              label={t("participantDetail.fields.ageSex")}
+              value={`${
+                participant.age
+                  ? t("participantDetail.ageYears", { count: participant.age, years: participant.age })
+                  : "—"
+              } • ${participant.sex}`}
+            />
+            <DetailItem label={t("participantDetail.fields.cityState")} value={cityState} />
+            <DetailItem label={t("participantDetail.fields.createdBy")} value={createdByName} />
+          </div>
+
+          <div className="flex h-full min-h-0 items-stretch lg:justify-end">
+            <div className="flex h-full w-full max-w-sm lg:max-w-none">
+              <IvcfCard
+                score={participant.ivcfScore}
+                ivcfClass={participant.ivcfClass}
+                date={lastIvcfSession?.date}
+                onClick={hasIvcf ? handleIvcfCardClick : undefined}
+              />
+            </div>
+          </div>
         </section>
 
         {showIvcfDetails ? (
@@ -900,7 +1134,7 @@ export function ParticipantDetailPage() {
           <Card className="p-6 shadow-sm">
             <div className="mb-5 flex items-center gap-2">
               <UserRound size={18} className="text-blue-700" />
-              <h2 className="text-lg font-black text-slate-900">Testes realizados</h2>
+              <h2 className="text-lg font-black text-slate-900">{t("participantDetail.tests.title")}</h2>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -909,9 +1143,9 @@ export function ParticipantDetailPage() {
                 description={
                   has2Mst
                     ? isDemoParticipant
-                      ? "Clique para abrir os dados de demonstração da marcha estacionária."
-                      : "Clique para abrir os dados processados da marcha estacionária."
-                    : "Sem dados detalhados no momento."
+                      ? t("participantDetail.tests.2mst.demoDescription")
+                      : t("participantDetail.tests.2mst.description")
+                    : t("participantDetail.tests.noData")
                 }
                 active={has2Mst}
                 onClick={
@@ -925,8 +1159,8 @@ export function ParticipantDetailPage() {
                 title="SL-30s"
                 description={
                   hasSl30s
-                    ? "Clique para abrir os dados processados do sentar e levantar."
-                    : "Sem dados detalhados no momento."
+                    ? t("participantDetail.tests.sl30s.description")
+                    : t("participantDetail.tests.noData")
                 }
                 active={hasSl30s}
                 onClick={
@@ -936,9 +1170,9 @@ export function ParticipantDetailPage() {
                 }
               />
 
-              <TestCard title="UTT" description="Sem dados detalhados no momento." />
-              <TestCard title="TUG" description="Sem dados detalhados no momento." />
-              <TestCard title="LOS" description="Sem dados detalhados no momento." />
+              <TestCard title="UTT" description={t("participantDetail.tests.noData")} />
+              <TestCard title="TUG" description={t("participantDetail.tests.noData")} />
+              <TestCard title="LOS" description={t("participantDetail.tests.noData")} />
             </div>
           </Card>
         </section>
@@ -947,7 +1181,7 @@ export function ParticipantDetailPage() {
           <>
             <section className="flex items-center gap-2">
               <Footprints size={18} className="text-blue-700" />
-              <h2 className="text-xl font-black text-slate-900">2MST — Marcha estacionária</h2>
+              <h2 className="text-xl font-black text-slate-900">{t("participantDetail.tests.2mst.sectionTitle")}</h2>
             </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -955,7 +1189,7 @@ export function ParticipantDetailPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Última sessão
+                      {t("participantDetail.lastSession")}
                     </p>
                     <div className="mt-2 text-3xl font-black text-slate-900">
                       {lastTwoMstSession?.sessao ?? "—"}
@@ -972,12 +1206,12 @@ export function ParticipantDetailPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Repetições
+                      {t("participantDetail.repetitions")}
                     </p>
                     <div className="mt-2 text-3xl font-black text-slate-900">
                       {lastTwoMstSession?.repeticoes ?? "—"}
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">2 minutos</p>
+                    <p className="mt-2 text-sm text-slate-500">{t("participantDetail.tests.2mst.duration")}</p>
                   </div>
                   <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-emerald-700">
                     <Activity size={20} />
@@ -989,12 +1223,12 @@ export function ParticipantDetailPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Cadência
+                      {t("participantDetail.cadence")}
                     </p>
                     <div className="mt-2 text-3xl font-black text-slate-900">
                       {lastTwoMstSession?.cadencia ?? "—"}
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">ciclos/min</p>
+                    <p className="mt-2 text-sm text-slate-500">{t("participantDetail.units.cyclesPerMin")}</p>
                   </div>
                   <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-amber-700">
                     <BarChart3 size={20} />
@@ -1011,7 +1245,7 @@ export function ParticipantDetailPage() {
                     <div className="mt-2 text-3xl font-black text-slate-900">
                       {lastTwoMstSession?.velAngularMedia ?? "—"}
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">°/s</p>
+                    <p className="mt-2 text-sm text-slate-500">{t("participantDetail.units.degPerSec")}</p>
                   </div>
                   <div className="rounded-2xl border border-violet-100 bg-violet-50 p-3 text-violet-700">
                     <Activity size={20} />
@@ -1023,18 +1257,28 @@ export function ParticipantDetailPage() {
             </section>
 
             <section>
+              <SessionsMetricFilter
+                test="2mst"
+                sessions={twoMstSessionIds}
+                range={twoMstMetricRange}
+                isOpen={twoMstFilterOpen}
+                onToggleOpen={setTwoMstFilterOpen}
+              />
+            </section>
+
+            <section>
               <Card className="p-6 shadow-sm">
                 <div className="mb-5 flex items-center gap-2">
                   <Activity size={18} className="text-emerald-600" />
                   <h2 className="text-lg font-black text-slate-900">
-                    2MST — evolução de repetições
+                    {t("participantDetail.tests.2mst.repsEvolutionTitle")}
                   </h2>
                 </div>
 
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                      data={twoMstSessions}
+                      data={filteredTwoMstSessionsForMetrics}
                       margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
                     >
                       <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" />
@@ -1056,7 +1300,7 @@ export function ParticipantDetailPage() {
                           border: "1px solid #e2e8f0",
                           boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
                         }}
-                        labelFormatter={(label) => `Sessão ${label}`}
+                        labelFormatter={(label) => t("participantDetail.sessionLabel", { session: label })}
                       />
                       <Line
                         type="monotone"
@@ -1074,52 +1318,52 @@ export function ParticipantDetailPage() {
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <TinyMetricChart
-                title="Cadência"
-                data={twoMstSessions}
+                title={t("participantDetail.cadence")}
+                data={filteredTwoMstSessionsForMetrics}
                 dataKey="cadencia"
-                unit="ciclos/min"
+                unit={t("participantDetail.units.cyclesPerMin")}
                 color="#f59e0b"
               />
               <TinyMetricChart
-                title="Velocidade angular média"
-                data={twoMstSessions}
+                title={t("participantDetail.tests.2mst.metrics.meanAngularVelocityFull")}
+                data={filteredTwoMstSessionsForMetrics}
                 dataKey="velAngularMedia"
-                unit="°/s"
+                unit={t("participantDetail.units.degPerSec")}
                 color="#8b5cf6"
               />
               <TinyMetricChart
-                title="CV velocidade"
-                data={twoMstSessions}
+                title={t("participantDetail.tests.2mst.metrics.cvVelocity")}
+                data={filteredTwoMstSessionsForMetrics}
                 dataKey="cvVelocidade"
                 unit="%"
                 color="#ec4899"
               />
               <TinyMetricChart
-                title="Tempo médio ciclo"
-                data={twoMstSessions}
+                title={t("participantDetail.tests.2mst.metrics.meanCycleTime")}
+                data={filteredTwoMstSessionsForMetrics}
                 dataKey="tempoMedioCiclo"
                 unit="s"
                 color="#3b82f6"
               />
               <TinyMetricChart
-                title="CV tempo ciclo"
-                data={twoMstSessions}
+                title={t("participantDetail.tests.2mst.metrics.cvCycleTime")}
+                data={filteredTwoMstSessionsForMetrics}
                 dataKey="cvTempoCiclo"
                 unit="%"
                 color="#14b8a6"
               />
               <TinyMetricChart
-                title="Velocidade máxima"
-                data={twoMstSessions}
+                title={t("participantDetail.tests.2mst.metrics.maxVelocity")}
+                data={filteredTwoMstSessionsForMetrics}
                 dataKey="velMaxima"
-                unit="°/s"
+                unit={t("participantDetail.units.degPerSec")}
                 color="#ef4444"
               />
               <TinyMetricChart
-                title="Velocidade mínima"
-                data={twoMstSessions}
+                title={t("participantDetail.tests.2mst.metrics.minVelocity")}
+                data={filteredTwoMstSessionsForMetrics}
                 dataKey="velMinima"
-                unit="°/s"
+                unit={t("participantDetail.units.degPerSec")}
                 color="#6366f1"
               />
             </section>
@@ -1130,7 +1374,7 @@ export function ParticipantDetailPage() {
                   <div className="flex items-center gap-2">
                     <Activity size={18} className="text-rose-600" />
                     <h2 className="text-lg font-black text-slate-900">
-                      Série temporal — Giroscópio X
+                      {t("participantDetail.tests.2mst.timeseriesGyroXTitle")}
                     </h2>
                   </div>
 
@@ -1142,7 +1386,10 @@ export function ParticipantDetailPage() {
                     >
                       {twoMstSessions.map((session) => (
                         <option key={session.sessao} value={session.sessao}>
-                          Sessão {session.sessao} — {session.repeticoes} ciclos
+                          {t("participantDetail.tests.2mst.sessionOptionCycles", {
+                            session: session.sessao,
+                            cycles: session.repeticoes,
+                          })}
                         </option>
                       ))}
                     </select>
@@ -1184,9 +1431,9 @@ export function ParticipantDetailPage() {
                           }}
                           labelFormatter={(value) => `${Number(value).toFixed(2)} s`}
                           formatter={(value, name) => {
-                            if (name === "value") return [`${value} °/s`, "Sinal"];
-                            if (name === "phonePeak") return [`${value} °/s`, "Picos phone"];
-                            if (name === "predPeak") return [`${value} °/s`, "Picos calibrados"];
+                            if (name === "value") return [`${value} °/s`, t("participantDetail.signal")];
+                            if (name === "phonePeak") return [`${value} °/s`, t("participantDetail.tests.2mst.phonePeaks")];
+                            if (name === "predPeak") return [`${value} °/s`, t("participantDetail.tests.2mst.calibratedPeaks")];
                             return [String(value), String(name)];
                           }}
                         />
@@ -1236,7 +1483,7 @@ export function ParticipantDetailPage() {
 
                 <div className="mt-3 flex justify-between text-xs text-slate-400">
                   <span>{twoMstSignalStart}s</span>
-                  <span>Tempo (s)</span>
+                  <span>{t("participantDetail.timeSeconds")}</span>
                   <span>{twoMstSignalEnd}s</span>
                 </div>
               </Card>
@@ -1248,7 +1495,7 @@ export function ParticipantDetailPage() {
           <>
             <section className="flex items-center gap-2">
               <Activity size={18} className="text-blue-700" />
-              <h2 className="text-xl font-black text-slate-900">SL-30s — Sentar e levantar</h2>
+              <h2 className="text-xl font-black text-slate-900">{t("participantDetail.tests.sl30s.sectionTitle")}</h2>
             </section>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -1256,7 +1503,7 @@ export function ParticipantDetailPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Última sessão
+                      {t("participantDetail.lastSession")}
                     </p>
                     <div className="mt-2 text-3xl font-black text-slate-900">
                       {lastSl30sSession?.sessao ?? "—"}
@@ -1273,12 +1520,12 @@ export function ParticipantDetailPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Repetições
+                      {t("participantDetail.repetitions")}
                     </p>
                     <div className="mt-2 text-3xl font-black text-slate-900">
                       {lastSl30sSession?.repeticoes ?? "—"}
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">30 segundos</p>
+                    <p className="mt-2 text-sm text-slate-500">{t("participantDetail.tests.sl30s.duration")}</p>
                   </div>
                   <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-emerald-700">
                     <Activity size={20} />
@@ -1290,12 +1537,12 @@ export function ParticipantDetailPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                      Potência média
+                      {t("participantDetail.tests.sl30s.metrics.meanPower")}
                     </p>
                     <div className="mt-2 text-3xl font-black text-slate-900">
                       {lastSl30sSession?.potenciaMedia ?? "—"}
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">W</p>
+                    <p className="mt-2 text-sm text-slate-500">{t("participantDetail.units.watts")}</p>
                   </div>
                   <div className="rounded-2xl border border-violet-100 bg-violet-50 p-3 text-violet-700">
                     <BarChart3 size={20} />
@@ -1314,18 +1561,28 @@ export function ParticipantDetailPage() {
             </section>
 
             <section>
+              <SessionsMetricFilter
+                test="sl30s"
+                sessions={sl30sSessionIds}
+                range={sl30sMetricRange}
+                isOpen={sl30sFilterOpen}
+                onToggleOpen={setSl30sFilterOpen}
+              />
+            </section>
+
+            <section>
               <Card className="p-6 shadow-sm">
                 <div className="mb-5 flex items-center gap-2">
                   <Activity size={18} className="text-emerald-600" />
                   <h2 className="text-lg font-black text-slate-900">
-                    SL-30s — evolução de repetições
+                    {t("participantDetail.tests.sl30s.repsEvolutionTitle")}
                   </h2>
                 </div>
 
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                      data={sl30sSessions}
+                      data={filteredSl30sSessionsForMetrics}
                       margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
                     >
                       <CartesianGrid vertical={false} stroke="#e2e8f0" strokeDasharray="3 3" />
@@ -1347,7 +1604,7 @@ export function ParticipantDetailPage() {
                           border: "1px solid #e2e8f0",
                           boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
                         }}
-                        labelFormatter={(label) => `Sessão ${label}`}
+                        labelFormatter={(label) => t("participantDetail.sessionLabel", { session: label })}
                       />
                       <Line
                         type="monotone"
@@ -1365,94 +1622,94 @@ export function ParticipantDetailPage() {
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <TinyMetricChart
-                title="Potência média"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.meanPower")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="potenciaMedia"
-                unit="W"
+                unit={t("participantDetail.units.watts")}
                 color="#8b5cf6"
               />
               <TinyMetricChart
-                title="Trabalho total"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.totalWork")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="trabalhoTotal"
-                unit="J"
+                unit={t("participantDetail.units.joules")}
                 color="#14b8a6"
               />
               <TinyMetricChart
-                title="Trabalho por repetição"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.workPerRep")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="trabalhoPorRep"
-                unit="J"
+                unit={t("participantDetail.units.joules")}
                 color="#f59e0b"
               />
               <TinyMetricChart
-                title="Tempo médio ciclo"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.meanCycleTime")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="tempoMedioCiclo"
                 unit="s"
                 color="#3b82f6"
               />
               <TinyMetricChart
-                title="Tempo médio levantar"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.meanStandTime")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="tempoMedioLevantar"
                 unit="s"
                 color="#22c55e"
               />
               <TinyMetricChart
-                title="Tempo médio sentar"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.meanSitTime")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="tempoMedioSentar"
                 unit="s"
                 color="#ef4444"
               />
               <TinyMetricChart
-                title="Frequência média"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.meanFrequency")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="frequenciaMedia"
-                unit="Hz"
+                unit={t("participantDetail.units.hz")}
                 color="#0ea5e9"
               />
               <TinyMetricChart
-                title="CV tempo ciclo"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.cvCycleTime")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="cvTempoCiclo"
                 unit="%"
                 color="#ec4899"
               />
               <TinyMetricChart
-                title="Amplitude do sinal"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.signalAmplitude")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="amplitudeSinal"
-                unit="°"
+                unit={t("participantDetail.units.degrees")}
                 color="#6366f1"
               />
               <TinyMetricChart
-                title="Vel. flexão levantar"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.velFlexStand")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="velFlexLevantar"
-                unit="°/s"
+                unit={t("participantDetail.units.degPerSec")}
                 color="#16a34a"
               />
               <TinyMetricChart
-                title="Vel. extensão levantar"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.velExtStand")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="velExtLevantar"
-                unit="°/s"
+                unit={t("participantDetail.units.degPerSec")}
                 color="#0891b2"
               />
               <TinyMetricChart
-                title="Vel. flexão sentar"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.velFlexSit")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="velFlexSentar"
-                unit="°/s"
+                unit={t("participantDetail.units.degPerSec")}
                 color="#f97316"
               />
               <TinyMetricChart
-                title="Vel. extensão sentar"
-                data={sl30sSessions}
+                title={t("participantDetail.tests.sl30s.metrics.velExtSit")}
+                data={filteredSl30sSessionsForMetrics}
                 dataKey="velExtSentar"
-                unit="°/s"
+                unit={t("participantDetail.units.degPerSec")}
                 color="#7c3aed"
               />
             </section>
@@ -1463,7 +1720,7 @@ export function ParticipantDetailPage() {
                   <div className="flex items-center gap-2">
                     <Activity size={18} className="text-emerald-700" />
                     <h2 className="text-lg font-black text-slate-900">
-                      Série temporal — Ângulo do tronco
+                      {t("participantDetail.tests.sl30s.timeseriesTrunkAngleTitle")}
                     </h2>
                   </div>
 
@@ -1475,7 +1732,10 @@ export function ParticipantDetailPage() {
                     >
                       {sl30sSessions.map((session) => (
                         <option key={session.sessao} value={session.sessao}>
-                          Sessão {session.sessao} — {session.repeticoes} repetições
+                          {t("participantDetail.tests.sl30s.sessionOptionReps", {
+                            session: session.sessao,
+                            reps: session.repeticoes,
+                          })}
                         </option>
                       ))}
                     </select>
@@ -1517,9 +1777,9 @@ export function ParticipantDetailPage() {
                           }}
                           labelFormatter={(value) => `${Number(value).toFixed(2)} s`}
                           formatter={(value, name) => {
-                            if (name === "value") return [`${value} °`, "Sinal"];
-                            if (name === "peak") return [`${value} °`, "Picos"];
-                            if (name === "valley") return [`${value} °`, "Vales"];
+                            if (name === "value") return [`${value} °`, t("participantDetail.signal")];
+                            if (name === "peak") return [`${value} °`, t("participantDetail.peaks")];
+                            if (name === "valley") return [`${value} °`, t("participantDetail.valleys")];
                             return [String(value), String(name)];
                           }}
                         />
@@ -1569,7 +1829,7 @@ export function ParticipantDetailPage() {
 
                 <div className="mt-3 flex justify-between text-xs text-slate-400">
                   <span>{sl30sSignalStart}s</span>
-                  <span>Tempo (s)</span>
+                  <span>{t("participantDetail.timeSeconds")}</span>
                   <span>{sl30sSignalEnd}s</span>
                 </div>
               </Card>

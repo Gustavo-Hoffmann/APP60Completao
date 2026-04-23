@@ -1,4 +1,4 @@
-import { BarChart3, Search, UserRound } from "lucide-react";
+import { BarChart3, Search, UserPlus, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -14,7 +14,9 @@ import {
 } from "recharts";
 
 import { AppHeader } from "../../../components/layout/AppHeader";
+import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
+import { useAuth } from "../../../contexts/AuthContext";
 import { routes } from "../../../navigation/routes";
 import type { Participant } from "../../../types/participant";
 import { listParticipants } from "../services/participants";
@@ -150,6 +152,8 @@ function IvcfDistributionCard({
 export function ParticipantsPage() {
   const { t } = useTranslation("modules");
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canPersistParticipant = Boolean(user?.institution_id) && user?.role !== "SUPER_ADMIN";
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -163,14 +167,17 @@ export function ParticipantsPage() {
         setIsLoading(true);
         setError(null);
         const data = await listParticipants();
-        if (!mounted) return;
-        setParticipants(data);
+        if (mounted) {
+          setParticipants(data);
+        }
       } catch (err) {
-        if (!mounted) return;
-        setError(err instanceof Error ? err.message : t("participants.loadErrorTitle"));
+        if (mounted) {
+          setError(err instanceof Error ? err.message : t("participants.loadErrorTitle"));
+        }
       } finally {
-        if (!mounted) return;
-        setIsLoading(false);
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -188,7 +195,7 @@ export function ParticipantsPage() {
     return participants.filter((participant) => {
       const cityState = [participant.city, participant.state].filter(Boolean).join(" / ");
 
-      return [participant.name, participant.cpf, cityState]
+      return [participant.name, participant.nationality, participant.cpf, cityState]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q));
     });
@@ -223,7 +230,20 @@ export function ParticipantsPage() {
 
       <main className="space-y-6 px-6 py-8">
         <section className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div />
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between xl:w-auto">
+            <Button
+              type="button"
+              className="w-full sm:w-auto"
+              onClick={() => navigate(routes.participantCreate)}
+              variant={canPersistParticipant ? "primary" : "secondary"}
+              title={!canPersistParticipant ? t("participants.createDisabledTitle") : undefined}
+            >
+              <span className="inline-flex items-center gap-2">
+                <UserPlus size={16} />
+                {t("participants.createButton")}
+              </span>
+            </Button>
+          </div>
 
           <div className="relative w-full max-w-md">
             <Search
@@ -273,7 +293,7 @@ export function ParticipantsPage() {
                   <thead className="bg-white">
                     <tr className="border-b border-slate-200 text-left text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
                       <th className="px-6 py-5">{t("participants.table.name")}</th>
-                      <th className="px-6 py-5">{t("participants.table.cpf")}</th>
+                      <th className="px-6 py-5">{t("participants.table.identity")}</th>
                       <th className="px-6 py-5">{t("participants.table.age")}</th>
                       <th className="px-6 py-5">{t("participants.table.sex")}</th>
                       <th className="px-6 py-5">{t("participants.table.city")}</th>

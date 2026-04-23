@@ -82,6 +82,7 @@ const maria2MstSessions: TwoMstSession[] = [
 export const mariaSilvaMock: Participant = {
   id: "example-maria-silva",
   name: "Maria Silva",
+  nationality: "BR",
   cpf: "123.456.789-00",
   age: 68,
   sex: "Feminino",

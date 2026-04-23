@@ -50,7 +50,9 @@
   "participants": {
     "title": "Participants",
     "subtitle": "Complete list of registered participants.",
-    "searchPlaceholder": "Search by name, CPF or city...",
+    "createButton": "Register participant",
+    "createDisabledTitle": "Registration is unavailable for Super Admin (use an institutional user, like in the mobile app).",
+    "searchPlaceholder": "Search by name, ID or city...",
     "stats": {
       "totalCollections": "Total collections",
       "totalCollectionsSub": "Sum of processed sessions (all tests)",
@@ -61,7 +63,7 @@
     "loadErrorTitle": "Error loading participants",
     "table": {
       "name": "Name",
-      "cpf": "CPF",
+      "identity": "Identity",
       "age": "Age",
       "sex": "Sex",
       "city": "City",
@@ -74,6 +76,200 @@
     },
     "emptyTitle": "No participants found.",
     "emptySubtitle": "Adjust the search or check the data."
+  },
+  "participantCreate": {
+    "title": "Register participant",
+    "subtitle": "Registration aligned with the mobile app flow (linked to your institution).",
+    "back": "Back to participants",
+    "disabledTitle": "Registration unavailable for this profile",
+    "disabledBody": "This flow enrolls the participant under the signed-in user's institution. Super admin is blocked by the current backend rules (same as the mobile app).",
+    "addressTitle": "Address (optional)",
+    "cepLookup": "Lookup ZIP",
+    "cepLoading": "Looking up...",
+    "cancel": "Cancel",
+    "save": "Save participant",
+    "saving": "Saving...",
+    "hints": {
+      "nationality": "Select the country from the list."
+    },
+    "fields": {
+      "fullName": "Full name",
+      "nationality": "Nationality",
+      "identity": "Identity document",
+      "cpf": "CPF",
+      "birthDate": "Birth date",
+      "sex": "Sex",
+      "cep": "CEP (Brazil)",
+      "postalCode": "Postal code",
+      "street": "Street",
+      "number": "Number",
+      "complement": "Complement",
+      "neighborhood": "Neighborhood",
+      "city": "City",
+      "state": "State (UF)"
+    },
+    "sex": {
+      "male": "Male",
+      "female": "Female"
+    },
+    "errors": {
+      "nameRequired": "Enter the full name.",
+      "nationalityInvalid": "Select a valid nationality.",
+      "identityInvalid": "Enter the identity document.",
+      "cpfInvalid": "Invalid CPF.",
+      "sexRequired": "Select sex.",
+      "invalidCep": "Invalid ZIP/CEP.",
+      "cepLookup": "Could not lookup ZIP/CEP.",
+      "numberRequiredWithCep": "Enter the street number when ZIP/CEP is filled.",
+      "saveFailed": "Failed to save participant."
+    }
+  },
+  "participantDetail": {
+    "headerTitle": "Participant",
+    "loadingSubtitle": "Loading participant details...",
+    "loadingBody": "Loading participant...",
+    "errorSubtitle": "Error loading data.",
+    "errorTitle": "Error loading participant",
+    "notFoundSubtitle": "Record not found.",
+    "notFoundBody": "Participant not found.",
+    "demoSubtitle": "Mock profile for demo with 2MST and biomechanical metrics.",
+    "subtitleWithTests": "Detailed participant data and processed tests.",
+    "subtitle": "Detailed participant data.",
+    "backToParticipants": "Back to participants",
+    "exampleBadge": "Example subject",
+    "ageYears": "{{years}} years",
+    "fields": {
+      "nationality": "Nationality",
+      "identity": "Identity",
+      "cpf": "CPF",
+      "age": "Age",
+      "ageSex": "Age / Sex",
+      "sex": "Sex",
+      "cityState": "City / State",
+      "birthDate": "Birth date",
+      "createdBy": "Created by"
+    },
+    "tests": {
+      "title": "Completed tests",
+      "noData": "No detailed data at the moment.",
+      "2mst": {
+        "description": "Click to open processed 2MST step test data.",
+        "demoDescription": "Click to open demo 2MST step test data."
+      },
+      "sl30s": {
+        "description": "Click to open processed sit-to-stand data."
+      }
+    },
+    "unclassified": "Unclassified",
+    "active": "Active",
+    "sessionLabel": "Session {{session}}",
+    "sessionOptionPoints": "Session {{session}} — {{points}} points",
+    "sessionDotDate": "Session {{session}} • {{date}}",
+    "lastSession": "Last session",
+    "sessionInFocus": "Session in focus",
+    "totalScore": "Total score",
+    "selectedSessionHint": "Selected session",
+    "overallClassification": "Overall classification",
+    "score": "Score",
+    "inFocus": "In focus",
+    "statusClinical": "Clinical status",
+    "lastIvcf20": "Latest IVCF-20",
+    "noProcessedCollection": "No processed collection",
+    "ivcf20": {
+      "subtitle": "History and block-level classification for the selected session.",
+      "selectedSession": "Selected session",
+      "sessionHistoryTitle": "Session history",
+      "sessionHistorySubtitle": "Clickable sessions to change focus.",
+      "blockClassificationTitle": "Block-level classification",
+      "noBlocks": "No detailed blocks found for this session."
+    },
+    "strategy": {
+      "label": "Strategy",
+      "definedSub": "Strategy identified",
+      "undefinedSub": "Strategy not defined"
+    },
+    "goda": {
+      "label": "Goda classification",
+      "definedSub": "Temporal pattern identified",
+      "undefinedSub": "No classification available"
+    },
+    "rikliJones": {
+      "percentile": "Percentile {{value}}{{ageBin}}",
+      "zscore": "z = {{value}}{{ageBin}}",
+      "ageBin": "Age range {{ageBin}}",
+      "defaultSubtitle": "Normative comparison"
+    },
+    "repetitions": "Repetitions",
+    "cadence": "Cadence",
+    "timeSeconds": "Time (s)",
+    "signal": "Signal",
+    "peaks": "Peaks",
+    "valleys": "Valleys",
+    "units": {
+      "cyclesPerMin": "cycles/min",
+      "degPerSec": "°/s",
+      "watts": "W",
+      "joules": "J",
+      "hz": "Hz",
+      "degrees": "°"
+    },
+    "metricsFilter": {
+      "title": "Session filter (metrics)",
+      "clear": "Clear",
+      "button": "Filter sessions",
+      "hint": "Drag to set the range (start and end).",
+      "allSessions": "All sessions",
+      "rangeLabel": "Sessions {{from}}–{{to}}",
+      "pickStart": "Select the start session",
+      "pickEnd": "Now select the end session (start: Session {{from}})"
+    },
+    "tests": {
+      "title": "Completed tests",
+      "noData": "No detailed data at the moment.",
+      "2mst": {
+        "description": "Click to open processed 2MST step test data.",
+        "demoDescription": "Click to open demo 2MST step test data.",
+        "sectionTitle": "2MST — Step test",
+        "duration": "2 minutes",
+        "repsEvolutionTitle": "2MST — repetitions trend",
+        "timeseriesGyroXTitle": "Time series — Gyroscope X",
+        "phonePeaks": "Phone peaks",
+        "calibratedPeaks": "Calibrated peaks",
+        "sessionOptionCycles": "Session {{session}} — {{cycles}} cycles",
+        "metrics": {
+          "meanAngularVelocity": "Mean angular vel.",
+          "meanAngularVelocityFull": "Mean angular velocity",
+          "cvVelocity": "Velocity CV",
+          "meanCycleTime": "Mean cycle time",
+          "cvCycleTime": "Cycle time CV",
+          "maxVelocity": "Max velocity",
+          "minVelocity": "Min velocity"
+        }
+      },
+      "sl30s": {
+        "description": "Click to open processed sit-to-stand data.",
+        "sectionTitle": "SL-30s — Sit-to-stand",
+        "duration": "30 seconds",
+        "repsEvolutionTitle": "SL-30s — repetitions trend",
+        "timeseriesTrunkAngleTitle": "Time series — Trunk angle",
+        "sessionOptionReps": "Session {{session}} — {{reps}} repetitions",
+        "metrics": {
+          "meanPower": "Mean power",
+          "totalWork": "Total work",
+          "workPerRep": "Work per rep",
+          "meanCycleTime": "Mean cycle time",
+          "meanStandTime": "Mean stand time",
+          "meanSitTime": "Mean sit time",
+          "meanFrequency": "Mean frequency",
+          "cvCycleTime": "Cycle time CV",
+          "signalAmplitude": "Signal amplitude",
+          "velFlexStand": "Flexion vel. (stand)",
+          "velExtStand": "Extension vel. (stand)",
+          "velFlexSit": "Flexion vel. (sit)",
+          "velExtSit": "Extension vel. (sit)"
+        }
+      }
+    }
   },
   "institutions": {
     "title": "Institutions",

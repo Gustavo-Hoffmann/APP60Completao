@@ -105,6 +105,9 @@ export type ParticipantTestSummary = {
 export type Participant = {
   id: string;
   name: string;
+  /** Código ISO 3166-1 alpha-2 (ex.: BR, PT). */
+  nationality?: string;
+  /** Documento de identidade exibido (CPF formatado se BR; texto livre se não BR). */
   cpf: string;
   age: number;
   sex: "Masculino" | "Feminino";

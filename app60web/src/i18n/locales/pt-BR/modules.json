@@ -50,7 +50,9 @@
   "participants": {
     "title": "Participantes",
     "subtitle": "Lista geral de participantes cadastrados.",
-    "searchPlaceholder": "Buscar por nome, CPF ou cidade...",
+    "createButton": "Cadastrar participante",
+    "createDisabledTitle": "Cadastro indisponível para Super Admin (use um usuário institucional, como no app mobile).",
+    "searchPlaceholder": "Buscar por nome, identidade ou cidade...",
     "stats": {
       "totalCollections": "Coletas totais",
       "totalCollectionsSub": "Somatório de sessões processadas (todos os testes)",
@@ -61,7 +63,7 @@
     "loadErrorTitle": "Erro ao carregar participantes",
     "table": {
       "name": "Nome",
-      "cpf": "CPF",
+      "identity": "Identidade",
       "age": "Idade",
       "sex": "Sexo",
       "city": "Cidade",
@@ -74,6 +76,200 @@
     },
     "emptyTitle": "Nenhum participante encontrado.",
     "emptySubtitle": "Ajuste a busca ou confira os dados."
+  },
+  "participantCreate": {
+    "title": "Cadastrar participante",
+    "subtitle": "Cadastro alinhado ao fluxo do app mobile (vincula à sua instituição).",
+    "back": "Voltar para participantes",
+    "disabledTitle": "Cadastro indisponível para este perfil",
+    "disabledBody": "Este fluxo vincula o participante à instituição do usuário logado. Super admin não usa este caminho no backend atual (mesma regra do app mobile).",
+    "addressTitle": "Endereço (opcional)",
+    "cepLookup": "Buscar CEP",
+    "cepLoading": "Buscando...",
+    "cancel": "Cancelar",
+    "save": "Salvar participante",
+    "saving": "Salvando...",
+    "hints": {
+      "nationality": "Selecione o país na lista."
+    },
+    "fields": {
+      "fullName": "Nome completo",
+      "nationality": "Nacionalidade",
+      "identity": "Identidade",
+      "cpf": "CPF",
+      "birthDate": "Data de nascimento",
+      "sex": "Sexo",
+      "cep": "CEP",
+      "postalCode": "Código postal",
+      "street": "Logradouro",
+      "number": "Número",
+      "complement": "Complemento",
+      "neighborhood": "Bairro",
+      "city": "Cidade",
+      "state": "UF"
+    },
+    "sex": {
+      "male": "Masculino",
+      "female": "Feminino"
+    },
+    "errors": {
+      "nameRequired": "Informe o nome completo.",
+      "nationalityInvalid": "Selecione uma nacionalidade válida.",
+      "identityInvalid": "Informe o documento de identidade.",
+      "cpfInvalid": "CPF inválido.",
+      "sexRequired": "Selecione o sexo.",
+      "invalidCep": "CEP inválido.",
+      "cepLookup": "Não foi possível buscar o CEP.",
+      "numberRequiredWithCep": "Informe o número do endereço quando o CEP estiver preenchido.",
+      "saveFailed": "Erro ao salvar participante."
+    }
+  },
+  "participantDetail": {
+    "headerTitle": "Participante",
+    "loadingSubtitle": "Carregando dados do participante...",
+    "loadingBody": "Carregando participante...",
+    "errorSubtitle": "Erro ao carregar os dados.",
+    "errorTitle": "Erro ao carregar participante",
+    "notFoundSubtitle": "Registro não encontrado.",
+    "notFoundBody": "Participante não encontrado.",
+    "demoSubtitle": "Perfil mockado para demo com marcha estacionária e métricas biomecânicas.",
+    "subtitleWithTests": "Dados detalhados do participante e testes processados.",
+    "subtitle": "Dados detalhados do participante.",
+    "backToParticipants": "Voltar para participantes",
+    "exampleBadge": "Sujeito exemplo",
+    "ageYears": "{{years}} anos",
+    "fields": {
+      "nationality": "Nacionalidade",
+      "identity": "Identidade",
+      "cpf": "CPF",
+      "age": "Idade",
+      "ageSex": "Idade / Sexo",
+      "sex": "Sexo",
+      "cityState": "Cidade / Estado",
+      "birthDate": "Data de nascimento",
+      "createdBy": "Criado por"
+    },
+    "tests": {
+      "title": "Testes realizados",
+      "noData": "Sem dados detalhados no momento.",
+      "2mst": {
+        "description": "Clique para abrir os dados processados da marcha estacionária.",
+        "demoDescription": "Clique para abrir os dados de demonstração da marcha estacionária."
+      },
+      "sl30s": {
+        "description": "Clique para abrir os dados processados do sentar e levantar."
+      }
+    },
+    "unclassified": "Sem classificação",
+    "active": "Ativo",
+    "sessionLabel": "Sessão {{session}}",
+    "sessionOptionPoints": "Sessão {{session}} — {{points}} pontos",
+    "sessionDotDate": "Sessão {{session}} • {{date}}",
+    "lastSession": "Última sessão",
+    "sessionInFocus": "Sessão em foco",
+    "totalScore": "Pontuação total",
+    "selectedSessionHint": "Sessão selecionada",
+    "overallClassification": "Classificação geral",
+    "score": "Pontuação",
+    "inFocus": "Em foco",
+    "statusClinical": "Status clínico",
+    "lastIvcf20": "Último IVCF-20",
+    "noProcessedCollection": "Sem coleta processada",
+    "ivcf20": {
+      "subtitle": "Histórico e classificação por blocos da sessão selecionada.",
+      "selectedSession": "Sessão selecionada",
+      "sessionHistoryTitle": "Histórico de sessões",
+      "sessionHistorySubtitle": "Sessões clicáveis para trocar o foco.",
+      "blockClassificationTitle": "Classificação por blocos",
+      "noBlocks": "Nenhum bloco detalhado foi encontrado nesta sessão."
+    },
+    "strategy": {
+      "label": "Estratégia",
+      "definedSub": "Estratégia identificada",
+      "undefinedSub": "Estratégia não definida"
+    },
+    "goda": {
+      "label": "Classificação Goda",
+      "definedSub": "Padrão temporal identificado",
+      "undefinedSub": "Sem classificação disponível"
+    },
+    "rikliJones": {
+      "percentile": "Percentil {{value}}{{ageBin}}",
+      "zscore": "z = {{value}}{{ageBin}}",
+      "ageBin": "Faixa etária {{ageBin}}",
+      "defaultSubtitle": "Comparação normativa"
+    },
+    "repetitions": "Repetições",
+    "cadence": "Cadência",
+    "timeSeconds": "Tempo (s)",
+    "signal": "Sinal",
+    "peaks": "Picos",
+    "valleys": "Vales",
+    "units": {
+      "cyclesPerMin": "ciclos/min",
+      "degPerSec": "°/s",
+      "watts": "W",
+      "joules": "J",
+      "hz": "Hz",
+      "degrees": "°"
+    },
+    "metricsFilter": {
+      "title": "Filtro de sessões (métricas)",
+      "clear": "Limpar",
+      "button": "Filtrar sessões",
+      "hint": "Arraste para definir o intervalo (início e fim).",
+      "allSessions": "Todas as sessões",
+      "rangeLabel": "Sessões {{from}}–{{to}}",
+      "pickStart": "Selecione a sessão de início",
+      "pickEnd": "Agora selecione a sessão de fim (início: Sessão {{from}})"
+    },
+    "tests": {
+      "title": "Testes realizados",
+      "noData": "Sem dados detalhados no momento.",
+      "2mst": {
+        "description": "Clique para abrir os dados processados da marcha estacionária.",
+        "demoDescription": "Clique para abrir os dados de demonstração da marcha estacionária.",
+        "sectionTitle": "2MST — Marcha estacionária",
+        "duration": "2 minutos",
+        "repsEvolutionTitle": "2MST — evolução de repetições",
+        "timeseriesGyroXTitle": "Série temporal — Giroscópio X",
+        "phonePeaks": "Picos phone",
+        "calibratedPeaks": "Picos calibrados",
+        "sessionOptionCycles": "Sessão {{session}} — {{cycles}} ciclos",
+        "metrics": {
+          "meanAngularVelocity": "Vel. angular média",
+          "meanAngularVelocityFull": "Velocidade angular média",
+          "cvVelocity": "CV velocidade",
+          "meanCycleTime": "Tempo médio ciclo",
+          "cvCycleTime": "CV tempo ciclo",
+          "maxVelocity": "Velocidade máxima",
+          "minVelocity": "Velocidade mínima"
+        }
+      },
+      "sl30s": {
+        "description": "Clique para abrir os dados processados do sentar e levantar.",
+        "sectionTitle": "SL-30s — Sentar e levantar",
+        "duration": "30 segundos",
+        "repsEvolutionTitle": "SL-30s — evolução de repetições",
+        "timeseriesTrunkAngleTitle": "Série temporal — Ângulo do tronco",
+        "sessionOptionReps": "Sessão {{session}} — {{reps}} repetições",
+        "metrics": {
+          "meanPower": "Potência média",
+          "totalWork": "Trabalho total",
+          "workPerRep": "Trabalho por repetição",
+          "meanCycleTime": "Tempo médio ciclo",
+          "meanStandTime": "Tempo médio levantar",
+          "meanSitTime": "Tempo médio sentar",
+          "meanFrequency": "Frequência média",
+          "cvCycleTime": "CV tempo ciclo",
+          "signalAmplitude": "Amplitude do sinal",
+          "velFlexStand": "Vel. flexão levantar",
+          "velExtStand": "Vel. extensão levantar",
+          "velFlexSit": "Vel. flexão sentar",
+          "velExtSit": "Vel. extensão sentar"
+        }
+      }
+    }
   },
   "institutions": {
     "title": "Instituições",

@@ -8,10 +8,18 @@
     "save": "Save",
     "saving": "Saving...",
     "sexHint": "Biological sex is used for normative analysis in functional tests.",
+    "nationalityHint": "Tap to choose the country.",
+    "nationalityModalTitle": "Nationality",
+    "nationalityClose": "Close",
     "addressNumber": "House number",
     "fields": {
+      "nationality": "Nationality",
+      "identity": "Identity",
+      "identityPlaceholderBr": "000.000.000-00",
+      "identityPlaceholderIntl": "Identity document",
+      "postalCode": "Postal code",
       "cpfPlaceholder": "000.000.000-00",
-      "cep": "Postcode",
+      "cep": "CEP (Brazil)",
       "cepPlaceholder": "00000-000",
       "street": "Street",
       "streetPlaceholder": "Street name",
@@ -30,6 +38,8 @@
     "validation": {
       "invalidCep": "Invalid postcode (8 digits).",
       "nameRequired": "Name is required.",
+      "nationalityInvalid": "Select a valid nationality.",
+      "identityInvalid": "Enter the identity document.",
       "cpfInvalid": "Invalid CPF.",
       "sexRequired": "Select biological sex.",
       "houseNumberRequired": "House number is required."

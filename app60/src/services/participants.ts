@@ -8,6 +8,7 @@ export const GUEST_PARTICIPANT_ID = "__participant_guest__";
 
 type ParticipantRow = {
   id: string;
+  nationality?: string | null;
   full_name: string;
   cpf: string | null;
   birth_date: string | null;
@@ -48,9 +49,14 @@ function mapRowToParticipant(row: ParticipantRow): Participant {
         ? "Feminino"
         : undefined;
 
+  const nat = String(row.nationality ?? "BR")
+    .trim()
+    .toUpperCase();
+
   return {
     id: row.id,
     name: row.full_name,
+    nationality: nat,
     cpf: row.cpf ?? "",
     dob: row.birth_date ?? "2000-01-01",
     biologicalSex: bio,
@@ -74,6 +80,7 @@ export function getTestParticipant(): Participant {
   return {
     id: TEST_PARTICIPANT_ID,
     name: "Sujeito exemplo",
+    nationality: "BR",
     cpf: "12345678900",
     dob: "1957-01-01",
     biologicalSex: "Feminino",
@@ -108,6 +115,7 @@ export function getGuestParticipant(): Participant {
   return {
     id: GUEST_PARTICIPANT_ID,
     name: "Visitante",
+    nationality: "BR",
     cpf: "",
     dob: ageToDob(age),
     biologicalSex: sex === "M" ? "Masculino" : "Feminino",
@@ -125,8 +133,15 @@ export function getGuestParticipant(): Participant {
 }
 
 export function getParticipantSubtitle(p: Participant) {
-  const cpf = formatCpf(p.cpf);
-  return cpf ? `CPF: ${cpf}` : "Sem CPF";
+  const nat = String(p.nationality ?? "BR")
+    .trim()
+    .toUpperCase();
+  if (nat === "BR") {
+    const cpf = formatCpf(p.cpf);
+    return cpf ? `CPF: ${cpf}` : "Sem CPF";
+  }
+  const doc = String(p.cpf ?? "").trim();
+  return doc ? `Identidade: ${doc}` : "Sem identidade";
 }
 
 export async function listParticipants(): Promise<Participant[]> {
@@ -151,14 +166,26 @@ export async function upsertParticipant(p: Participant): Promise<Participant> {
 
   await getCurrentResearcher();
 
+  const nat = String(p.nationality ?? "BR")
+    .trim()
+    .toUpperCase();
+  const identity =
+    nat === "BR" ? String(p.cpf ?? "").replace(/\D/g, "") : String(p.cpf ?? "").normalize("NFKC").trim();
+
   const payload = {
     id: isUuid(p.id) ? p.id : undefined,
     fullName: p.name.trim(),
-    cpf: String(p.cpf ?? "").replace(/\D/g, ""),
+    nationality: nat,
+    identity,
     birthDate: p.dob,
     sex:
       p.biologicalSex === "Masculino" ? "M" : p.biologicalSex === "Feminino" ? "F" : undefined,
-    cep: p.cep ? String(p.cep).replace(/\D/g, "") : undefined,
+    cep:
+      p.cep && nat === "BR"
+        ? String(p.cep).replace(/\D/g, "")
+        : p.cep
+          ? String(p.cep).trim()
+          : undefined,
     street: p.address?.street?.trim() || undefined,
     number: p.address?.number?.trim() || undefined,
     neighborhood: p.address?.neighborhood?.trim() || undefined,

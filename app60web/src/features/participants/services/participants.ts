@@ -12,9 +12,11 @@ import type {
   TwoMstSignalPoint,
   TwoMstStrategyLabel,
 } from "../../../types/participant";
+import { DEFAULT_LANGUAGE, WEB_LANGUAGE_STORAGE_KEY } from "../../../i18n/settings";
 
 type ParticipantRow = {
   id: string;
+  nationality?: string | null;
   full_name: string;
   cpf: string | null;
   birth_date: string | null;
@@ -23,6 +25,7 @@ type ParticipantRow = {
   state: string | null;
   created_at: string;
   updated_at: string;
+  created_by_user_id?: string | null;
 };
 
 type MarchaMetricsJson = {
@@ -203,13 +206,18 @@ function normalizeIvcfClass(label?: unknown, key?: unknown): IvcfClassification 
   return undefined;
 }
 
-function formatDateBr(value?: string | null) {
+function getActiveLanguage() {
+  const raw = localStorage.getItem(WEB_LANGUAGE_STORAGE_KEY);
+  return raw || DEFAULT_LANGUAGE;
+}
+
+function formatDateLocale(value?: string | null) {
   if (!value) return "—";
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return new Intl.DateTimeFormat("pt-BR").format(date);
+  return new Intl.DateTimeFormat(getActiveLanguage()).format(date);
 }
 
 function round(value: number, decimals = 2) {
@@ -303,10 +311,17 @@ function mapRikliJonesLabel(value: unknown): Sl30sRikliJonesLabel {
 }
 
 function mapParticipant(row: ParticipantRow): Participant {
+  const nat = String(row.nationality ?? "BR")
+    .trim()
+    .toUpperCase();
+  const rawDoc = String(row.cpf ?? "").trim();
+  const identityDisplay = nat === "BR" ? formatCpf(rawDoc) : rawDoc;
+
   return {
     id: row.id,
     name: row.full_name,
-    cpf: formatCpf(row.cpf),
+    nationality: nat,
+    cpf: identityDisplay,
     age: calcAgeFromDate(row.birth_date),
     sex: normalizeSex(row.sex),
     dob: row.birth_date ?? undefined,
@@ -314,6 +329,7 @@ function mapParticipant(row: ParticipantRow): Participant {
     state: row.state ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    createdByUserId: row.created_by_user_id ?? undefined,
   };
 }
 
@@ -366,7 +382,7 @@ function mapIvcfSession(row: TestSessionResultRow): IvcfSession | null {
 
   return {
     sessao: sessionNumber,
-    date: formatDateBr(row.updated_at ?? row.created_at),
+    date: formatDateLocale(row.updated_at ?? row.created_at),
     scoreTotal: Number.isFinite(scoreTotal) ? Math.round(scoreTotal) : 0,
     classification,
     blocks,
@@ -381,7 +397,7 @@ function mapTwoMstSession(row: TestSessionResultRow): TwoMstSession | null {
 
   return {
     sessao: sessionNumber,
-    date: formatDateBr(row.updated_at ?? row.created_at),
+    date: formatDateLocale(row.updated_at ?? row.created_at),
     repeticoes: Math.round(asNumber(metrics["n_peaks"])),
     cadencia: round(asNumber(metrics["cadence_cycles_min"]), 1),
     velAngularMedia: round(asNumber(metrics["vel_mean_deg_s"]), 2),
@@ -458,7 +474,7 @@ function mapSl30sSession(row: TestSessionResultRow): Sl30sSession | null {
 
   return {
     sessao: sessionNumber,
-    date: formatDateBr(row.updated_at ?? row.created_at),
+    date: formatDateLocale(row.updated_at ?? row.created_at),
     repeticoes: Math.round(asNumber(metrics["repetitions"])),
     potenciaMedia: round(asNumber(metrics["mean_power_w"]), 2),
     trabalhoTotal: round(asNumber(metrics["total_work_j"]), 2),
@@ -643,4 +659,26 @@ export async function getParticipantById(id: string): Promise<Participant | null
   if (!data?.participant) return null;
 
   return buildParticipantWithResults(data.participant, data.results ?? []);
+}
+
+export type CreateParticipantPayload = {
+  fullName: string;
+  nationality: string;
+  identity: string;
+  birthDate?: string;
+  sex?: "M" | "F";
+  cep?: string;
+  street?: string;
+  number?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  complement?: string;
+};
+
+export async function createParticipant(payload: CreateParticipantPayload): Promise<ParticipantRow> {
+  return apiJson<ParticipantRow>("/api/participants", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }

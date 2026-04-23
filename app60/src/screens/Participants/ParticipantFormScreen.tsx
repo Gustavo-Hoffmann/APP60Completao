@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  FlatList,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -23,6 +25,7 @@ import { isValidCPF } from "../../models/validators";
 import { fetchViaCep } from "../../services/viacep";
 import { upsertParticipant } from "../../services/participants";
 import { useTheme } from "../../contexts/ThemeContext";
+import { getCountryOptions, countryLabel, type CountryOption } from "../../lib/isoCountries";
 
 type Params = {
   mode?: "create" | "edit";
@@ -97,12 +100,12 @@ export function ParticipantFormScreen() {
   const nav = useNavigation<any>();
   const route = useRoute<any>();
   const { theme } = useTheme();
-  const { t } = useTranslation(["participants", "common"]);
+  const { t, i18n } = useTranslation(["participants", "common"]);
   const { mode = "create", participant } = (route.params ?? {}) as Params;
 
   const isEdit = mode === "edit";
 
-  const cpfRef = useRef<TextInput>(null);
+  const identityRef = useRef<TextInput>(null);
   const cepRef = useRef<TextInput>(null);
   const streetRef = useRef<TextInput>(null);
   const numberRef = useRef<TextInput>(null);
@@ -112,7 +115,8 @@ export function ParticipantFormScreen() {
   const ufRef = useRef<TextInput>(null);
 
   const [name, setName] = useState("");
-  const [cpf, setCpf] = useState("");
+  const [nationality, setNationality] = useState("BR");
+  const [identity, setIdentity] = useState("");
   const [dob, setDob] = useState<Date>(new Date("2000-01-01"));
   const [biologicalSex, setBiologicalSex] = useState<BiologicalSex | undefined>(undefined);
 
@@ -126,16 +130,36 @@ export function ParticipantFormScreen() {
 
   const [loadingCep, setLoadingCep] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [nationalityModalOpen, setNationalityModalOpen] = useState(false);
+
+  const nat = nationality.trim().toUpperCase();
+  const isBr = nat === "BR";
+
+  const countryOptions = React.useMemo((): CountryOption[] => {
+    const lang = i18n.language ?? "pt-BR";
+    const opts = getCountryOptions(lang);
+    if (opts.some((o) => o.code === nat)) return opts;
+    return [{ code: nat, label: countryLabel(lang, nat) }, ...opts];
+  }, [i18n.language, nat]);
+
+  const nationalityDisplay = React.useMemo(
+    () => countryLabel(i18n.language ?? "pt-BR", nat),
+    [i18n.language, nat],
+  );
 
   useEffect(() => {
     if (!participant) return;
 
     setName(participant.name ?? "");
-    setCpf(formatCPF(participant.cpf ?? ""));
+    const pNat = String(participant.nationality ?? "BR")
+      .trim()
+      .toUpperCase();
+    setNationality(pNat);
+    setIdentity(pNat === "BR" ? formatCPF(participant.cpf ?? "") : String(participant.cpf ?? ""));
     setDob(new Date(participant.dob ?? "2000-01-01"));
     setBiologicalSex(participant.biologicalSex);
 
-    setCep(formatCEP(participant.cep ?? ""));
+    setCep(pNat === "BR" ? formatCEP(participant.cep ?? "") : String(participant.cep ?? ""));
     setStreet(participant.address?.street ?? "");
     setNumber(participant.address?.number ?? "");
     setComplement(participant.address?.complement ?? "");
@@ -145,6 +169,7 @@ export function ParticipantFormScreen() {
   }, [participant]);
 
   const onFetchCep = async () => {
+    if (!isBr) return;
     try {
       const digits = normalizeDigits(cep);
       if (digits.length !== 8) {
@@ -173,11 +198,17 @@ export function ParticipantFormScreen() {
 
   const validate = () => {
     if (!name.trim()) return t("participants:form.validation.nameRequired");
-    if (!isValidCPF(normalizeDigits(cpf))) return t("participants:form.validation.cpfInvalid");
+    if (!/^[A-Z]{2}$/.test(nat)) return t("participants:form.validation.nationalityInvalid");
+    if (isBr) {
+      if (!isValidCPF(normalizeDigits(identity))) return t("participants:form.validation.cpfInvalid");
+    } else {
+      const doc = identity.normalize("NFKC").trim();
+      if (doc.length < 3) return t("participants:form.validation.identityInvalid");
+    }
     if (!biologicalSex) return t("participants:form.validation.sexRequired");
 
     const cepDigits = normalizeDigits(cep);
-    if (cepDigits.length === 8 && !number.trim()) {
+    if (isBr && cepDigits.length === 8 && !number.trim()) {
       return t("participants:form.validation.houseNumberRequired");
     }
 
@@ -197,10 +228,11 @@ export function ParticipantFormScreen() {
       const payload: Participant = {
         id: participant?.id,
         name: name.trim(),
-        cpf: normalizeDigits(cpf),
+        nationality: nat,
+        cpf: isBr ? normalizeDigits(identity) : identity.normalize("NFKC").trim(),
         dob: dob.toISOString().slice(0, 10),
         biologicalSex,
-        cep: normalizeDigits(cep) || undefined,
+        cep: (isBr ? normalizeDigits(cep) : cep.trim()) || undefined,
         address: {
           street: street.trim() || undefined,
           neighborhood: neighborhood.trim() || undefined,
@@ -251,27 +283,54 @@ export function ParticipantFormScreen() {
             placeholder={t("participants:form.namePlaceholder")}
             autoCapitalize="words"
             returnKeyType="next"
-            onSubmitEditing={() => cpfRef.current?.focus()}
+            onSubmitEditing={() => Keyboard.dismiss()}
             textContentType="name"
           />
 
+          <DateField label={t("common:labels.birthDate")} value={dob} onChange={setDob} />
+
+          <View style={{ marginBottom: 12 }}>
+            <T style={{ fontWeight: "800", marginBottom: 8, color: theme.colors.text }}>
+              {t("participants:form.fields.nationality")}
+            </T>
+            <Pressable
+              onPress={() => setNationalityModalOpen(true)}
+              style={({ pressed }) => ({
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+                backgroundColor: theme.colors.card,
+                borderRadius: 12,
+                paddingVertical: 14,
+                paddingHorizontal: 12,
+                opacity: pressed ? 0.88 : 1,
+              })}
+            >
+              <T style={{ fontWeight: "700", color: theme.colors.text }}>{nationalityDisplay}</T>
+              <T style={{ marginTop: 6, fontSize: 12, color: theme.colors.muted }}>
+                {t("participants:form.nationalityHint")}
+              </T>
+            </Pressable>
+          </View>
+
           <ThemedInput
-            ref={cpfRef}
-            label={t("common:labels.cpf")}
-            value={cpf}
-            onChangeText={(t) => setCpf(formatCPF(t))}
-            placeholder={t("participants:form.fields.cpfPlaceholder")}
-            keyboardType={kbNumeric}
-            inputMode="numeric"
-            maxLength={14}
+            ref={identityRef}
+            label={isBr ? t("common:labels.cpf") : t("participants:form.fields.identity")}
+            value={identity}
+            onChangeText={(v) => setIdentity(isBr ? formatCPF(v) : v)}
+            placeholder={
+              isBr
+                ? t("participants:form.fields.identityPlaceholderBr")
+                : t("participants:form.fields.identityPlaceholderIntl")
+            }
+            keyboardType={isBr ? kbNumeric : "default"}
+            inputMode={isBr ? "numeric" : "text"}
+            maxLength={isBr ? 14 : 80}
             returnKeyType="next"
             onSubmitEditing={() => {
               Keyboard.dismiss();
               setTimeout(() => cepRef.current?.focus(), 150);
             }}
           />
-
-          <DateField label={t("common:labels.birthDate")} value={dob} onChange={setDob} />
 
           <View style={{ height: 14 }} />
 
@@ -295,24 +354,26 @@ export function ParticipantFormScreen() {
 
           <ThemedInput
             ref={cepRef}
-            label={t("participants:form.fields.cep")}
+            label={isBr ? t("participants:form.fields.cep") : t("participants:form.fields.postalCode")}
             value={cep}
-            onChangeText={(t) => setCep(formatCEP(t))}
-            placeholder={t("participants:form.fields.cepPlaceholder")}
-            keyboardType={kbNumeric}
-            inputMode="numeric"
-            maxLength={9}
+            onChangeText={(v) => setCep(isBr ? formatCEP(v) : v)}
+            placeholder={isBr ? t("participants:form.fields.cepPlaceholder") : undefined}
+            keyboardType={isBr ? kbNumeric : "default"}
+            inputMode={isBr ? "numeric" : "text"}
+            maxLength={isBr ? 9 : 32}
             returnKeyType="go"
-            onSubmitEditing={onFetchCep}
+            onSubmitEditing={isBr ? onFetchCep : () => streetRef.current?.focus()}
           />
 
-          <ThemedButton
-            title={loadingCep ? t("participants:form.cepSearching") : t("participants:form.cepSearch")}
-            variant="secondary"
-            onPress={onFetchCep}
-            disabled={loadingCep}
-            style={{ paddingVertical: 12, borderRadius: 10 }}
-          />
+          {isBr ? (
+            <ThemedButton
+              title={loadingCep ? t("participants:form.cepSearching") : t("participants:form.cepSearch")}
+              variant="secondary"
+              onPress={onFetchCep}
+              disabled={loadingCep}
+              style={{ paddingVertical: 12, borderRadius: 10 }}
+            />
+          ) : null}
 
           <View style={{ height: 12 }} />
 
@@ -400,6 +461,58 @@ export function ParticipantFormScreen() {
           </T>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={nationalityModalOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setNationalityModalOpen(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.border,
+            }}
+          >
+            <T style={{ fontSize: 18, fontWeight: "900", color: theme.colors.text }}>
+              {t("participants:form.nationalityModalTitle")}
+            </T>
+            <Pressable onPress={() => setNationalityModalOpen(false)} hitSlop={12}>
+              <T style={{ fontWeight: "800", color: theme.colors.primary }}>{t("participants:form.nationalityClose")}</T>
+            </Pressable>
+          </View>
+
+          <FlatList
+            data={countryOptions}
+            keyExtractor={(item) => item.code}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 24 }}
+            renderItem={({ item }) => (
+              <Pressable
+                onPress={() => {
+                  setNationality(item.code);
+                  setNationalityModalOpen(false);
+                }}
+                style={({ pressed }) => ({
+                  paddingVertical: 14,
+                  paddingHorizontal: 16,
+                  borderBottomWidth: 1,
+                  borderBottomColor: theme.colors.border,
+                  backgroundColor: pressed ? theme.colors.card : theme.colors.bg,
+                })}
+              >
+                <T style={{ fontWeight: "700", color: theme.colors.text }}>{item.label}</T>
+              </Pressable>
+            )}
+          />
+        </View>
+      </Modal>
     </Screen>
   );
 }

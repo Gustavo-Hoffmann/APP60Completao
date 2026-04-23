@@ -8,8 +8,16 @@
     "save": "Salvar",
     "saving": "Salvando...",
     "sexHint": "Sexo biológico será usado nas análises normativas dos testes funcionais.",
+    "nationalityHint": "Toque para escolher o país.",
+    "nationalityModalTitle": "Nacionalidade",
+    "nationalityClose": "Fechar",
     "addressNumber": "Número da casa",
     "fields": {
+      "nationality": "Nacionalidade",
+      "identity": "Identidade",
+      "identityPlaceholderBr": "000.000.000-00",
+      "identityPlaceholderIntl": "Documento de identidade",
+      "postalCode": "Código postal",
       "cpfPlaceholder": "000.000.000-00",
       "cep": "CEP",
       "cepPlaceholder": "00000-000",
@@ -30,6 +38,8 @@
     "validation": {
       "invalidCep": "CEP inválido (8 dígitos).",
       "nameRequired": "Nome é obrigatório.",
+      "nationalityInvalid": "Selecione uma nacionalidade válida.",
+      "identityInvalid": "Informe o documento de identidade.",
       "cpfInvalid": "CPF inválido.",
       "sexRequired": "Selecione o sexo biológico.",
       "houseNumberRequired": "Número da casa é obrigatório."
