@@ -51,7 +51,7 @@
     "title": "Participants",
     "subtitle": "Complete list of registered participants.",
     "createButton": "Register participant",
-    "createDisabledTitle": "Registration is unavailable for Super Admin (use an institutional user, like in the mobile app).",
+    "createDisabledTitle": "You do not have permission to register participants with this account.",
     "searchPlaceholder": "Search by name, ID or city...",
     "stats": {
       "totalCollections": "Total collections",
@@ -79,10 +79,12 @@
   },
   "participantCreate": {
     "title": "Register participant",
-    "subtitle": "Registration aligned with the mobile app flow (linked to your institution).",
+    "subtitle": "Register the participant and link them to an existing institution.",
     "back": "Back to participants",
-    "disabledTitle": "Registration unavailable for this profile",
-    "disabledBody": "This flow enrolls the participant under the signed-in user's institution. Super admin is blocked by the current backend rules (same as the mobile app).",
+    "institutionPlaceholder": "Select an institution…",
+    "existingParticipantConfirm": "This participant is already registered. Update their record and link them to this institution?",
+    "disabledTitle": "No permission to register",
+    "disabledBody": "This account cannot register participants. Use a role with access (for example, an administrator or an evaluator linked to an institution).",
     "addressTitle": "Address (optional)",
     "cepLookup": "Lookup ZIP",
     "cepLoading": "Looking up...",
@@ -90,7 +92,8 @@
     "save": "Save participant",
     "saving": "Saving...",
     "hints": {
-      "nationality": "Select the country from the list."
+      "nationality": "Select the country from the list.",
+      "institutionPicker": "Administrators choose the institution; other roles use their account institution."
     },
     "fields": {
       "fullName": "Full name",
@@ -106,7 +109,8 @@
       "complement": "Complement",
       "neighborhood": "Neighborhood",
       "city": "City",
-      "state": "State (UF)"
+      "state": "State (UF)",
+      "institution": "Institution"
     },
     "sex": {
       "male": "Male",
@@ -116,8 +120,9 @@
       "nameRequired": "Enter the full name.",
       "nationalityInvalid": "Select a valid nationality.",
       "identityInvalid": "Enter the identity document.",
-      "cpfInvalid": "Invalid CPF.",
+      "cpfInvalid": "Enter 11 digits for the CPF.",
       "sexRequired": "Select sex.",
+      "institutionRequired": "Select the institution to link this participant to.",
       "invalidCep": "Invalid ZIP/CEP.",
       "cepLookup": "Could not lookup ZIP/CEP.",
       "numberRequiredWithCep": "Enter the street number when ZIP/CEP is filled.",

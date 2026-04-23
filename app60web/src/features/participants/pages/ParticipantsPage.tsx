@@ -153,7 +153,13 @@ export function ParticipantsPage() {
   const { t } = useTranslation("modules");
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canPersistParticipant = Boolean(user?.institution_id) && user?.role !== "SUPER_ADMIN";
+  const canPersistParticipant = Boolean(
+    user &&
+      (user.role === "SUPER_ADMIN" ||
+        user.role === "ADMIN" ||
+        (Boolean(user.institution_id) &&
+          (user.role === "GESTOR" || user.role === "SUPERVISOR" || user.role === "AVALIADOR"))),
+  );
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -237,6 +243,7 @@ export function ParticipantsPage() {
               onClick={() => navigate(routes.participantCreate)}
               variant={canPersistParticipant ? "primary" : "secondary"}
               title={!canPersistParticipant ? t("participants.createDisabledTitle") : undefined}
+              disabled={!canPersistParticipant}
             >
               <span className="inline-flex items-center gap-2">
                 <UserPlus size={16} />

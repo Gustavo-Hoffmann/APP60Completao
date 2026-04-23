@@ -13,20 +13,9 @@ function onlyDigits(s: string) {
   return s.replace(/\D/g, "");
 }
 
-function isValidCpfDigits(cpf: string) {
-  if (cpf.length !== 11) return false;
-  if (/^(\d)\1{10}$/.test(cpf)) return false;
-  const calcCheck = (base: string, factorStart: number) => {
-    let sum = 0;
-    for (let i = 0; i < base.length; i += 1) {
-      sum += Number(base[i]) * (factorStart - i);
-    }
-    const mod = (sum * 10) % 11;
-    return mod === 10 ? 0 : mod;
-  };
-  const d9 = calcCheck(cpf.slice(0, 9), 10);
-  const d10 = calcCheck(cpf.slice(0, 10), 11);
-  return d9 === Number(cpf[9]) && d10 === Number(cpf[10]);
+/** CPF brasileiro: aceita qualquer sequência de 11 dígitos (sem validação de dígitos verificadores). */
+function isElevenDigitCpf(cpf: string) {
+  return cpf.length === 11 && /^\d{11}$/.test(cpf);
 }
 
 function normalizeIdentityInternational(raw: string) {
@@ -215,6 +204,14 @@ export function participantsRouter(pool: Pool) {
         [id, ...vis.params]
       );
 
+      const linksQ = await pool.query<{ institution_id: string }>(
+        `SELECT institution_id FROM participant_institution_history
+         WHERE participant_id = $1 AND valid_to IS NULL
+         ORDER BY institution_id`,
+        [id]
+      );
+      const linkedInstitutionIds = linksQ.rows.map((r) => r.institution_id);
+
       res.json({
         participant: {
           id: part.id,
@@ -234,6 +231,7 @@ export function participantsRouter(pool: Pool) {
           created_at: part.created_at,
           updated_at: part.updated_at,
           created_by_user_id: createdByUserId,
+          linked_institution_ids: linkedInstitutionIds,
         },
         results: rsql.rows,
       });
@@ -243,34 +241,54 @@ export function participantsRouter(pool: Pool) {
     }
   });
 
-  const upsertSchema = z
-    .object({
-      id: z.string().uuid().optional(),
-      fullName: z.string().min(1),
-      nationality: z.string().length(2),
-      identity: z.string().optional(),
-      /** @deprecated usar identity */
-      cpf: z.string().optional(),
-      birthDate: z.string().optional(),
-      sex: z.string().optional(),
-      city: z.string().optional(),
-      state: z.string().optional(),
-      cep: z.string().optional(),
-      street: z.string().optional(),
-      number: z.string().optional(),
-      neighborhood: z.string().optional(),
-      complement: z.string().optional(),
-    })
-    .superRefine((val, ctx) => {
-      const doc = (val.identity ?? val.cpf ?? "").trim();
-      if (!doc) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "identity_required",
-          path: ["identity"],
-        });
-      }
-    });
+  function normalizeParticipantUpsertBody(body: unknown): unknown {
+    if (!body || typeof body !== "object" || Array.isArray(body)) return body;
+    const o = { ...(body as Record<string, unknown>) };
+    const pick = (v: unknown) => {
+      if (v === undefined || v === null) return "";
+      return String(v).trim();
+    };
+    const merged =
+      pick(o.identity) ||
+      pick(o.cpf) ||
+      pick((o as { cpf_normalized?: unknown }).cpf_normalized);
+    if (merged.length > 0) {
+      o.identity = merged;
+      o.cpf = merged;
+    }
+    return o;
+  }
+
+  const upsertSchema = z.object({
+    id: z.string().uuid().optional(),
+    fullName: z.string().min(1),
+    nationality: z.string().length(2),
+    identity: z.preprocess(
+      (v) => (v === undefined || v === null ? "" : String(v).trim()),
+      z.string().min(1, "Informe o documento (CPF ou identidade)."),
+    ),
+    /** @deprecated espelho de identity; null é ignorado */
+    cpf: z.preprocess(
+      (v) => (v === undefined || v === null || v === "" ? undefined : String(v).trim()),
+      z.string().optional(),
+    ),
+    birthDate: z.string().optional(),
+    sex: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    cep: z.string().optional(),
+    street: z.string().optional(),
+    number: z.string().optional(),
+    neighborhood: z.string().optional(),
+    complement: z.string().optional(),
+    /** Obrigatório para SUPER_ADMIN; opcional para ADMIN (outra instituição). */
+    institutionId: z.preprocess(
+      (val) => (val === "" || val === null ? undefined : val),
+      z.string().uuid().optional(),
+    ),
+    /** Confirma vínculo do participante já existente (outro CPF cadastrado) à instituição atual. */
+    confirmLinkExisting: z.boolean().optional(),
+  });
 
   r.post("/", async (req, res) => {
     const u = req.authUser as AuthedUser;
@@ -278,9 +296,17 @@ export function participantsRouter(pool: Pool) {
       res.status(403).json({ error: "Sem permissão." });
       return;
     }
-    const parsed = upsertSchema.safeParse(req.body);
+    const parsed = upsertSchema.safeParse(normalizeParticipantUpsertBody(req.body));
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.flatten() });
+      const flat = parsed.error.flatten();
+      const bits: string[] = [...flat.formErrors];
+      for (const [k, arr] of Object.entries(flat.fieldErrors)) {
+        if (Array.isArray(arr) && arr.length) bits.push(`${k}: ${arr.join(", ")}`);
+      }
+      res.status(400).json({
+        error: bits.length ? bits.join(" · ") : "Dados inválidos.",
+        details: flat,
+      });
       return;
     }
     const b = parsed.data;
@@ -294,8 +320,8 @@ export function participantsRouter(pool: Pool) {
     let identityStored: string;
     if (nationality === "BR") {
       const cpf = onlyDigits(docRaw);
-      if (!isValidCpfDigits(cpf)) {
-        res.status(400).json({ error: "CPF inválido." });
+      if (!isElevenDigitCpf(cpf)) {
+        res.status(400).json({ error: "CPF deve ter 11 dígitos." });
         return;
       }
       identityStored = cpf;
@@ -308,9 +334,27 @@ export function participantsRouter(pool: Pool) {
       identityStored = idNorm;
     }
 
-    const inst = isSuperAdmin(u) ? null : institutionIdOrThrow(u);
+    let inst: string;
     if (isSuperAdmin(u)) {
-      res.status(400).json({ error: "Super admin use fluxo com institutionId explícito (em evolução)." });
+      if (!b.institutionId) {
+        res.status(400).json({ error: "institutionId é obrigatório para super administrador." });
+        return;
+      }
+      inst = b.institutionId;
+    } else if (u.role === "ADMIN" && b.institutionId) {
+      inst = b.institutionId;
+    } else {
+      try {
+        inst = institutionIdOrThrow(u);
+      } catch {
+        res.status(400).json({ error: "Instituição não definida para o usuário." });
+        return;
+      }
+    }
+
+    const instOk = await pool.query(`SELECT 1 FROM institutions WHERE id = $1 AND is_active = true`, [inst]);
+    if (!instOk.rows[0]) {
+      res.status(400).json({ error: "Instituição não encontrada ou inativa." });
       return;
     }
 
@@ -369,6 +413,47 @@ export function participantsRouter(pool: Pool) {
           existingId = existing.rows[0]?.id ?? null;
         }
         if (existingId) {
+          const linkedHere = await client.query(
+            `SELECT 1 FROM participant_institution_history
+             WHERE participant_id = $1 AND institution_id = $2 AND valid_to IS NULL`,
+            [existingId, inst]
+          );
+          if (!linkedHere.rows[0] && !b.confirmLinkExisting) {
+            await client.query("ROLLBACK");
+            const snap = await pool.query(
+              `SELECT id, full_name, nationality, cpf_normalized, birth_date, sex,
+                      cep, street, number, neighborhood, city, state, complement
+               FROM participants WHERE id = $1`,
+              [existingId]
+            );
+            const pr = snap.rows[0];
+            if (!pr) {
+              await client.query("ROLLBACK");
+              res.status(500).json({ error: "Inconsistência ao carregar participante." });
+              return;
+            }
+            res.status(409).json({
+              code: "PARTICIPANT_EXISTS_OTHER_INSTITUTION",
+              error:
+                "Este participante já está cadastrado em outra instituição. Deseja atualizar o cadastro e vinculá-lo a esta instituição?",
+              participant: {
+                id: pr.id,
+                full_name: pr.full_name,
+                nationality: pr.nationality ?? "BR",
+                cpf_normalized: pr.cpf_normalized,
+                birth_date: pr.birth_date,
+                sex: pr.sex,
+                cep: pr.cep,
+                street: pr.street,
+                number: pr.number,
+                neighborhood: pr.neighborhood,
+                city: pr.city,
+                state: pr.state,
+                complement: pr.complement,
+              },
+            });
+            return;
+          }
           pid = existingId;
           const up = await client.query(
             `UPDATE participants SET
@@ -467,7 +552,7 @@ export function participantsRouter(pool: Pool) {
     const u = req.authUser as AuthedUser;
     const participantId = req.params.id;
     try {
-      if (isSuperAdmin(u)) {
+      if (isSuperAdmin(u) || u.role === "ADMIN") {
         const del = await pool.query(`DELETE FROM participants WHERE id = $1`, [participantId]);
         if (del.rowCount === 0) {
           res.status(404).json({ error: "Participante não encontrado." });
@@ -477,7 +562,7 @@ export function participantsRouter(pool: Pool) {
         return;
       }
 
-      if (u.role !== "ADMIN" && u.role !== "GESTOR") {
+      if (u.role !== "GESTOR") {
         res.status(403).json({ error: "Sem permissão para excluir participante." });
         return;
       }

@@ -36,9 +36,9 @@ Papéis no enum PostgreSQL / aplicação: `SUPER_ADMIN`, `ADMIN`, `GESTOR`, `SUP
 | **SUPER_ADMIN** | Todos os registos em `participants`. | Qualquer id. |
 | Com `primary_institution_id` (ADMIN, GESTOR, SUPERVISOR, AVALIADOR) | Participantes com vínculo aberto em `participant_institution_history` (`valid_to IS NULL`) para essa instituição. | Só se existir esse vínculo aberto; caso contrário 404. |
 
-**Escrita** (`POST /api/participants`): `canWriteParticipants` inclui todos os papéis autenticados exceto regra especial — **SUPER_ADMIN** recebe **400** com mensagem de fluxo “em evolução” (não pode criar/vincular participante só como super admin neste endpoint). Implementação: `participants.ts` linhas ~241–244.
+**Escrita** (`POST /api/participants`): `canWriteParticipants` inclui SUPER_ADMIN, ADMIN, GESTOR, SUPERVISOR, AVALIADOR. **SUPER_ADMIN** deve enviar `institutionId` no corpo (instituição ativa existente). **ADMIN** pode enviar `institutionId` para vincular a outra instituição; caso contrário usa `primary_institution_id`. Se já existir participante BR com o mesmo CPF **sem** vínculo aberto à instituição pedida e não vier `confirmLinkExisting: true`, a API responde **409** com snapshot para confirmação no cliente. Ver `participants.ts`.
 
-**DELETE** participante: só **SUPER_ADMIN**.
+**DELETE** participante: **SUPER_ADMIN** e **ADMIN** removem por `id` globalmente; **GESTOR** só com vínculo ativo à sua instituição.
 
 ---
 

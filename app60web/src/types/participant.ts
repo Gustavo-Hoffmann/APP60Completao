@@ -124,6 +124,8 @@ export type Participant = {
   neighborhood?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** Instituições com vínculo ativo (edição / contexto administrativo). */
+  linkedInstitutionIds?: string[];
   ivcfScore?: number;
   ivcfClass?: IvcfClassification;
   blocks?: ParticipantBlockScores;

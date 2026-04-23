@@ -1,4 +1,5 @@
 import { apiFetch, apiJson } from "../../../lib/api/client";
+import { messageFromApiErrorBody } from "../../../lib/api/errorMessage";
 import type {
   IvcfClassification,
   IvcfSession,
@@ -31,6 +32,7 @@ type ParticipantRow = {
   created_at: string;
   updated_at: string;
   created_by_user_id?: string | null;
+  linked_institution_ids?: string[] | null;
 };
 
 type MarchaMetricsJson = {
@@ -354,6 +356,9 @@ function mapParticipant(row: ParticipantRow): Participant {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     createdByUserId: row.created_by_user_id ?? undefined,
+    linkedInstitutionIds: Array.isArray(row.linked_institution_ids)
+      ? row.linked_institution_ids
+      : undefined,
   };
 }
 
@@ -690,6 +695,8 @@ export type CreateParticipantPayload = {
   fullName: string;
   nationality: string;
   identity: string;
+  /** Espelho de identity (BR) para compatibilidade com validação legada da API. */
+  cpf?: string;
   birthDate?: string;
   sex?: "M" | "F";
   cep?: string;
@@ -699,28 +706,122 @@ export type CreateParticipantPayload = {
   city?: string;
   state?: string;
   complement?: string;
+  institutionId?: string;
+  confirmLinkExisting?: boolean;
 };
 
+export type ExistingParticipantPayload = {
+  id: string;
+  full_name: string;
+  nationality?: string | null;
+  cpf_normalized: string;
+  birth_date?: string | null;
+  sex?: string | null;
+  cep?: string | null;
+  street?: string | null;
+  number?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  complement?: string | null;
+};
+
+export const PARTICIPANT_ENROLL_CONFLICT_CODE = "PARTICIPANT_EXISTS_OTHER_INSTITUTION" as const;
+
+export class ParticipantEnrollConflictError extends Error {
+  readonly code = PARTICIPANT_ENROLL_CONFLICT_CODE;
+  readonly participant: ExistingParticipantPayload;
+
+  constructor(message: string, participant: ExistingParticipantPayload) {
+    super(message);
+    this.name = "ParticipantEnrollConflictError";
+    this.participant = participant;
+  }
+}
+
+function digitsOnly(s: string) {
+  return s.replace(/\D/g, "");
+}
+
+function mapDbSexToPayload(sex: string | null | undefined): "M" | "F" | undefined {
+  const x = String(sex ?? "").trim();
+  if (!x) return undefined;
+  if (x === "M" || /^masculino$/i.test(x)) return "M";
+  if (x === "F" || /^feminino$/i.test(x)) return "F";
+  return undefined;
+}
+
+/** Monta o corpo do POST após o utilizador confirmar o vínculo de participante já existente. */
+export function participantSnapshotToCreatePayload(
+  snap: ExistingParticipantPayload,
+  extras: { institutionId?: string },
+): CreateParticipantPayload {
+  const nat = String(snap.nationality ?? "BR")
+    .trim()
+    .toUpperCase();
+  const cepDigits = snap.cep ? digitsOnly(String(snap.cep)) : "";
+  const idVal =
+    nat === "BR" ? digitsOnly(String(snap.cpf_normalized ?? "")) : String(snap.cpf_normalized ?? "").trim();
+  return {
+    fullName: String(snap.full_name ?? "").trim(),
+    nationality: nat,
+    identity: idVal,
+    ...(nat === "BR" && idVal ? { cpf: idVal } : {}),
+    birthDate: snap.birth_date ? String(snap.birth_date).slice(0, 10) : undefined,
+    sex: mapDbSexToPayload(snap.sex),
+    cep: nat === "BR" ? (cepDigits || undefined) : (snap.cep?.trim() || undefined),
+    street: snap.street?.trim() || undefined,
+    number: snap.number?.trim() || undefined,
+    neighborhood: snap.neighborhood?.trim() || undefined,
+    city: snap.city?.trim() || undefined,
+    state: snap.state?.trim()?.toUpperCase() || undefined,
+    complement: snap.complement?.trim() || undefined,
+    institutionId: extras.institutionId,
+    confirmLinkExisting: true,
+  };
+}
+
 export async function createParticipant(payload: CreateParticipantPayload): Promise<ParticipantRow> {
-  return apiJson<ParticipantRow>("/api/participants", {
+  const res = await apiFetch("/api/participants", {
     method: "POST",
     body: JSON.stringify(payload),
   });
+  const text = await res.text();
+  let data: unknown = null;
+  if (text) {
+    try {
+      data = JSON.parse(text) as unknown;
+    } catch {
+      data = null;
+    }
+  }
+  if (res.ok) {
+    return data as ParticipantRow;
+  }
+  if (res.status === 409 && data && typeof data === "object" && data !== null) {
+    const o = data as Record<string, unknown>;
+    if (o.code === PARTICIPANT_ENROLL_CONFLICT_CODE && o.participant && typeof o.participant === "object") {
+      throw new ParticipantEnrollConflictError(
+        typeof o.error === "string" ? o.error : "Participante já cadastrado.",
+        o.participant as ExistingParticipantPayload,
+      );
+    }
+  }
+  throw new Error(messageFromApiErrorBody(data, res.status));
 }
 
 export async function deleteParticipant(id: string): Promise<void> {
   const res = await apiFetch(`/api/participants/${id}`, { method: "DELETE" });
   if (!res.ok) {
     const text = await res.text();
-    let msg = `HTTP ${res.status}`;
+    let data: unknown = null;
     if (text) {
       try {
-        const data = JSON.parse(text) as { error?: string };
-        if (typeof data?.error === "string") msg = data.error;
+        data = JSON.parse(text) as unknown;
       } catch {
-        // ignore
+        data = null;
       }
     }
-    throw new Error(msg);
+    throw new Error(messageFromApiErrorBody(data, res.status));
   }
 }

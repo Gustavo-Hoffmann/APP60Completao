@@ -51,7 +51,7 @@
     "title": "Participantes",
     "subtitle": "Lista geral de participantes cadastrados.",
     "createButton": "Cadastrar participante",
-    "createDisabledTitle": "Cadastro indisponível para Super Admin (use um usuário institucional, como no app mobile).",
+    "createDisabledTitle": "Sem permissão para cadastrar participantes com esta conta.",
     "searchPlaceholder": "Buscar por nome, identidade ou cidade...",
     "stats": {
       "totalCollections": "Coletas totais",
@@ -79,10 +79,12 @@
   },
   "participantCreate": {
     "title": "Cadastrar participante",
-    "subtitle": "Cadastro alinhado ao fluxo do app mobile (vincula à sua instituição).",
+    "subtitle": "Cadastro e vínculo do participante a uma instituição já existente.",
     "back": "Voltar para participantes",
-    "disabledTitle": "Cadastro indisponível para este perfil",
-    "disabledBody": "Este fluxo vincula o participante à instituição do usuário logado. Super admin não usa este caminho no backend atual (mesma regra do app mobile).",
+    "institutionPlaceholder": "Selecione a instituição…",
+    "existingParticipantConfirm": "Este participante já está cadastrado. Deseja atualizar o cadastro e vinculá-lo a esta instituição?",
+    "disabledTitle": "Sem permissão para cadastrar",
+    "disabledBody": "Esta conta não tem permissão para cadastrar participantes. Use um perfil com acesso (por exemplo, administrador ou avaliador com instituição vinculada).",
     "addressTitle": "Endereço (opcional)",
     "cepLookup": "Buscar CEP",
     "cepLoading": "Buscando...",
@@ -90,7 +92,8 @@
     "save": "Salvar participante",
     "saving": "Salvando...",
     "hints": {
-      "nationality": "Selecione o país na lista."
+      "nationality": "Selecione o país na lista.",
+      "institutionPicker": "Administradores escolhem a instituição; demais perfis usam a instituição da própria conta."
     },
     "fields": {
       "fullName": "Nome completo",
@@ -106,7 +109,8 @@
       "complement": "Complemento",
       "neighborhood": "Bairro",
       "city": "Cidade",
-      "state": "UF"
+      "state": "UF",
+      "institution": "Instituição"
     },
     "sex": {
       "male": "Masculino",
@@ -116,8 +120,9 @@
       "nameRequired": "Informe o nome completo.",
       "nationalityInvalid": "Selecione uma nacionalidade válida.",
       "identityInvalid": "Informe o documento de identidade.",
-      "cpfInvalid": "CPF inválido.",
+      "cpfInvalid": "Informe 11 dígitos para o CPF.",
       "sexRequired": "Selecione o sexo.",
+      "institutionRequired": "Selecione a instituição em que o participante será vinculado.",
       "invalidCep": "CEP inválido.",
       "cepLookup": "Não foi possível buscar o CEP.",
       "numberRequiredWithCep": "Informe o número do endereço quando o CEP estiver preenchido.",

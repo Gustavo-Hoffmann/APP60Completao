@@ -1,4 +1,5 @@
 import { getValidIdToken } from "../cognito/session";
+import { messageFromApiErrorBody } from "./errorMessage";
 
 function baseUrl(): string {
   const u = import.meta.env.VITE_API_BASE_URL;
@@ -34,15 +35,7 @@ export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<
     }
   }
   if (!res.ok) {
-    const msg =
-      data &&
-      typeof data === "object" &&
-      data !== null &&
-      "error" in data &&
-      typeof (data as { error: unknown }).error === "string"
-        ? (data as { error: string }).error
-        : `HTTP ${res.status}`;
-    throw new Error(msg);
+    throw new Error(messageFromApiErrorBody(data, res.status));
   }
   return data as T;
 }

@@ -12,10 +12,18 @@ import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { Input } from "../../../components/ui/Input";
 import { useAuth } from "../../../contexts/AuthContext";
+import { apiJson } from "../../../lib/api/client";
 import { countryLabel, getCountryOptions } from "../../../lib/isoCountries";
 import { cn } from "../../../lib/utils/cn";
 import { routes } from "../../../navigation/routes";
-import { createParticipant, deleteParticipant, getParticipantById } from "../services/participants";
+import {
+  createParticipant,
+  deleteParticipant,
+  getParticipantById,
+  ParticipantEnrollConflictError,
+  participantSnapshotToCreatePayload,
+  type ExistingParticipantPayload,
+} from "../services/participants";
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
@@ -37,23 +45,16 @@ function formatCep(value: string) {
   return `${a}-${b}`;
 }
 
-function isValidCpf(cpf: string) {
-  const digits = onlyDigits(cpf);
-  if (digits.length !== 11) return false;
-  if (/^(\d)\1{10}$/.test(digits)) return false;
+/** CPF BR: qualquer sequência de 11 dígitos (sem validação de dígitos verificadores). */
+function isValidBrCpfLoose(cpf: string) {
+  return onlyDigits(cpf).length === 11;
+}
 
-  const calcCheck = (base: string, factorStart: number) => {
-    let sum = 0;
-    for (let i = 0; i < base.length; i += 1) {
-      sum += Number(base[i]) * (factorStart - i);
-    }
-    const mod = (sum * 10) % 11;
-    return mod === 10 ? 0 : mod;
-  };
-
-  const d9 = calcCheck(digits.slice(0, 9), 10);
-  const d10 = calcCheck(digits.slice(0, 10), 11);
-  return d9 === Number(digits[9]) && d10 === Number(digits[10]);
+function mapDbSexToForm(sex: string | null | undefined): "M" | "F" | "" {
+  const x = String(sex ?? "").trim();
+  if (x === "M" || /^masculino$/i.test(x)) return "M";
+  if (x === "F" || /^feminino$/i.test(x)) return "F";
+  return "";
 }
 
 type ViaCepResponse = {
@@ -72,6 +73,13 @@ async function fetchViaCep(cepDigits: string): Promise<ViaCepResponse> {
   return data;
 }
 
+type InstitutionOption = { id: string; name: string; unit?: string | null };
+
+function institutionLabel(row: InstitutionOption) {
+  const u = row.unit?.trim();
+  return u ? `${row.name} (${u})` : row.name;
+}
+
 export function ParticipantCreatePage() {
   const { t, i18n } = useTranslation("modules");
   const navigate = useNavigate();
@@ -83,10 +91,23 @@ export function ParticipantCreatePage() {
 
   const dateLocale = useMemo(() => (i18n.language?.startsWith("pt") ? ptBR : undefined), [i18n.language]);
 
-  const canPersistParticipant = Boolean(user?.institution_id) && user?.role !== "SUPER_ADMIN";
+  const needsInstitutionPicker = user?.role === "SUPER_ADMIN" || user?.role === "ADMIN";
+
+  const canWriteParticipantForm = Boolean(
+    user &&
+      (user.role === "SUPER_ADMIN" ||
+        user.role === "ADMIN" ||
+        (Boolean(user.institution_id) &&
+          (user.role === "GESTOR" || user.role === "SUPERVISOR" || user.role === "AVALIADOR"))),
+  );
 
   const canDeleteParticipant =
-    Boolean(user?.institution_id) && (user?.role === "ADMIN" || user?.role === "GESTOR");
+    user?.role === "SUPER_ADMIN" ||
+    user?.role === "ADMIN" ||
+    (Boolean(user?.institution_id) && user?.role === "GESTOR");
+
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState("");
+  const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
 
   const [fullName, setFullName] = useState("");
   const [nationality, setNationality] = useState("BR");
@@ -107,6 +128,34 @@ export function ParticipantCreatePage() {
   const [deleting, setDeleting] = useState(false);
   const [loadingParticipant, setLoadingParticipant] = useState(isEdit);
   const [error, setError] = useState<string | null>(null);
+
+  const canSubmitParticipant = useMemo(
+    () => canWriteParticipantForm && (!needsInstitutionPicker || Boolean(selectedInstitutionId)),
+    [canWriteParticipantForm, needsInstitutionPicker, selectedInstitutionId],
+  );
+
+  useEffect(() => {
+    if (!needsInstitutionPicker || !user) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await apiJson<InstitutionOption[]>("/api/institutions");
+        if (!cancelled) setInstitutions(Array.isArray(list) ? list : []);
+      } catch {
+        if (!cancelled) setInstitutions([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [needsInstitutionPicker, user]);
+
+  useEffect(() => {
+    if (isEdit || !user) return;
+    if (user.role === "ADMIN" && user.institution_id) {
+      setSelectedInstitutionId((prev) => prev || user.institution_id!);
+    }
+  }, [isEdit, user]);
 
   useEffect(() => {
     if (!isEdit || !routeParticipantId) {
@@ -147,6 +196,10 @@ export function ParticipantCreatePage() {
         setNeighborhood(p.neighborhood ?? "");
         setCity(p.city ?? "");
         setState(String(p.state ?? "").trim().toUpperCase());
+        const links = p.linkedInstitutionIds?.filter(Boolean) ?? [];
+        if (links.length === 1) {
+          setSelectedInstitutionId(links[0]!);
+        }
       } catch {
         if (!cancelled) setError(t("participantEdit.loadFailed"));
       } finally {
@@ -196,12 +249,16 @@ export function ParticipantCreatePage() {
     const nat = nationality.trim().toUpperCase();
     if (!/^[A-Z]{2}$/.test(nat)) return t("participantCreate.errors.nationalityInvalid");
     if (isBr) {
-      if (!isValidCpf(identity)) return t("participantCreate.errors.cpfInvalid");
+      if (!isValidBrCpfLoose(identity)) return t("participantCreate.errors.cpfInvalid");
     } else {
       const doc = identity.normalize("NFKC").trim();
       if (doc.length < 3) return t("participantCreate.errors.identityInvalid");
     }
     if (!sex) return t("participantCreate.errors.sexRequired");
+
+    if (needsInstitutionPicker && !selectedInstitutionId) {
+      return t("participantCreate.errors.institutionRequired");
+    }
 
     const cepDigits = onlyDigits(cep);
     if (isBr && cepDigits.length === 8 && !number.trim()) {
@@ -209,6 +266,60 @@ export function ParticipantCreatePage() {
     }
 
     return null;
+  }
+
+  function buildCreateApiPayload(confirmLinkExisting?: boolean) {
+    const cepDigits = onlyDigits(cep);
+    const cepPayload = isBr
+      ? cepDigits.length
+        ? cepDigits
+        : undefined
+      : cep.trim()
+        ? cep.trim()
+        : undefined;
+    const idVal = isBr ? onlyDigits(identity) : identity.normalize("NFKC").trim();
+    return {
+      ...(isEdit && routeParticipantId ? { id: routeParticipantId } : {}),
+      fullName: fullName.trim(),
+      nationality: nationality.trim().toUpperCase(),
+      identity: idVal,
+      ...(isBr && idVal ? { cpf: idVal } : {}),
+      birthDate: birthDate.toISOString().slice(0, 10),
+      sex: sex === "M" || sex === "F" ? sex : undefined,
+      cep: cepPayload,
+      street: street.trim() || undefined,
+      number: number.trim() || undefined,
+      neighborhood: neighborhood.trim() || undefined,
+      city: city.trim() || undefined,
+      state: state.trim().toUpperCase() || undefined,
+      complement: complement.trim() || undefined,
+      ...((user?.role === "SUPER_ADMIN" || user?.role === "ADMIN") && selectedInstitutionId
+        ? { institutionId: selectedInstitutionId }
+        : {}),
+      ...(confirmLinkExisting ? { confirmLinkExisting: true as const } : {}),
+    };
+  }
+
+  function hydrateFormFromSnapshot(p: ExistingParticipantPayload) {
+    setFullName(String(p.full_name ?? "").trim());
+    const nat = String(p.nationality ?? "BR")
+      .trim()
+      .toUpperCase();
+    setNationality(nat);
+    const br = nat === "BR";
+    setIdentity(br ? formatCpf(String(p.cpf_normalized ?? "")) : String(p.cpf_normalized ?? ""));
+    if (p.birth_date) {
+      const d = new Date(p.birth_date);
+      if (!Number.isNaN(d.getTime())) setBirthDate(d);
+    }
+    setSex(mapDbSexToForm(p.sex));
+    setCep(br && p.cep ? formatCep(String(p.cep)) : String(p.cep ?? ""));
+    setStreet(String(p.street ?? ""));
+    setNumber(String(p.number ?? ""));
+    setComplement(String(p.complement ?? ""));
+    setNeighborhood(String(p.neighborhood ?? ""));
+    setCity(String(p.city ?? ""));
+    setState(String(p.state ?? "").trim().toUpperCase());
   }
 
   async function onSubmit() {
@@ -222,33 +333,31 @@ export function ParticipantCreatePage() {
       setSaving(true);
       setError(null);
 
-      const cepDigits = onlyDigits(cep);
-      const cepPayload = isBr
-        ? cepDigits.length
-          ? cepDigits
-          : undefined
-        : cep.trim()
-          ? cep.trim()
-          : undefined;
-      const payload = {
-        ...(isEdit && routeParticipantId ? { id: routeParticipantId } : {}),
-        fullName: fullName.trim(),
-        nationality: nationality.trim().toUpperCase(),
-        identity: isBr ? onlyDigits(identity) : identity.normalize("NFKC").trim(),
-        birthDate: birthDate.toISOString().slice(0, 10),
-        sex: sex === "M" || sex === "F" ? sex : undefined,
-        cep: cepPayload,
-        street: street.trim() || undefined,
-        number: number.trim() || undefined,
-        neighborhood: neighborhood.trim() || undefined,
-        city: city.trim() || undefined,
-        state: state.trim().toUpperCase() || undefined,
-        complement: complement.trim() || undefined,
-      };
-
-      const created = await createParticipant(payload);
+      const created = await createParticipant(buildCreateApiPayload());
       navigate(routes.participantDetail(created.id), { replace: true });
     } catch (e) {
+      if (e instanceof ParticipantEnrollConflictError) {
+        const ok = window.confirm(t("participantCreate.existingParticipantConfirm"));
+        if (!ok) {
+          setError(null);
+          return;
+        }
+        hydrateFormFromSnapshot(e.participant);
+        try {
+          const instExtra =
+            user?.role === "SUPER_ADMIN" || user?.role === "ADMIN"
+              ? selectedInstitutionId || undefined
+              : undefined;
+          const retry = participantSnapshotToCreatePayload(e.participant, {
+            institutionId: instExtra,
+          });
+          const createdRetry = await createParticipant(retry);
+          navigate(routes.participantDetail(createdRetry.id), { replace: true });
+        } catch (e2) {
+          setError(e2 instanceof Error ? e2.message : t("participantCreate.errors.saveFailed"));
+        }
+        return;
+      }
       setError(e instanceof Error ? e.message : t("participantCreate.errors.saveFailed"));
     } finally {
       setSaving(false);
@@ -292,13 +401,12 @@ export function ParticipantCreatePage() {
           </Link>
         </div>
 
-        {!canPersistParticipant ? (
+        {!canWriteParticipantForm ? (
           <Card className="p-6 shadow-sm">
             <p className="text-sm font-semibold text-slate-800">{t("participantCreate.disabledTitle")}</p>
             <p className="mt-2 text-sm text-slate-600">{t("participantCreate.disabledBody")}</p>
           </Card>
-        ) : null}
-
+        ) : (
         <Card className="p-6 shadow-sm">
           {error ? (
             <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -313,6 +421,30 @@ export function ParticipantCreatePage() {
             </div>
           ) : (
             <>
+          {needsInstitutionPicker ? (
+            <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-4 md:px-5">
+              <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-600">
+                {t("participantCreate.fields.institution")}
+              </label>
+              <select
+                className={cn(
+                  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-800 outline-none transition",
+                  "focus:border-brand-400 focus:ring-4 focus:ring-brand-100",
+                )}
+                value={selectedInstitutionId}
+                onChange={(e) => setSelectedInstitutionId(e.target.value)}
+              >
+                <option value="">{t("participantCreate.institutionPlaceholder")}</option>
+                {institutions.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {institutionLabel(row)}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-slate-600">{t("participantCreate.hints.institutionPicker")}</p>
+            </div>
+          ) : null}
+
           <div className="grid gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
@@ -491,7 +623,7 @@ export function ParticipantCreatePage() {
             <Button
               type="button"
               onClick={() => void onSubmit()}
-              disabled={!canPersistParticipant || saving || loadingParticipant}
+              disabled={!canSubmitParticipant || saving || loadingParticipant}
             >
               {saving ? (
                 <span className="inline-flex items-center gap-2">
@@ -533,6 +665,7 @@ export function ParticipantCreatePage() {
             </>
           )}
         </Card>
+        )}
       </main>
     </div>
   );
