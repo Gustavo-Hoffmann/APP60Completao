@@ -111,6 +111,7 @@ export const router = createBrowserRouter([
             children: [
               { path: routes.participants.slice(1), element: <ParticipantsPage /> },
               { path: routes.participantCreate.slice(1), element: <ParticipantCreatePage /> },
+              { path: "participants/:id/edit", element: <ParticipantCreatePage /> },
             ],
           },
           { path: "participants/:id", element: <ParticipantDetailPage /> },

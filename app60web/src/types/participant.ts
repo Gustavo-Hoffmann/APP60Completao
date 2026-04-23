@@ -117,6 +117,11 @@ export type Participant = {
   dob?: string;
   city?: string;
   state?: string;
+  cep?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
   createdAt?: string;
   updatedAt?: string;
   ivcfScore?: number;

@@ -2,11 +2,12 @@ import { Activity, BarChart3, ClipboardList, Loader2, Trophy, TrendingUp, Users 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Area,
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -37,6 +38,19 @@ function monthLabel(month: number) {
   return labels[month - 1] ?? String(month);
 }
 
+/** Série cumulativa com origem em 1º de jan (total 0) para a linha partir do zero até o primeiro dia com dados. */
+function cumulativeSeriesWithOrigin(year: number, rows: Array<{ day: string; total: number }>) {
+  const y0 = `${year}-01-01`;
+  const origin = { day: y0, total: 0 };
+  if (!rows.length) return [origin];
+
+  const sorted = [...rows].sort((a, b) => a.day.localeCompare(b.day));
+  const first = sorted[0];
+  if (first.day > y0) return [origin, ...sorted];
+  if (first.day === y0 && first.total > 0) return [origin, ...sorted];
+  return sorted;
+}
+
 export function DashboardPage() {
   const { user } = useAuth();
   const { t } = useTranslation(["dashboard"]);
@@ -62,6 +76,11 @@ export function DashboardPage() {
     }
     void load();
   }, []);
+
+  const cumulativeChartData = useMemo(() => {
+    if (!data) return [];
+    return cumulativeSeriesWithOrigin(data.year, data.collectionsCumulativeByDay ?? []);
+  }, [data]);
 
   const chartData = useMemo(() => {
     const year = data?.year ?? new Date().getFullYear();
@@ -178,16 +197,22 @@ export function DashboardPage() {
             {isAdminDashboard ? (
               <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <TrendingUp size={16} className="text-blue-600" />
+                  <TrendingUp size={16} className="chart-section-icon text-blue-600" />
                   {t("dashboard:cumulativeCollections", { year: data.year })}
                 </div>
 
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={data.collectionsCumulativeByDay ?? []}
+                    <ComposedChart
+                      data={cumulativeChartData}
                       margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
                     >
+                      <defs>
+                        <linearGradient id="cumulativeAreaFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--chart-area-stop-top)" stopOpacity={1} />
+                          <stop offset="100%" stopColor="var(--chart-area-stop-bottom)" stopOpacity={1} />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis
                         dataKey="day"
@@ -195,20 +220,27 @@ export function DashboardPage() {
                         minTickGap={28}
                         tickFormatter={(v) => String(v).slice(5)}
                       />
-                      <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                      <YAxis allowDecimals={false} domain={[0, "auto"]} tick={{ fontSize: 12 }} />
                       <Tooltip
                         formatter={(value) => [`${value}`, t("dashboard:collectionsTooltip")]}
                         labelFormatter={(label) => t("dashboard:dateLabel", { date: label })}
                       />
+                      <Area
+                        type="monotone"
+                        dataKey="total"
+                        stroke="transparent"
+                        fill="url(#cumulativeAreaFill)"
+                        isAnimationActive={false}
+                      />
                       <Line
                         type="monotone"
                         dataKey="total"
-                        stroke="#2563eb"
+                        stroke="var(--chart-primary)"
                         strokeWidth={3}
                         dot={false}
-                        activeDot={{ r: 6 }}
+                        activeDot={{ r: 6, fill: "var(--chart-primary)" }}
                       />
-                    </LineChart>
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
               </section>
@@ -216,7 +248,7 @@ export function DashboardPage() {
 
             <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <BarChart3 size={16} className="text-blue-600" />
+                <BarChart3 size={16} className="chart-section-icon text-blue-600" />
                 {t("dashboard:monthlyCollections", { year: data.year })}
               </div>
 
@@ -227,7 +259,7 @@ export function DashboardPage() {
                     <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                     <Tooltip formatter={(value) => [`${value}`, t("dashboard:collectionsTooltip")]} />
-                    <Bar dataKey="coletas" fill="#2563eb" radius={[8, 8, 0, 0]} />
+                    <Bar dataKey="coletas" fill="var(--chart-primary)" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -262,7 +294,7 @@ export function DashboardPage() {
                         <XAxis dataKey="label" tick={{ fontSize: 12 }} interval={0} />
                         <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                         <Tooltip formatter={(value) => [`${value}`, t("dashboard:ivcfTooltip")]} />
-                        <Bar dataKey="value" fill="#0ea5e9" radius={[8, 8, 0, 0]} />
+                        <Bar dataKey="value" fill="var(--chart-secondary)" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

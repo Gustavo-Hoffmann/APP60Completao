@@ -123,7 +123,7 @@ export function TestUTTPage() {
                   dataKey="coletas"
                   radius={[6, 6, 0, 0]}
                   barSize={40}
-                  fill="#2563eb"
+                  fill="var(--chart-primary)"
                 />
               </BarChart>
             </ResponsiveContainer>

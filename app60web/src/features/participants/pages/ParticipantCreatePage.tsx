@@ -1,9 +1,9 @@
-import { ArrowLeft, CalendarDays, Loader2, MapPin, UserPlus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowLeft, CalendarDays, Loader2, MapPin, Trash2, UserPlus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import { ptBR } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -15,7 +15,7 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { countryLabel, getCountryOptions } from "../../../lib/isoCountries";
 import { cn } from "../../../lib/utils/cn";
 import { routes } from "../../../navigation/routes";
-import { createParticipant } from "../services/participants";
+import { createParticipant, deleteParticipant, getParticipantById } from "../services/participants";
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
@@ -75,11 +75,18 @@ async function fetchViaCep(cepDigits: string): Promise<ViaCepResponse> {
 export function ParticipantCreatePage() {
   const { t, i18n } = useTranslation("modules");
   const navigate = useNavigate();
+  const location = useLocation();
+  const { id: routeParticipantId } = useParams<{ id: string }>();
   const { user } = useAuth();
+
+  const isEdit = Boolean(routeParticipantId && location.pathname.endsWith("/edit"));
 
   const dateLocale = useMemo(() => (i18n.language?.startsWith("pt") ? ptBR : undefined), [i18n.language]);
 
   const canPersistParticipant = Boolean(user?.institution_id) && user?.role !== "SUPER_ADMIN";
+
+  const canDeleteParticipant =
+    Boolean(user?.institution_id) && (user?.role === "ADMIN" || user?.role === "GESTOR");
 
   const [fullName, setFullName] = useState("");
   const [nationality, setNationality] = useState("BR");
@@ -97,7 +104,61 @@ export function ParticipantCreatePage() {
 
   const [loadingCep, setLoadingCep] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [loadingParticipant, setLoadingParticipant] = useState(isEdit);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isEdit || !routeParticipantId) {
+      setLoadingParticipant(false);
+      return;
+    }
+
+    const participantId = routeParticipantId;
+    let cancelled = false;
+
+    async function load() {
+      setLoadingParticipant(true);
+      setError(null);
+      try {
+        const p = await getParticipantById(participantId);
+        if (cancelled) return;
+        if (!p) {
+          setError(t("participantEdit.loadFailed"));
+          setLoadingParticipant(false);
+          return;
+        }
+        setFullName(p.name);
+        const nat = String(p.nationality ?? "BR")
+          .trim()
+          .toUpperCase();
+        setNationality(nat);
+        const br = nat === "BR";
+        setIdentity(br ? formatCpf(p.cpf) : p.cpf);
+        if (p.dob) {
+          const d = new Date(p.dob);
+          if (!Number.isNaN(d.getTime())) setBirthDate(d);
+        }
+        setSex(p.sex === "Masculino" ? "M" : p.sex === "Feminino" ? "F" : "");
+        setCep(p.cep ?? "");
+        setStreet(p.street ?? "");
+        setNumber(p.number ?? "");
+        setComplement(p.complement ?? "");
+        setNeighborhood(p.neighborhood ?? "");
+        setCity(p.city ?? "");
+        setState(String(p.state ?? "").trim().toUpperCase());
+      } catch {
+        if (!cancelled) setError(t("participantEdit.loadFailed"));
+      } finally {
+        if (!cancelled) setLoadingParticipant(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, routeParticipantId, t]);
 
   const countryOptions = useMemo(() => {
     const lang = i18n.resolvedLanguage ?? i18n.language ?? "pt-BR";
@@ -170,6 +231,7 @@ export function ParticipantCreatePage() {
           ? cep.trim()
           : undefined;
       const payload = {
+        ...(isEdit && routeParticipantId ? { id: routeParticipantId } : {}),
         fullName: fullName.trim(),
         nationality: nationality.trim().toUpperCase(),
         identity: isBr ? onlyDigits(identity) : identity.normalize("NFKC").trim(),
@@ -193,18 +255,40 @@ export function ParticipantCreatePage() {
     }
   }
 
+  async function onDelete() {
+    if (!isEdit || !routeParticipantId) return;
+    if (!window.confirm(t("participantEdit.deleteConfirm"))) return;
+
+    try {
+      setDeleting(true);
+      setError(null);
+      await deleteParticipant(routeParticipantId);
+      navigate(routes.participants, { replace: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("participantEdit.deleteFailed"));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const backHref = isEdit && routeParticipantId ? routes.participantDetail(routeParticipantId) : routes.participants;
+  const backLabel = isEdit ? t("participantEdit.back") : t("participantCreate.back");
+
   return (
     <div className="min-h-screen bg-slate-100">
-      <AppHeader title={t("participantCreate.title")} subtitle={t("participantCreate.subtitle")} />
+      <AppHeader
+        title={isEdit ? t("participantEdit.title") : t("participantCreate.title")}
+        subtitle={isEdit ? t("participantEdit.subtitle") : t("participantCreate.subtitle")}
+      />
 
       <main className="space-y-6 px-6 py-8">
         <div>
           <Link
-            to={routes.participants}
+            to={backHref}
             className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900"
           >
             <ArrowLeft size={16} />
-            {t("participantCreate.back")}
+            {backLabel}
           </Link>
         </div>
 
@@ -222,6 +306,13 @@ export function ParticipantCreatePage() {
             </div>
           ) : null}
 
+          {loadingParticipant ? (
+            <div className="flex items-center justify-center gap-2 py-16 text-sm font-medium text-slate-600">
+              <Loader2 className="animate-spin" size={18} />
+              {t("participantEdit.loading")}
+            </div>
+          ) : (
+            <>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
@@ -394,10 +485,14 @@ export function ParticipantCreatePage() {
           </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-            <Button type="button" variant="secondary" onClick={() => navigate(routes.participants)}>
+            <Button type="button" variant="secondary" onClick={() => navigate(backHref)}>
               {t("participantCreate.cancel")}
             </Button>
-            <Button type="button" onClick={() => void onSubmit()} disabled={!canPersistParticipant || saving}>
+            <Button
+              type="button"
+              onClick={() => void onSubmit()}
+              disabled={!canPersistParticipant || saving || loadingParticipant}
+            >
               {saving ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="animate-spin" size={16} />
@@ -405,12 +500,38 @@ export function ParticipantCreatePage() {
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-2">
-                  <UserPlus size={16} />
-                  {t("participantCreate.save")}
+                  {isEdit ? null : <UserPlus size={16} />}
+                  {isEdit ? t("participantEdit.save") : t("participantCreate.save")}
                 </span>
               )}
             </Button>
           </div>
+
+          {isEdit && routeParticipantId && canDeleteParticipant ? (
+            <div className="mt-10 border-t border-slate-200 pt-8">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={deleting || loadingParticipant}
+                className="border-red-200 text-red-700 hover:bg-red-50"
+                onClick={() => void onDelete()}
+              >
+                {deleting ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="animate-spin" size={16} />
+                    {t("participantEdit.deleting")}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-2">
+                    <Trash2 size={16} />
+                    {t("participantEdit.delete")}
+                  </span>
+                )}
+              </Button>
+            </div>
+          ) : null}
+            </>
+          )}
         </Card>
       </main>
     </div>

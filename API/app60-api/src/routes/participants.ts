@@ -326,6 +326,16 @@ export function participantsRouter(pool: Pool) {
           res.status(404).json({ error: "Participante não encontrado." });
           return;
         }
+        const activeLink = await client.query(
+          `SELECT 1 FROM participant_institution_history
+           WHERE participant_id = $1 AND institution_id = $2 AND valid_to IS NULL`,
+          [pid, inst]
+        );
+        if (!activeLink.rows[0]) {
+          await client.query("ROLLBACK");
+          res.status(403).json({ error: "Participante não encontrado ou sem vínculo com sua instituição." });
+          return;
+        }
         const up = await client.query(
           `UPDATE participants SET
              full_name = $2, nationality = $3, cpf_normalized = $4, birth_date = $5, sex = $6,
@@ -455,12 +465,39 @@ export function participantsRouter(pool: Pool) {
 
   r.delete("/:id", async (req, res) => {
     const u = req.authUser as AuthedUser;
-    if (!isSuperAdmin(u)) {
-      res.status(403).json({ error: "Apenas super admin remove participante global." });
-      return;
-    }
+    const participantId = req.params.id;
     try {
-      await pool.query(`DELETE FROM participants WHERE id = $1`, [req.params.id]);
+      if (isSuperAdmin(u)) {
+        const del = await pool.query(`DELETE FROM participants WHERE id = $1`, [participantId]);
+        if (del.rowCount === 0) {
+          res.status(404).json({ error: "Participante não encontrado." });
+          return;
+        }
+        res.status(204).send();
+        return;
+      }
+
+      if (u.role !== "ADMIN" && u.role !== "GESTOR") {
+        res.status(403).json({ error: "Sem permissão para excluir participante." });
+        return;
+      }
+
+      const inst = institutionIdOrThrow(u);
+      const del = await pool.query(
+        `DELETE FROM participants p
+         WHERE p.id = $1
+           AND EXISTS (
+             SELECT 1 FROM participant_institution_history h
+             WHERE h.participant_id = p.id
+               AND h.institution_id = $2
+               AND h.valid_to IS NULL
+           )`,
+        [participantId, inst]
+      );
+      if (del.rowCount === 0) {
+        res.status(404).json({ error: "Participante não encontrado ou sem vínculo ativo com sua instituição." });
+        return;
+      }
       res.status(204).send();
     } catch (e) {
       console.error(e);

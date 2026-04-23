@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ClipboardList,
   Footprints,
+  Pencil,
   UserRound,
 } from "lucide-react";
 import {
@@ -26,12 +27,17 @@ import {
 
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { Card } from "../../../components/ui/Card";
+import { useAuth } from "../../../contexts/AuthContext";
 import { apiJson } from "../../../lib/api/client";
 import { routes } from "../../../navigation/routes";
+import type { Role } from "../../../types/auth";
 import type { IvcfSession, Participant, Sl30sSession, TwoMstSession } from "../../../types/participant";
 import { getParticipantById } from "../services/participants";
 
 type OpenedTest = "2MST" | "SL30S" | "IVCF20" | null;
+
+/** Mesmo conjunto de papéis que acessam a lista de participantes no router. */
+const PARTICIPANT_AREA_ROLES: Role[] = ["SUPER_ADMIN", "ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"];
 
 function formatDisplayValue(value?: string | number | null) {
   if (value === null || value === undefined || value === "") return "—";
@@ -671,6 +677,7 @@ function TestCard({
 
 export function ParticipantDetailPage() {
   const { t, i18n } = useTranslation("modules");
+  const { user } = useAuth();
   const { id = "" } = useParams();
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -907,7 +914,7 @@ export function ParticipantDetailPage() {
                       if (test === "2mst") setTwoMstMetricRange({ from: nextFrom, to: nextTo });
                       else setSl30sMetricRange({ from: nextFrom, to: nextTo });
                     }}
-                    className="absolute inset-x-0 top-1/2 h-1 w-full -translate-y-1/2 accent-blue-600"
+                    className="absolute inset-x-0 top-1/2 h-1 w-full -translate-y-1/2 accent-blue-600 dark:accent-blue-200"
                   />
                   <input
                     type="range"
@@ -923,7 +930,7 @@ export function ParticipantDetailPage() {
                       if (test === "2mst") setTwoMstMetricRange({ from: nextFrom, to: nextTo });
                       else setSl30sMetricRange({ from: nextFrom, to: nextTo });
                     }}
-                    className="absolute inset-x-0 top-1/2 h-1 w-full -translate-y-1/2 accent-blue-600"
+                    className="absolute inset-x-0 top-1/2 h-1 w-full -translate-y-1/2 accent-blue-600 dark:accent-blue-200"
                   />
                 </div>
 
@@ -1059,6 +1066,9 @@ export function ParticipantDetailPage() {
   const identityLabel =
     nat === "BR" ? t("participantDetail.fields.cpf") : t("participantDetail.fields.identity");
 
+  const canEditParticipant =
+    !isDemoParticipant && !!user && PARTICIPANT_AREA_ROLES.includes(user.role);
+
   return (
     <div className="min-h-screen bg-slate-100">
       <AppHeader
@@ -1074,13 +1084,25 @@ export function ParticipantDetailPage() {
 
       <main className="space-y-6 px-6 py-8">
         <section>
-          <Link
-            to={routes.participants}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900"
-          >
-            <ArrowLeft size={16} />
-            {t("participantDetail.backToParticipants")}
-          </Link>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Link
+              to={routes.participants}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900"
+            >
+              <ArrowLeft size={16} />
+              {t("participantDetail.backToParticipants")}
+            </Link>
+
+            {canEditParticipant ? (
+              <Link
+                to={routes.participantEdit(participant.id)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+              >
+                <Pencil size={14} className="text-slate-500" aria-hidden />
+                {t("participantDetail.editParticipant")}
+              </Link>
+            ) : null}
+          </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-black tracking-tight text-slate-900">{participant.name}</h1>
@@ -1305,9 +1327,9 @@ export function ParticipantDetailPage() {
                       <Line
                         type="monotone"
                         dataKey="repeticoes"
-                        stroke="#2563eb"
+                        stroke="var(--chart-primary)"
                         strokeWidth={3}
-                        dot={{ r: 4, fill: "#2563eb" }}
+                        dot={{ r: 4, fill: "var(--chart-primary)" }}
                         activeDot={{ r: 7 }}
                       />
                     </LineChart>
@@ -1343,7 +1365,7 @@ export function ParticipantDetailPage() {
                 data={filteredTwoMstSessionsForMetrics}
                 dataKey="tempoMedioCiclo"
                 unit="s"
-                color="#3b82f6"
+                color="var(--chart-tertiary)"
               />
               <TinyMetricChart
                 title={t("participantDetail.tests.2mst.metrics.cvCycleTime")}
@@ -1472,7 +1494,7 @@ export function ParticipantDetailPage() {
                           dot={{
                             r: 4,
                             fill: "#ffffff",
-                            stroke: "#2563eb",
+                            stroke: "var(--chart-primary)",
                             strokeWidth: 2,
                           }}
                         />
@@ -1609,9 +1631,9 @@ export function ParticipantDetailPage() {
                       <Line
                         type="monotone"
                         dataKey="repeticoes"
-                        stroke="#2563eb"
+                        stroke="var(--chart-primary)"
                         strokeWidth={3}
-                        dot={{ r: 4, fill: "#2563eb" }}
+                        dot={{ r: 4, fill: "var(--chart-primary)" }}
                         activeDot={{ r: 7 }}
                       />
                     </LineChart>
@@ -1647,7 +1669,7 @@ export function ParticipantDetailPage() {
                 data={filteredSl30sSessionsForMetrics}
                 dataKey="tempoMedioCiclo"
                 unit="s"
-                color="#3b82f6"
+                color="var(--chart-tertiary)"
               />
               <TinyMetricChart
                 title={t("participantDetail.tests.sl30s.metrics.meanStandTime")}
@@ -1668,7 +1690,7 @@ export function ParticipantDetailPage() {
                 data={filteredSl30sSessionsForMetrics}
                 dataKey="frequenciaMedia"
                 unit={t("participantDetail.units.hz")}
-                color="#0ea5e9"
+                color="var(--chart-secondary)"
               />
               <TinyMetricChart
                 title={t("participantDetail.tests.sl30s.metrics.cvCycleTime")}

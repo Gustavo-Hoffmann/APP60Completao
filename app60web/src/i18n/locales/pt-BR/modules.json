@@ -124,6 +124,18 @@
       "saveFailed": "Erro ao salvar participante."
     }
   },
+  "participantEdit": {
+    "loading": "Carregando…",
+    "title": "Editar participante",
+    "subtitle": "Atualize os dados e salve. O participante permanece vinculado à sua instituição.",
+    "back": "Voltar ao participante",
+    "save": "Salvar alterações",
+    "delete": "Excluir participante",
+    "deleteConfirm": "Excluir este participante? Esta ação não pode ser desfeita.",
+    "deleting": "Excluindo...",
+    "deleteFailed": "Não foi possível excluir o participante.",
+    "loadFailed": "Não foi possível carregar o participante."
+  },
   "participantDetail": {
     "headerTitle": "Participante",
     "loadingSubtitle": "Carregando dados do participante...",
@@ -136,6 +148,7 @@
     "subtitleWithTests": "Dados detalhados do participante e testes processados.",
     "subtitle": "Dados detalhados do participante.",
     "backToParticipants": "Voltar para participantes",
+    "editParticipant": "Editar participante",
     "exampleBadge": "Sujeito exemplo",
     "ageYears": "{{years}} anos",
     "fields": {

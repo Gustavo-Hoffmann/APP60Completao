@@ -73,7 +73,7 @@ export function Test2MSTPage() {
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
                 <Tooltip cursor={{ fill: "#f8fafc" }} contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }} />
-                <Bar dataKey="coletas" radius={[6, 6, 0, 0]} barSize={40} fill="#2563eb" />
+                <Bar dataKey="coletas" radius={[6, 6, 0, 0]} barSize={40} fill="var(--chart-primary)" />
               </BarChart>
             </ResponsiveContainer>
           </div>

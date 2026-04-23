@@ -249,9 +249,9 @@ export function TwoMstSection({ participant }: Props) {
                 <Line
                   type="monotone"
                   dataKey="repeticoes"
-                  stroke="#2563eb"
+                  stroke="var(--chart-primary)"
                   strokeWidth={3}
-                  dot={{ r: 4, fill: "#2563eb" }}
+                  dot={{ r: 4, fill: "var(--chart-primary)" }}
                   activeDot={{ r: 7 }}
                 />
               </LineChart>
@@ -287,7 +287,7 @@ export function TwoMstSection({ participant }: Props) {
           data={sessions}
           dataKey="tempoMedioCiclo"
           unit="s"
-          color="#3b82f6"
+          color="var(--chart-tertiary)"
         />
         <TinyMetricChart
           title="CV tempo ciclo"
@@ -413,7 +413,7 @@ export function TwoMstSection({ participant }: Props) {
                     dot={{
                       r: 4,
                       fill: "#ffffff",
-                      stroke: "#2563eb",
+                      stroke: "var(--chart-primary)",
                       strokeWidth: 2,
                     }}
                   />

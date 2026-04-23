@@ -4,6 +4,31 @@ import { canReadParticipants, canWriteParticipants, institutionIdOrThrow, isSupe
 function onlyDigits(s) {
     return s.replace(/\D/g, "");
 }
+function isValidCpfDigits(cpf) {
+    if (cpf.length !== 11)
+        return false;
+    if (/^(\d)\1{10}$/.test(cpf))
+        return false;
+    const calcCheck = (base, factorStart) => {
+        let sum = 0;
+        for (let i = 0; i < base.length; i += 1) {
+            sum += Number(base[i]) * (factorStart - i);
+        }
+        const mod = (sum * 10) % 11;
+        return mod === 10 ? 0 : mod;
+    };
+    const d9 = calcCheck(cpf.slice(0, 9), 10);
+    const d10 = calcCheck(cpf.slice(0, 10), 11);
+    return d9 === Number(cpf[9]) && d10 === Number(cpf[10]);
+}
+function normalizeIdentityInternational(raw) {
+    const s = raw.normalize("NFKC").trim().replace(/\s+/g, " ");
+    if (!s.length)
+        return "";
+    if (s.length > 80)
+        return s.slice(0, 80);
+    return s;
+}
 function collectionVisibilityClause(u, alias = "c", baseIdx = 2) {
     if (isSuperAdmin(u)) {
         return { sql: "TRUE", params: [] };
@@ -83,16 +108,19 @@ export function participantsRouter(pool) {
         try {
             let rows;
             if (isSuperAdmin(u)) {
-                const q = await pool.query(`SELECT p.id, p.cpf_normalized AS cpf, p.full_name, p.birth_date, p.sex,
-                  p.city, p.state, p.created_at, p.updated_at
+                const q = await pool.query(`SELECT p.id, p.nationality, p.cpf_normalized AS cpf, p.full_name, p.birth_date, p.sex,
+                  p.cep, p.street, p.number, p.neighborhood, p.city, p.state, p.complement,
+                  p.created_at, p.updated_at
            FROM participants p
            ORDER BY p.full_name ASC`);
                 rows = q.rows;
             }
             else {
                 const inst = institutionIdOrThrow(u);
-                const q = await pool.query(`SELECT DISTINCT p.id, p.cpf_normalized AS cpf, p.full_name, p.birth_date, p.sex,
-                  p.city, p.state, p.created_at, p.updated_at
+                const q = await pool.query(`SELECT DISTINCT p.id, p.nationality, p.cpf_normalized AS cpf, p.full_name, p.birth_date, p.sex,
+                  p.cep, p.street, p.number, p.neighborhood, p.city, p.state, p.complement,
+                  p.created_at, p.updated_at,
+                  h.requested_by_user_id AS created_by_user_id
            FROM participants p
            JOIN participant_institution_history h ON h.participant_id = p.id
            WHERE h.institution_id = $1 AND h.valid_to IS NULL
@@ -134,14 +162,18 @@ export function participantsRouter(pool) {
                 res.status(404).json({ error: "Não encontrado." });
                 return;
             }
+            let createdByUserId = null;
             if (!isSuperAdmin(u)) {
                 const inst = institutionIdOrThrow(u);
-                const link = await pool.query(`SELECT 1 FROM participant_institution_history
-           WHERE participant_id = $1 AND institution_id = $2 AND valid_to IS NULL`, [id, inst]);
+                const link = await pool.query(`SELECT requested_by_user_id
+           FROM participant_institution_history
+           WHERE participant_id = $1 AND institution_id = $2 AND valid_to IS NULL
+           LIMIT 1`, [id, inst]);
                 if (!link.rows[0]) {
                     res.status(404).json({ error: "Não encontrado." });
                     return;
                 }
+                createdByUserId = link.rows[0].requested_by_user_id ?? null;
             }
             const vis = collectionVisibilityClause(u, "c", 2);
             const rsql = await pool.query(`SELECT c.participant_id, c.test_type::text AS test_type, c.session_number,
@@ -155,14 +187,22 @@ export function participantsRouter(pool) {
             res.json({
                 participant: {
                     id: part.id,
+                    nationality: part.nationality ?? "BR",
                     cpf: part.cpf_normalized,
+                    identity: part.cpf_normalized,
                     full_name: part.full_name,
                     birth_date: part.birth_date,
                     sex: part.sex,
+                    cep: part.cep,
+                    street: part.street,
+                    number: part.number,
+                    neighborhood: part.neighborhood,
                     city: part.city,
                     state: part.state,
+                    complement: part.complement,
                     created_at: part.created_at,
                     updated_at: part.updated_at,
+                    created_by_user_id: createdByUserId,
                 },
                 results: rsql.rows,
             });
@@ -172,10 +212,14 @@ export function participantsRouter(pool) {
             res.status(500).json({ error: "Erro ao carregar participante." });
         }
     });
-    const upsertSchema = z.object({
+    const upsertSchema = z
+        .object({
         id: z.string().uuid().optional(),
         fullName: z.string().min(1),
-        cpf: z.string().min(11),
+        nationality: z.string().length(2),
+        identity: z.string().optional(),
+        /** @deprecated usar identity */
+        cpf: z.string().optional(),
         birthDate: z.string().optional(),
         sex: z.string().optional(),
         city: z.string().optional(),
@@ -185,6 +229,16 @@ export function participantsRouter(pool) {
         number: z.string().optional(),
         neighborhood: z.string().optional(),
         complement: z.string().optional(),
+    })
+        .superRefine((val, ctx) => {
+        const doc = (val.identity ?? val.cpf ?? "").trim();
+        if (!doc) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "identity_required",
+                path: ["identity"],
+            });
+        }
     });
     r.post("/", async (req, res) => {
         const u = req.authUser;
@@ -198,10 +252,28 @@ export function participantsRouter(pool) {
             return;
         }
         const b = parsed.data;
-        const cpf = onlyDigits(b.cpf);
-        if (cpf.length !== 11) {
-            res.status(400).json({ error: "CPF inválido." });
+        const nationality = String(b.nationality || "").trim().toUpperCase();
+        if (!/^[A-Z]{2}$/.test(nationality)) {
+            res.status(400).json({ error: "Nacionalidade inválida (use código ISO, ex.: BR, PT)." });
             return;
+        }
+        const docRaw = String(b.identity ?? b.cpf ?? "").trim();
+        let identityStored;
+        if (nationality === "BR") {
+            const cpf = onlyDigits(docRaw);
+            if (!isValidCpfDigits(cpf)) {
+                res.status(400).json({ error: "CPF inválido." });
+                return;
+            }
+            identityStored = cpf;
+        }
+        else {
+            const idNorm = normalizeIdentityInternational(docRaw);
+            if (idNorm.length < 3) {
+                res.status(400).json({ error: "Documento de identidade inválido." });
+                return;
+            }
+            identityStored = idNorm;
         }
         const inst = isSuperAdmin(u) ? null : institutionIdOrThrow(u);
         if (isSuperAdmin(u)) {
@@ -220,17 +292,25 @@ export function participantsRouter(pool) {
                     res.status(404).json({ error: "Participante não encontrado." });
                     return;
                 }
+                const activeLink = await client.query(`SELECT 1 FROM participant_institution_history
+           WHERE participant_id = $1 AND institution_id = $2 AND valid_to IS NULL`, [pid, inst]);
+                if (!activeLink.rows[0]) {
+                    await client.query("ROLLBACK");
+                    res.status(403).json({ error: "Participante não encontrado ou sem vínculo com sua instituição." });
+                    return;
+                }
                 const up = await client.query(`UPDATE participants SET
-             full_name = $2, cpf_normalized = $3, birth_date = $4, sex = $5,
-             cep = $6, street = $7, number = $8, neighborhood = $9, city = $10, state = $11, complement = $12
+             full_name = $2, nationality = $3, cpf_normalized = $4, birth_date = $5, sex = $6,
+             cep = $7, street = $8, number = $9, neighborhood = $10, city = $11, state = $12, complement = $13
            WHERE id = $1
            RETURNING *`, [
                     pid,
                     b.fullName.trim(),
-                    cpf,
+                    nationality,
+                    identityStored,
                     b.birthDate || null,
                     b.sex ?? null,
-                    b.cep ? onlyDigits(b.cep) : null,
+                    nationality === "BR" && b.cep ? onlyDigits(b.cep) : (b.cep?.trim() || null),
                     b.street?.trim() || null,
                     b.number?.trim() || null,
                     b.neighborhood?.trim() || null,
@@ -241,19 +321,24 @@ export function participantsRouter(pool) {
                 row = up.rows[0];
             }
             else {
-                const existing = await client.query(`SELECT id FROM participants WHERE cpf_normalized = $1`, [cpf]);
-                if (existing.rows[0]) {
-                    pid = existing.rows[0].id;
+                let existingId = null;
+                if (nationality === "BR") {
+                    const existing = await client.query(`SELECT id FROM participants WHERE nationality = 'BR' AND cpf_normalized = $1`, [identityStored]);
+                    existingId = existing.rows[0]?.id ?? null;
+                }
+                if (existingId) {
+                    pid = existingId;
                     const up = await client.query(`UPDATE participants SET
-               full_name = $2, birth_date = $3, sex = $4,
-               cep = $5, street = $6, number = $7, neighborhood = $8, city = $9, state = $10, complement = $11
+               full_name = $2, nationality = $3, birth_date = $4, sex = $5,
+               cep = $6, street = $7, number = $8, neighborhood = $9, city = $10, state = $11, complement = $12
              WHERE id = $1
              RETURNING *`, [
                         pid,
                         b.fullName.trim(),
+                        nationality,
                         b.birthDate || null,
                         b.sex ?? null,
-                        b.cep ? onlyDigits(b.cep) : null,
+                        nationality === "BR" && b.cep ? onlyDigits(b.cep) : (b.cep?.trim() || null),
                         b.street?.trim() || null,
                         b.number?.trim() || null,
                         b.neighborhood?.trim() || null,
@@ -265,15 +350,16 @@ export function participantsRouter(pool) {
                 }
                 else {
                     const ins = await client.query(`INSERT INTO participants (
-               cpf_normalized, full_name, birth_date, sex,
+               nationality, cpf_normalized, full_name, birth_date, sex,
                cep, street, number, neighborhood, city, state, complement
-             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
              RETURNING *`, [
-                        cpf,
+                        nationality,
+                        identityStored,
                         b.fullName.trim(),
                         b.birthDate || null,
                         b.sex ?? null,
-                        b.cep ? onlyDigits(b.cep) : null,
+                        nationality === "BR" && b.cep ? onlyDigits(b.cep) : (b.cep?.trim() || null),
                         b.street?.trim() || null,
                         b.number?.trim() || null,
                         b.neighborhood?.trim() || null,
@@ -295,12 +381,19 @@ export function participantsRouter(pool) {
             await client.query("COMMIT");
             res.status(201).json({
                 id: row.id,
-                cpf: row.cpf_normalized,
+                nationality: row.nationality ?? nationality,
+                cpf: row.nationality === "BR" ? row.cpf_normalized : null,
+                identity: row.cpf_normalized,
                 full_name: row.full_name,
                 birth_date: row.birth_date,
                 sex: row.sex,
+                cep: row.cep,
+                street: row.street,
+                number: row.number,
+                neighborhood: row.neighborhood,
                 city: row.city,
                 state: row.state,
+                complement: row.complement,
                 created_at: row.created_at,
                 updated_at: row.updated_at,
             });
@@ -318,12 +411,34 @@ export function participantsRouter(pool) {
     });
     r.delete("/:id", async (req, res) => {
         const u = req.authUser;
-        if (!isSuperAdmin(u)) {
-            res.status(403).json({ error: "Apenas super admin remove participante global." });
-            return;
-        }
+        const participantId = req.params.id;
         try {
-            await pool.query(`DELETE FROM participants WHERE id = $1`, [req.params.id]);
+            if (isSuperAdmin(u)) {
+                const del = await pool.query(`DELETE FROM participants WHERE id = $1`, [participantId]);
+                if (del.rowCount === 0) {
+                    res.status(404).json({ error: "Participante não encontrado." });
+                    return;
+                }
+                res.status(204).send();
+                return;
+            }
+            if (u.role !== "ADMIN" && u.role !== "GESTOR") {
+                res.status(403).json({ error: "Sem permissão para excluir participante." });
+                return;
+            }
+            const inst = institutionIdOrThrow(u);
+            const del = await pool.query(`DELETE FROM participants p
+         WHERE p.id = $1
+           AND EXISTS (
+             SELECT 1 FROM participant_institution_history h
+             WHERE h.participant_id = p.id
+               AND h.institution_id = $2
+               AND h.valid_to IS NULL
+           )`, [participantId, inst]);
+            if (del.rowCount === 0) {
+                res.status(404).json({ error: "Participante não encontrado ou sem vínculo ativo com sua instituição." });
+                return;
+            }
             res.status(204).send();
         }
         catch (e) {

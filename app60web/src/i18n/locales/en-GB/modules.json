@@ -124,6 +124,18 @@
       "saveFailed": "Failed to save participant."
     }
   },
+  "participantEdit": {
+    "loading": "Loading…",
+    "title": "Edit participant",
+    "subtitle": "Update the details and save. The participant stays linked to your institution.",
+    "back": "Back to participant",
+    "save": "Save changes",
+    "delete": "Delete participant",
+    "deleteConfirm": "Delete this participant? This cannot be undone.",
+    "deleting": "Deleting...",
+    "deleteFailed": "Could not delete the participant.",
+    "loadFailed": "Could not load the participant."
+  },
   "participantDetail": {
     "headerTitle": "Participant",
     "loadingSubtitle": "Loading participant details...",
@@ -136,6 +148,7 @@
     "subtitleWithTests": "Detailed participant data and processed tests.",
     "subtitle": "Detailed participant data.",
     "backToParticipants": "Back to participants",
+    "editParticipant": "Edit participant",
     "exampleBadge": "Example subject",
     "ageYears": "{{years}} years",
     "fields": {

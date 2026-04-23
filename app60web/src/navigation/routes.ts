@@ -8,6 +8,7 @@ export const routes = {
   participants: "/participants",
   participantCreate: "/participants/new",
   participantDetail: (id: string) => `/participants/${id}`,
+  participantEdit: (id: string) => `/participants/${id}/edit`,
   questionnaires: "/questionnaires",
   tests: "/tests",
   test2mst: "/tests/2mst",

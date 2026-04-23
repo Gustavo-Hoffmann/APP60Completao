@@ -7,6 +7,21 @@
     sans-serif;
   color: #0f172a;
   background: #f8fafc;
+
+  /* Recharts / SVG: linhas e barras (claro = azul escuro; noturno = azul quase branco) */
+  --chart-primary: #2563eb;
+  --chart-secondary: #0ea5e9;
+  --chart-tertiary: #3b82f6;
+  --chart-area-stop-top: rgba(147, 197, 253, 0.55);
+  --chart-area-stop-bottom: rgba(219, 234, 254, 0.25);
+}
+
+html.dark {
+  --chart-primary: #e8f4ff;
+  --chart-secondary: #dbeafe;
+  --chart-tertiary: #e0f2fe;
+  --chart-area-stop-top: rgba(224, 242, 254, 0.4);
+  --chart-area-stop-bottom: rgba(248, 250, 252, 0.08);
 }
 
 html,
@@ -165,4 +180,9 @@ html.dark .app-content .recharts-tooltip-label {
 
 html.dark .app-content .recharts-cartesian-grid line {
   stroke: rgba(148, 163, 184, 0.34) !important;
+}
+
+/* Ícones ao lado de títulos de gráficos (evita azul escuro no noturno) */
+html.dark .app-content .chart-section-icon {
+  color: #dbeafe !important;
 }

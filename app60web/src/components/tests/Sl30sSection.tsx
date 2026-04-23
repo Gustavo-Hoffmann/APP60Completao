@@ -532,14 +532,14 @@ export function Sl30sSection({ participant }: Props) {
           data={sessions}
           dataKey="trabalhoTotal"
           unit="J"
-          color="#2563eb"
+          color="var(--chart-primary)"
         />
         <TinyMetricChart
           title="Trabalho por repetição"
           data={sessions}
           dataKey="trabalhoPorRep"
           unit="J"
-          color="#0ea5e9"
+          color="var(--chart-secondary)"
         />
         <TinyMetricChart
           title="Tempo médio ciclo"

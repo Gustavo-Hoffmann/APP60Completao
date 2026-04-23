@@ -146,7 +146,7 @@ export function InstitutionsPage() {
 
         <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <BarChart3 size={16} className="text-blue-600" />
+            <BarChart3 size={16} className="chart-section-icon text-blue-600" />
             {t("institutions.chartTitle")}
           </div>
 
@@ -180,7 +180,7 @@ export function InstitutionsPage() {
                           formatter={(value) => [`${value}`, t("institutions.collectionsLabel")]}
                           labelFormatter={(label) => t("institutions.institutionLabel", { label })}
                         />
-                        <Bar dataKey="collections_count" fill="#2563eb" radius={[8, 8, 0, 0]} />
+                        <Bar dataKey="collections_count" fill="var(--chart-primary)" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

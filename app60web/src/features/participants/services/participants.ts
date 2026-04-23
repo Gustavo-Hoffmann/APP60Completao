@@ -1,4 +1,4 @@
-import { apiJson } from "../../../lib/api/client";
+import { apiFetch, apiJson } from "../../../lib/api/client";
 import type {
   IvcfClassification,
   IvcfSession,
@@ -21,8 +21,13 @@ type ParticipantRow = {
   cpf: string | null;
   birth_date: string | null;
   sex: string | null;
+  cep?: string | null;
+  street?: string | null;
+  number?: string | null;
+  neighborhood?: string | null;
   city: string | null;
   state: string | null;
+  complement?: string | null;
   created_at: string;
   updated_at: string;
   created_by_user_id?: string | null;
@@ -161,6 +166,20 @@ function formatCpf(value?: string | null) {
     .replace(/^(\d{3})(\d)/, "$1.$2")
     .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
     .replace(/\.(\d{3})(\d)/, ".$1-$2");
+}
+
+function formatCepFromStored(value?: string | null, nationality?: string) {
+  const nat = String(nationality ?? "BR")
+    .trim()
+    .toUpperCase();
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (nat !== "BR") return raw;
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  const a = digits.slice(0, 5);
+  const b = digits.slice(5, 8);
+  if (digits.length <= 5) return a;
+  return `${a}-${b}`;
 }
 
 function normalizeSex(value?: string | null): Participant["sex"] {
@@ -327,6 +346,11 @@ function mapParticipant(row: ParticipantRow): Participant {
     dob: row.birth_date ?? undefined,
     city: row.city ?? undefined,
     state: row.state ?? undefined,
+    cep: row.cep ? formatCepFromStored(row.cep, nat) : undefined,
+    street: row.street ?? undefined,
+    number: row.number ?? undefined,
+    neighborhood: row.neighborhood ?? undefined,
+    complement: row.complement ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     createdByUserId: row.created_by_user_id ?? undefined,
@@ -662,6 +686,7 @@ export async function getParticipantById(id: string): Promise<Participant | null
 }
 
 export type CreateParticipantPayload = {
+  id?: string;
   fullName: string;
   nationality: string;
   identity: string;
@@ -681,4 +706,21 @@ export async function createParticipant(payload: CreateParticipantPayload): Prom
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function deleteParticipant(id: string): Promise<void> {
+  const res = await apiFetch(`/api/participants/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `HTTP ${res.status}`;
+    if (text) {
+      try {
+        const data = JSON.parse(text) as { error?: string };
+        if (typeof data?.error === "string") msg = data.error;
+      } catch {
+        // ignore
+      }
+    }
+    throw new Error(msg);
+  }
 }
