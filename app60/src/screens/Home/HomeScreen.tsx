@@ -10,12 +10,14 @@ import {
   Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Screen, T } from "../../components/Themed";
 import { ThemedButton } from "../../components/ThemedButton";
 import { useAuth } from "../../contexts/AuthContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { Routes } from "../../navigation/routes";
 import type { Role } from "../../models/auth";
+import { getGuestParticipant } from "../../services/participants";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -32,14 +34,6 @@ type CarouselItem = {
   nextRoute?: string;
   isQuestionnaire?: boolean;
   image: any;
-};
-
-const ROLE_LABEL: Record<Role, string> = {
-  SUPER_ADMIN: "Super Admin",
-  ADMIN: "Administrador",
-  GESTOR: "Gestor",
-  SUPERVISOR: "Supervisor",
-  AVALIADOR: "Avaliador / Pesquisador",
 };
 
 const baseItems: CarouselItem[] = [
@@ -101,8 +95,9 @@ function buildInfiniteData(items: CarouselItem[], copies = 3) {
 }
 
 export function HomeScreen({ navigation }: any) {
-  const { user } = useAuth();
+  const { user, isGuest, logout } = useAuth();
   const { theme, toggle } = useTheme();
+  const { t } = useTranslation(["home", "common"]);
 
   const flatListRef = useRef<FlatList<CarouselItem>>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -111,7 +106,8 @@ export function HomeScreen({ navigation }: any) {
   const [currentIndex, setCurrentIndex] = useState(baseItems.length);
 
   const isDark = theme.mode === "dark";
-  const firstName = user?.name?.split(" ")[0] ?? "Usuário";
+  const firstName = user?.name?.split(" ")[0] ?? t("common:status.userFallback");
+  const roleLabel = user?.role ? t(`home:roles.${user.role as Role}`) : "-";
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -130,9 +126,19 @@ export function HomeScreen({ navigation }: any) {
       return;
     }
 
+    if (isGuest) {
+      const guestParticipant = getGuestParticipant();
+      navigation.navigate(item.nextRoute as string, {
+        participant: guestParticipant,
+        participantId: guestParticipant.id,
+        testKey: item.testKey,
+      });
+      return;
+    }
+
     navigation.navigate(Routes.ParticipantPick, {
       nextRoute: item.nextRoute,
-      testTitle: item.title,
+      testTitle: t(`home:cards.${item.testKey}`, { defaultValue: item.title }),
       testKey: item.testKey,
     });
   };
@@ -140,7 +146,7 @@ export function HomeScreen({ navigation }: any) {
   const openEditParticipant = () => {
     navigation.navigate(Routes.ParticipantPick, {
       nextRoute: Routes.ParticipantForm,
-      testTitle: "Editar participante",
+        testTitle: t("home:actions.editParticipant"),
       testKey: "edit_participant",
       nextParams: { mode: "edit" },
     });
@@ -212,7 +218,7 @@ export function HomeScreen({ navigation }: any) {
                 marginBottom: 2,
               }}
             >
-              Bem-vindo
+              {isGuest ? t("home:welcome.guestGreeting") : t("home:welcome.userGreeting")}
             </T>
 
             <T
@@ -224,19 +230,33 @@ export function HomeScreen({ navigation }: any) {
                 letterSpacing: -0.8,
               }}
             >
-              {firstName}
+              {isGuest ? t("common:status.guest") : firstName}
             </T>
 
-            <T
-              style={{
-                marginTop: 4,
-                fontSize: 14,
-                color: theme.colors.muted,
-                fontWeight: "700",
-              }}
-            >
-              Perfil: {user?.role ? ROLE_LABEL[user.role] : "-"}
-            </T>
+            {isGuest ? (
+              <T
+                style={{
+                  marginTop: 4,
+                  fontSize: 13,
+                  color: theme.colors.muted,
+                  fontWeight: "700",
+                  fontStyle: "italic",
+                }}
+              >
+                {t("home:welcome.guestModeHint")}
+              </T>
+            ) : (
+              <T
+                style={{
+                  marginTop: 4,
+                  fontSize: 14,
+                  color: theme.colors.muted,
+                  fontWeight: "700",
+                }}
+              >
+                {t("home:welcome.profile", { role: roleLabel })}
+              </T>
+            )}
           </View>
 
           <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -267,7 +287,16 @@ export function HomeScreen({ navigation }: any) {
             </Pressable>
 
             <Pressable
-              onPress={() => navigation.navigate(Routes.Settings)}
+              onPress={() => {
+                if (isGuest) {
+                  void logout();
+                } else {
+                  navigation.navigate(Routes.Settings);
+                }
+              }}
+              accessibilityLabel={
+                isGuest ? t("home:actions.exitGuestMode") : t("home:actions.openSettings")
+              }
               style={{
                 width: 50,
                 height: 50,
@@ -284,7 +313,11 @@ export function HomeScreen({ navigation }: any) {
                 elevation: 3,
               }}
             >
-              <Ionicons name="settings-outline" size={22} color={theme.colors.text} />
+              <Ionicons
+                name={isGuest ? "log-out-outline" : "settings-outline"}
+                size={22}
+                color={theme.colors.text}
+              />
             </Pressable>
           </View>
         </View>
@@ -410,7 +443,7 @@ export function HomeScreen({ navigation }: any) {
                                 fontWeight: "900",
                               }}
                             >
-                              {item.title}
+                              {t(`home:cards.${item.testKey}`, { defaultValue: item.title })}
                             </T>
                           </View>
                         </ImageBackground>
@@ -448,17 +481,19 @@ export function HomeScreen({ navigation }: any) {
           </View>
         </View>
 
-        <View style={{ gap: 10, paddingBottom: 8 }}>
-          <ThemedButton
-            title="Cadastrar participante"
-            onPress={() => navigation.navigate(Routes.ParticipantForm, { mode: "create" })}
-          />
-          <ThemedButton
-            title="Editar participante"
-            variant="secondary"
-            onPress={openEditParticipant}
-          />
-        </View>
+        {!isGuest && (
+          <View style={{ gap: 10, paddingBottom: 8 }}>
+            <ThemedButton
+              title={t("home:actions.registerParticipant")}
+              onPress={() => navigation.navigate(Routes.ParticipantForm, { mode: "create" })}
+            />
+            <ThemedButton
+              title={t("home:actions.editParticipant")}
+              variant="secondary"
+              onPress={openEditParticipant}
+            />
+          </View>
+        )}
       </View>
     </Screen>
   );

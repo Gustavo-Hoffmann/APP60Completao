@@ -6,6 +6,7 @@ import {
   Theme as NavigationTheme,
 } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 import { Routes } from "./routes";
@@ -37,7 +38,8 @@ const Stack = createStackNavigator();
 
 export function NavigationRoot() {
   const { theme } = useTheme();
-  const { user, loading } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+  const { t } = useTranslation("navigation");
 
   if (loading) return null;
 
@@ -73,7 +75,7 @@ export function NavigationRoot() {
           },
         }}
       >
-        {!user ? (
+        {!isAuthenticated ? (
           <Stack.Screen
             name={Routes.Login}
             component={LoginScreen}
@@ -90,89 +92,89 @@ export function NavigationRoot() {
             <Stack.Screen
               name={Routes.Settings}
               component={SettingsScreen}
-              options={{ title: "Configurações" }}
+              options={{ title: t("titles.settings") }}
             />
 
             <Stack.Screen
               name={Routes.QuestionnaireHub}
               component={QuestionnaireHubScreen}
-              options={{ title: "Questionários" }}
+              options={{ title: t("titles.questionnaires") }}
             />
             <Stack.Screen
               name={Routes.IVCF20}
               component={IVCF20Screen}
-              options={{ title: "IVCF-20" }}
+              options={{ title: t("titles.ivcf20") }}
             />
             <Stack.Screen
               name={Routes.IVCF20Result}
               component={IVCF20ResultScreen}
-              options={{ title: "Resultado IVCF-20" }}
+              options={{ title: t("titles.ivcf20Result") }}
             />
 
             <Stack.Screen
               name={Routes.ParticipantForm}
               component={ParticipantFormScreen}
-              options={{ title: "Participante" }}
+              options={{ title: t("titles.participant") }}
             />
             <Stack.Screen
               name={Routes.ParticipantPick}
               component={ParticipantPickScreen}
-              options={{ title: "Selecionar participante" }}
+              options={{ title: t("titles.pickParticipant") }}
             />
 
             <Stack.Screen
               name={Routes.Test_SentarLevantar}
               component={SentarLevantar}
-              options={{ title: "Sentar e levantar" }}
+              options={{ title: t("titles.testSl") }}
             />
             <Stack.Screen
               name={Routes.Test_SentarLevantar_Result}
               component={SentarLevantarResultScreen}
-              options={{ title: "Resultado Sentar e levantar" }}
+              options={{ title: t("titles.testSlResult") }}
             />
 
             <Stack.Screen
               name={Routes.Test_ElevacaoCalcanhares}
               component={ElevacaoCalcanhares}
-              options={{ title: "Elevação de calcanhares" }}
+              options={{ title: t("titles.testEc") }}
             />
             <Stack.Screen
               name={Routes.Test_ElevacaoCalcanhares_Result}
               component={ElevacaoCalcanharesResultScreen}
-              options={{ title: "Resultado Elevação de calcanhares" }}
+              options={{ title: t("titles.testEcResult") }}
             />
 
             <Stack.Screen
               name={Routes.Test_LimiteEstabilidade}
               component={LimiteEstabilidade}
-              options={{ title: "Limite de estabilidade" }}
+              options={{ title: t("titles.testLe") }}
             />
             <Stack.Screen
               name={Routes.Test_LimiteEstabilidade_Result}
               component={LimiteEstabilidadeResultScreen}
-              options={{ title: "Resultado Limite de estabilidade" }}
+              options={{ title: t("titles.testLeResult") }}
             />
 
             <Stack.Screen
               name={Routes.Test_MarchaEstacionaria}
               component={MarchaEstacionaria}
-              options={{ title: "Marcha estacionária" }}
+              options={{ title: t("titles.testMe") }}
             />
             <Stack.Screen
               name={Routes.Test_MarchaEstacionaria_Result}
               component={MarchaEstacionariaResultScreen}
-              options={{ title: "Resultado Marcha estacionária" }}
+              options={{ title: t("titles.testMeResult") }}
             />
 
             <Stack.Screen
               name={Routes.Test_TUG}
               component={TUG}
-              options={{ title: "TUG" }}
+              options={{ title: t("titles.testTug") }}
             />
             <Stack.Screen
               name={Routes.Test_TUG_Result}
               component={TUGResultScreen}
-              options={{ title: "Resultado TUG" }}
+              options={{ title: t("titles.testTugResult") }}
             />
           </>
         )}

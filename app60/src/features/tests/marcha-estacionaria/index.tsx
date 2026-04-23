@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Alert, BackHandler, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import * as Speech from "expo-speech";
+import { useTranslation } from "react-i18next";
 
 import { Screen, T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
 import { imuStart, imuStop, NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import type { Participant } from "../../../models/types";
 import { Routes } from "../../../navigation/routes";
+import { speakText, stopSpeech } from "../../../services/speech";
 import {
   getNextSessionNumber,
   saveMarchaJsonToCache,
@@ -18,41 +19,6 @@ type Phase = "idle" | "countdown" | "running" | "finished";
 const SAMPLE_HZ = 60;
 const RECORD_MS = 124_000;
 
-async function speak(text: string) {
-  try {
-    const SpeechModule: any = Speech as any;
-
-    if (!SpeechModule || typeof SpeechModule.speak !== "function") {
-      console.warn("expo-speech não disponível; seguindo sem voz.");
-      return;
-    }
-
-    await new Promise<void>((resolve) => {
-      Speech.speak(text, {
-        language: "pt-BR",
-        rate: 0.92,
-        pitch: 1.0,
-        onDone: () => resolve(),
-        onStopped: () => resolve(),
-        onError: () => resolve(),
-      });
-    });
-  } catch (e) {
-    console.warn("Falha no speech; seguindo sem voz.", e);
-  }
-}
-
-function stopSpeechSafely() {
-  try {
-    const SpeechModule: any = Speech as any;
-    if (SpeechModule && typeof SpeechModule.stop === "function") {
-      Speech.stop();
-    }
-  } catch (e) {
-    console.warn("Falha ao parar speech.", e);
-  }
-}
-
 function fmtMs(ms: number) {
   const sec = Math.max(0, Math.ceil(ms / 1000));
   const m = Math.floor(sec / 60);
@@ -61,12 +27,13 @@ function fmtMs(ms: number) {
 }
 
 export default function MarchaEstacionaria() {
+  const { t } = useTranslation(["tests", "errors"]);
   const nav = useNavigation<any>();
   const route = useRoute<any>();
   const participant = route.params?.participant as Participant | undefined;
 
   const [phase, setPhase] = useState<Phase>("idle");
-  const [statusText, setStatusText] = useState("Pronto para iniciar");
+  const [statusText, setStatusText] = useState(t("tests:common.ready"));
   const [countdownText, setCountdownText] = useState("");
   const [result, setResult] = useState<NativeImuStopResult | null>(null);
   const [jsonUri, setJsonUri] = useState<string | null>(null);
@@ -83,7 +50,7 @@ export default function MarchaEstacionaria() {
     if (!participant) {
       nav.replace(Routes.ParticipantPick, {
         nextRoute: Routes.Test_MarchaEstacionaria,
-        testTitle: "Marcha estacionária",
+        testTitle: t("tests:marchaEstacionaria.title"),
         testKey: "marcha_estacionaria",
       });
     }
@@ -160,14 +127,14 @@ export default function MarchaEstacionaria() {
 
         if (!recordingStarted) {
           setPhase("idle");
-          setStatusText("Teste cancelado antes da coleta");
+          setStatusText(t("tests:common.cancelledBeforeStart"));
           setCountdownText("");
           return;
         }
 
         const r = await imuStop();
         if (!participant) {
-          throw new Error("Participante ausente no fim da coleta.");
+          throw new Error(t("errors:titles.error"));
         }
 
         const nextSession = await getNextSessionNumber(String(participant.id), "MARCHA");
@@ -181,22 +148,22 @@ export default function MarchaEstacionaria() {
         setCountdownText("");
 
         if (reason === "auto") {
-          setStatusText("Teste finalizado");
-          await speak("Teste finalizado");
+          setStatusText(t("tests:common.finished"));
+          await speakText(t("tests:common.speech.finished"));
         } else {
-          setStatusText("Teste interrompido");
-          await speak("Teste interrompido");
+          setStatusText(t("tests:common.stopped"));
+          await speakText(t("tests:common.speech.stopped"));
         }
       } catch (e: any) {
         setPhase("idle");
         setRecordingStarted(false);
         setCountdownText("");
         stopRunTimer();
-        setStatusText("Falha ao finalizar");
-        Alert.alert("Erro", e?.message ?? "Falha ao finalizar o teste.");
+        setStatusText(t("tests:common.failedToFinish"));
+        Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToFinish"));
       }
     },
-    [participant, recordingStarted]
+    [participant, recordingStarted, t]
   );
 
   const startTest = useCallback(async () => {
@@ -210,23 +177,23 @@ export default function MarchaEstacionaria() {
       setJsonUri(null);
       setJsonSessionNumber(null);
       setPhase("countdown");
-      setStatusText("Preparando teste...");
-      setCountdownText("Prepare-se");
+      setStatusText(t("tests:common.preparing"));
+      setCountdownText(t("tests:common.speech.prepare"));
 
-      await speak("Prepare-se");
+      await speakText(t("tests:common.speech.prepare"));
       if (cancelledRef.current) return;
 
       setCountdownText("3");
-      await speak("3");
+      await speakText(t("tests:common.speech.three"));
       if (cancelledRef.current) return;
 
       setCountdownText("2");
-      const speechTwoPromise = speak("2");
+      const speechTwoPromise = speakText(t("tests:common.speech.two"));
 
       await imuStart(SAMPLE_HZ);
       setRecordingStarted(true);
       setPhase("running");
-      setStatusText("Coletando dados...");
+      setStatusText(t("tests:common.collecting"));
       startRunTimer();
 
       finishTimeoutRef.current = setTimeout(() => {
@@ -237,11 +204,11 @@ export default function MarchaEstacionaria() {
       if (cancelledRef.current) return;
 
       setCountdownText("1");
-      await speak("1");
+      await speakText(t("tests:common.speech.one"));
       if (cancelledRef.current) return;
 
-      setCountdownText("Começa");
-      await speak("Começa");
+      setCountdownText(t("tests:common.speech.start"));
+      await speakText(t("tests:common.speech.start"));
       if (cancelledRef.current) return;
 
       setCountdownText("");
@@ -250,15 +217,15 @@ export default function MarchaEstacionaria() {
       stopRunTimer();
       setRecordingStarted(false);
       setPhase("idle");
-      setStatusText("Falha ao iniciar");
+      setStatusText(t("tests:common.failedToStart"));
       setCountdownText("");
-      Alert.alert("Erro", e?.message ?? "Falha ao iniciar o teste.");
+      Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToStart"));
     }
-  }, [finalizeCapture]);
+  }, [finalizeCapture, t]);
 
   const stopTest = useCallback(async () => {
     cancelledRef.current = true;
-    stopSpeechSafely();
+    stopSpeech();
     clearFinishTimeout();
 
     if (recordingStarted) {
@@ -268,14 +235,14 @@ export default function MarchaEstacionaria() {
 
     stopRunTimer();
     setPhase("idle");
-    setStatusText("Teste cancelado");
+    setStatusText(t("tests:common.cancelled"));
     setCountdownText("");
-  }, [finalizeCapture, recordingStarted]);
+  }, [finalizeCapture, recordingStarted, t]);
 
   useEffect(() => {
     return () => {
       cancelledRef.current = true;
-      stopSpeechSafely();
+      stopSpeech();
       clearFinishTimeout();
       stopRunTimer();
     };
@@ -301,9 +268,9 @@ export default function MarchaEstacionaria() {
   return (
     <Screen style={{ justifyContent: "space-between" }}>
       <View>
-        <T style={{ fontSize: 22, fontWeight: "900", marginTop: 18 }}>Marcha estacionária</T>
+        <T style={{ fontSize: 22, fontWeight: "900", marginTop: 18 }}>{t("tests:marchaEstacionaria.title")}</T>
         <T style={{ marginTop: 4, opacity: 0.7 }}>
-          Participante: {participant?.name ?? "—"}
+          {t("tests:common.participant", { name: participant?.name ?? "—" })}
         </T>
       </View>
 
@@ -338,16 +305,16 @@ export default function MarchaEstacionaria() {
             </View>
 
             <T style={{ textAlign: "center", opacity: 0.7, marginTop: 8 }}>
-              {Math.round(progress * 100)}% concluído
+              {t("tests:common.percentDone", { value: Math.round(progress * 100) })}
             </T>
           </View>
         )}
 
         {!showFinishButton ? (
-          <ThemedButton title="Iniciar teste" onPress={startTest} style={{ minWidth: 220 }} />
+          <ThemedButton title={t("tests:common.startTest")} onPress={startTest} style={{ minWidth: 220 }} />
         ) : (
           <ThemedButton
-            title="Finalizar teste"
+            title={t("tests:common.finishTest")}
             variant="danger"
             onPress={stopTest}
             style={{ minWidth: 220 }}
@@ -358,14 +325,14 @@ export default function MarchaEstacionaria() {
       <View>
         {phase === "finished" && !!result && (
           <View style={{ marginBottom: 16 }}>
-            <T>Amostras: {result.stats.n}</T>
-            <T>Hz médio: {result.stats.hzMean?.toFixed(2) ?? "—"}</T>
-            <T>% 58–62 Hz: {result.stats.pctIn58to62?.toFixed(1) ?? "—"}%</T>
+            <T>{t("tests:common.samples")}: {result.stats.n}</T>
+            <T>{t("tests:common.hzMean")}: {result.stats.hzMean?.toFixed(2) ?? "—"}</T>
+            <T>{t("tests:common.hzInRange")}: {result.stats.pctIn58to62?.toFixed(1) ?? "—"}%</T>
           </View>
         )}
 
         {showGoToResults && (
-          <ThemedButton title="Ir para resultados" onPress={goToResults} />
+          <ThemedButton title={t("tests:common.goToResults")} onPress={goToResults} />
         )}
       </View>
     </Screen>

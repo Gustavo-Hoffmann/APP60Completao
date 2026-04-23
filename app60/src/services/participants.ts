@@ -1,8 +1,10 @@
 import type { Participant } from "../models/types";
 import { apiFetch, apiJson } from "./apiClient";
 import { getCurrentResearcher } from "./authLocal";
+import { getGuestProfile } from "./guestSession";
 
 export const TEST_PARTICIPANT_ID = "__participant_test__";
+export const GUEST_PARTICIPANT_ID = "__participant_guest__";
 
 type ParticipantRow = {
   id: string;
@@ -81,6 +83,40 @@ export function getTestParticipant(): Participant {
       neighborhood: "",
       city: "Curitiba",
       uf: "PR",
+      complement: "",
+    },
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function ageToDob(age: number): string {
+  const now = new Date();
+  const year = now.getUTCFullYear() - Math.max(0, Math.floor(age));
+  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(now.getUTCDate()).padStart(2, "0");
+  return `${year}-${mm}-${dd}`;
+}
+
+export function getGuestParticipant(): Participant {
+  const now = new Date().toISOString();
+  const profile = getGuestProfile();
+
+  const age = profile?.age ?? 70;
+  const sex = profile?.sex ?? "F";
+
+  return {
+    id: GUEST_PARTICIPANT_ID,
+    name: "Visitante",
+    cpf: "",
+    dob: ageToDob(age),
+    biologicalSex: sex === "M" ? "Masculino" : "Feminino",
+    address: {
+      street: "",
+      number: "",
+      neighborhood: "",
+      city: "",
+      uf: "",
       complement: "",
     },
     createdAt: now,

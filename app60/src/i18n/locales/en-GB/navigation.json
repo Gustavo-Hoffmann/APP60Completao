@@ -1,0 +1,20 @@
+{
+  "titles": {
+    "settings": "Settings",
+    "questionnaires": "Questionnaires",
+    "ivcf20": "IVCF-20",
+    "ivcf20Result": "IVCF-20 result",
+    "participant": "Participant",
+    "pickParticipant": "Select participant",
+    "testSl": "Sit-to-stand",
+    "testSlResult": "Sit-to-stand result",
+    "testEc": "Heel raises",
+    "testEcResult": "Heel raises result",
+    "testLe": "Limits of stability",
+    "testLeResult": "Limits of stability result",
+    "testMe": "2-minute step test",
+    "testMeResult": "2-minute step test result",
+    "testTug": "TUG",
+    "testTugResult": "TUG result"
+  }
+}

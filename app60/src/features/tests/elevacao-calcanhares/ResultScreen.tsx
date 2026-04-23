@@ -2,9 +2,11 @@ import React, { useLayoutEffect, useMemo, useState } from "react";
 import { Alert, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as Sharing from "expo-sharing";
+import { useTranslation } from "react-i18next";
 
 import { T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
+import { useAuth } from "../../../contexts/AuthContext";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import { uploadUttJsonToCollection } from "../../../services/tests/uploadTestJson";
@@ -28,10 +30,12 @@ export default function ElevacoesCalcanharesResultScreen() {
   const navigation = useNavigation<any>();
   const { participant, result, jsonUri, sessionNumber } = route.params as Params;
   const [uploading, setUploading] = useState(false);
+  const { isGuest } = useAuth();
+  const { t } = useTranslation(["tests", "errors"]);
 
   useLayoutEffect(() => {
     navigation.setOptions?.({
-      title: "Elevações de calcanhares",
+      title: t("tests:elevacaoCalcanhares.title"),
       headerStyle: {
         backgroundColor: "#0B63F6",
         borderBottomWidth: 0,
@@ -54,7 +58,7 @@ export default function ElevacoesCalcanharesResultScreen() {
       headerBackButtonDisplayMode: "minimal",
       headerTitleAlign: "center",
     });
-  }, [navigation]);
+  }, [navigation, t]);
 
   const age = useMemo(() => calcAge(participant?.dob ?? participant?.birthDate), [participant]);
   const displaySex = useMemo(
@@ -72,17 +76,17 @@ export default function ElevacoesCalcanharesResultScreen() {
     try {
       const available = await Sharing.isAvailableAsync();
       if (!available) {
-        Alert.alert("Compartilhar", "Compartilhamento não disponível neste aparelho.");
+        Alert.alert(t("tests:common.share.title"), t("tests:common.share.unavailable"));
         return;
       }
 
       await Sharing.shareAsync(jsonUri, {
         mimeType: "application/json",
-        dialogTitle: "Compartilhar JSON do teste",
+        dialogTitle: t("tests:common.share.jsonDialog"),
         UTI: Platform.OS === "ios" ? "public.json" : undefined,
       });
     } catch (e: any) {
-      Alert.alert("Erro", e?.message ?? "Falha ao compartilhar JSON.");
+      Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.share.error"));
     }
   };
 
@@ -94,11 +98,11 @@ export default function ElevacoesCalcanharesResultScreen() {
       const sent = await uploadUttJsonToCollection(result, participant);
 
       Alert.alert(
-        "Upload concluído",
-        `☁️ Dados enviados com sucesso.\nSessão: S${sent.sessionNumber}\nCaminho: ${sent.path}`
+        t("tests:common.upload.doneTitle"),
+        t("tests:common.upload.doneBody", { session: sent.sessionNumber, path: sent.path })
       );
     } catch (e: any) {
-      Alert.alert("Erro no upload", e?.message ?? "Falha ao enviar dados para a nuvem.");
+      Alert.alert(t("tests:common.upload.errorTitle"), e?.message ?? t("tests:common.upload.errorBody"));
     } finally {
       setUploading(false);
     }
@@ -114,47 +118,49 @@ export default function ElevacoesCalcanharesResultScreen() {
       >
         <ParticipantCard
           name={participant?.name ?? "—"}
-          age={age != null ? `${age} anos` : "—"}
+          age={age != null ? `${age} ${t("tests:common.yearsSuffix")}` : "—"}
           sex={displaySex}
         />
 
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <T style={styles.cardTitle}>Resultados</T>
+            <T style={styles.cardTitle}>{t("tests:common.resultsTitle")}</T>
             <T style={styles.cardSubtitle}>
               Ainda sem métricas específicas. Mas agora pelo menos o bruto sobe direito, sem gambiarra de CSV.
             </T>
           </View>
 
           <View style={styles.metricsWrap}>
-            <MetricRow label="Amostras" value={String(result?.stats?.n ?? "—")} />
+            <MetricRow label={t("tests:common.samples")} value={String(result?.stats?.n ?? "—")} />
             <MetricRow
-              label="Hz médio"
+              label={t("tests:common.hzMean")}
               value={result?.stats?.hzMean != null ? result.stats.hzMean.toFixed(2) : "—"}
             />
             <MetricRow
-              label="% entre 58–62 Hz"
+              label={t("tests:common.hzInRange")}
               value={
                 result?.stats?.pctIn58to62 != null ? `${result.stats.pctIn58to62.toFixed(1)}%` : "—"
               }
             />
-            <MetricRow label="Sessão local" value={sessionNumber ? `S${sessionNumber}` : "—"} />
+            <MetricRow label={t("tests:common.sessionLocal")} value={sessionNumber ? `S${sessionNumber}` : "—"} />
           </View>
         </View>
 
         <View style={styles.buttonWrap}>
           <ThemedButton
-            title={`Compartilhar JSON${sessionNumber ? ` • S${sessionNumber}` : ""}`}
+            title={`${t("tests:common.share.jsonButton")}${sessionNumber ? ` • S${sessionNumber}` : ""}`}
             onPress={shareJson}
           />
         </View>
 
-        <View style={styles.buttonWrap}>
-          <ThemedButton
-            title={uploading ? "☁️ Enviando..." : "☁️ Enviar para nuvem"}
-            onPress={handleUploadCloud}
-          />
-        </View>
+        {!isGuest && (
+          <View style={styles.buttonWrap}>
+            <ThemedButton
+              title={uploading ? t("tests:common.upload.sending") : t("tests:common.upload.button")}
+              onPress={handleUploadCloud}
+            />
+          </View>
+        )}
       </ScrollView>
     </View>
   );

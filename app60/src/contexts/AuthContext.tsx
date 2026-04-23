@@ -1,12 +1,24 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { AuthUser } from "../models/auth";
 import * as auth from "../services/authLocal";
+import {
+  setGuestMode,
+  setGuestProfile,
+  type GuestProfile,
+} from "../services/guestSession";
 
 const AuthContext = createContext<{
   user: AuthUser | null;
   loading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  isGuest: boolean;
+  login: (
+    email: string,
+    password: string,
+    options?: { deferSession?: boolean }
+  ) => Promise<AuthUser>;
+  finalizeLogin: (nextUser: AuthUser) => void;
+  enterGuestMode: (profile: GuestProfile) => void;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   register: (
@@ -23,6 +35,13 @@ const AuthContext = createContext<{
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isGuest, setIsGuest] = useState(false);
+
+  const applyAuthenticatedUser = (nextUser: AuthUser) => {
+    setGuestProfile(null);
+    setIsGuest(false);
+    setUser(nextUser);
+  };
 
   const refresh = async () => {
     const cur = await auth.getCurrentResearcher();
@@ -39,18 +58,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  useEffect(() => {
+    setGuestMode(isGuest);
+  }, [isGuest]);
+
   const api = useMemo(
     () => ({
       user,
       loading,
-      isAuthenticated: !!user,
-      login: async (email: string, pw: string) => {
+      isAuthenticated: !!user || isGuest,
+      isGuest,
+      login: async (
+        email: string,
+        pw: string,
+        options?: { deferSession?: boolean }
+      ) => {
         const logged = await auth.login(email, pw);
-        setUser(logged);
+        if (!options?.deferSession) {
+          applyAuthenticatedUser(logged);
+        }
+        return logged;
+      },
+      finalizeLogin: (nextUser: AuthUser) => {
+        applyAuthenticatedUser(nextUser);
+      },
+      enterGuestMode: (profile: GuestProfile) => {
+        setUser(null);
+        setGuestProfile(profile);
+        setIsGuest(true);
       },
       logout: async () => {
-        await auth.logout();
-        setUser(null);
+        try {
+          if (!isGuest) {
+            await auth.logout();
+          }
+        } finally {
+          setGuestProfile(null);
+          setIsGuest(false);
+          setUser(null);
+        }
       },
       refresh,
       register: async (
@@ -69,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(upd);
       },
     }),
-    [user, loading]
+    [user, loading, isGuest]
   );
 
   return <AuthContext.Provider value={api}>{children}</AuthContext.Provider>;

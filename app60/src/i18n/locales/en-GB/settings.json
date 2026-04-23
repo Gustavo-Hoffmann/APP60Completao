@@ -1,0 +1,19 @@
+{
+  "title": "Settings",
+  "languageSection": "App language",
+  "changePassword": "Change password (optional)",
+  "currentPassword": "Current password",
+  "newPassword": "New password",
+  "logout": "Sign out",
+  "profile": "Role: {{role}}",
+  "updated": "Details updated.",
+  "validation": {
+    "nameRequired": "Name is required.",
+    "emailRequired": "Email is required.",
+    "cpfInvalid": "Invalid CPF."
+  },
+  "errors": {
+    "saveFailed": "Failed to save",
+    "logoutFailed": "Failed to sign out"
+  }
+}

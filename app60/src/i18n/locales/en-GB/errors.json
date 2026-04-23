@@ -1,0 +1,9 @@
+{
+  "titles": {
+    "error": "Error",
+    "ok": "OK",
+    "login": "Login",
+    "guest": "Guest mode",
+    "save": "Save"
+  }
+}

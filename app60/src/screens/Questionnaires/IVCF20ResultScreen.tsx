@@ -12,6 +12,7 @@ import Svg, { Path, Line, Circle, Text as SvgText } from "react-native-svg";
 import { T } from "../../components/Themed";
 import { ThemedButton } from "../../components/ThemedButton";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useAuth } from "../../contexts/AuthContext";
 import type { Participant } from "../../models/types";
 import {
   getNextSessionNumber,
@@ -209,6 +210,7 @@ function PizzaDomainsChart({
 
 export function IVCF20ResultScreen({ route, navigation }: any) {
   const { theme } = useTheme();
+  const { isGuest } = useAuth();
   const { width } = useWindowDimensions();
   const [uploading, setUploading] = useState(false);
   const [nextSessionNumber, setNextSessionNumber] = useState<number | null>(null);
@@ -460,12 +462,14 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
             ))}
           </View>
 
-          <View style={styles.card}>
-            <ThemedButton
-              title={uploading ? "☁️ Enviando..." : "☁️ Enviar JSON para nuvem"}
-              onPress={handleUploadCloud}
-            />
-          </View>
+          {!isGuest && (
+            <View style={styles.card}>
+              <ThemedButton
+                title={uploading ? "☁️ Enviando..." : "☁️ Enviar JSON para nuvem"}
+                onPress={handleUploadCloud}
+              />
+            </View>
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>

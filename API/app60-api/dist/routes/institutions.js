@@ -32,20 +32,41 @@ export function institutionsRouter(pool) {
         const u = req.authUser;
         try {
             if (canManageInstitutions(u)) {
-                const q = await pool.query(`SELECT id, name, slug, acronym, unit, country, state_or_county, city,
+                const q = await pool.query(`SELECT i.id, i.name, i.slug, i.acronym, i.unit, i.country, i.state_or_county, i.city,
                   postal_code, street, neighborhood, street_number, complement,
-                  is_active, created_at, updated_at
-           FROM institutions
-           WHERE is_active = true
-           ORDER BY name`);
+                  i.is_active, i.created_at, i.updated_at,
+                  mgr.full_name AS manager_name
+           FROM institutions i
+           LEFT JOIN LATERAL (
+             SELECT au.full_name
+             FROM app_users au
+             WHERE au.role = 'GESTOR'
+               AND au.primary_institution_id = i.id
+               AND au.is_active = true
+             ORDER BY au.created_at ASC
+             LIMIT 1
+           ) mgr ON true
+           WHERE i.is_active = true
+           ORDER BY i.name`);
                 res.json(q.rows);
                 return;
             }
             if (u.primary_institution_id) {
-                const q = await pool.query(`SELECT id, name, slug, acronym, unit, country, state_or_county, city,
+                const q = await pool.query(`SELECT i.id, i.name, i.slug, i.acronym, i.unit, i.country, i.state_or_county, i.city,
                   postal_code, street, neighborhood, street_number, complement,
-                  is_active, created_at, updated_at
-           FROM institutions WHERE id = $1`, [u.primary_institution_id]);
+                  i.is_active, i.created_at, i.updated_at,
+                  mgr.full_name AS manager_name
+           FROM institutions i
+           LEFT JOIN LATERAL (
+             SELECT au.full_name
+             FROM app_users au
+             WHERE au.role = 'GESTOR'
+               AND au.primary_institution_id = i.id
+               AND au.is_active = true
+             ORDER BY au.created_at ASC
+             LIMIT 1
+           ) mgr ON true
+           WHERE i.id = $1`, [u.primary_institution_id]);
                 res.json(q.rows);
                 return;
             }

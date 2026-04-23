@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Alert, BackHandler, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import * as Speech from "expo-speech";
+import { useTranslation } from "react-i18next";
 
 import { Screen, T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
@@ -13,6 +13,7 @@ import {
 } from "../../../services/sensors/nativeImu";
 import type { Participant } from "../../../models/types";
 import { Routes } from "../../../navigation/routes";
+import { speakText, stopSpeech } from "../../../services/speech";
 import {
   getNextSessionNumber,
   saveTugJsonToCache,
@@ -22,48 +23,19 @@ type Phase = "idle" | "countdown" | "running" | "finished";
 
 const SAMPLE_HZ = 60;
 
-async function speak(text: string) {
-  try {
-    const SpeechModule: any = Speech as any;
-
-    if (!SpeechModule || typeof SpeechModule.speak !== "function") {
-      return;
-    }
-
-    await new Promise<void>((resolve) => {
-      Speech.speak(text, {
-        language: "pt-BR",
-        rate: 0.92,
-        pitch: 1.0,
-        onDone: () => resolve(),
-        onStopped: () => resolve(),
-        onError: () => resolve(),
-      });
-    });
-  } catch {}
-}
-
-function stopSpeechSafely() {
-  try {
-    const SpeechModule: any = Speech as any;
-    if (SpeechModule && typeof SpeechModule.stop === "function") {
-      Speech.stop();
-    }
-  } catch {}
-}
-
 function fmtElapsed(ms: number) {
   const totalSec = Math.max(0, ms / 1000);
   return totalSec.toFixed(2).replace(".", ",") + " s";
 }
 
 export default function TugTestScreen() {
+  const { t } = useTranslation(["tests", "errors"]);
   const nav = useNavigation<any>();
   const route = useRoute<any>();
   const participant = route.params?.participant as Participant | undefined;
 
   const [phase, setPhase] = useState<Phase>("idle");
-  const [statusText, setStatusText] = useState("Pronto para iniciar");
+  const [statusText, setStatusText] = useState(t("tests:common.ready"));
   const [countdownText, setCountdownText] = useState("");
   const [result, setResult] = useState<NativeImuStopResult | null>(null);
   const [jsonUri, setJsonUri] = useState<string | null>(null);
@@ -81,7 +53,7 @@ export default function TugTestScreen() {
     if (!participant) {
       nav.replace(Routes.ParticipantPick, {
         nextRoute: Routes.Test_TUG,
-        testTitle: "TUG",
+        testTitle: t("tests:tug.title"),
         testKey: "tug",
       });
     }
@@ -156,7 +128,7 @@ export default function TugTestScreen() {
         stopRunTimer();
 
         if (!participant) {
-          throw new Error("Participante ausente no fim da coleta.");
+          throw new Error(t("errors:titles.error"));
         }
 
         const nextSession = await getNextSessionNumber(String(participant.id), "TUG");
@@ -171,19 +143,19 @@ export default function TugTestScreen() {
         setStatusText(reasonLabel);
 
         if (speechText) {
-          await speak(speechText);
+          await speakText(speechText);
         }
       } catch (e: any) {
         setPhase("idle");
         setRecordingStarted(false);
         setCountdownText("");
-        setStatusText("Falha ao finalizar");
-        Alert.alert("Erro", e?.message ?? "Falha ao finalizar o teste.");
+        setStatusText(t("tests:common.failedToFinish"));
+        Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToFinish"));
       } finally {
         finalizingRef.current = false;
       }
     },
-    [participant]
+    [participant, t]
   );
 
   useEffect(() => {
@@ -191,13 +163,17 @@ export default function TugTestScreen() {
       if (autoStopHandledRef.current) return;
       autoStopHandledRef.current = true;
 
-      await finalizeWithResult(nativeResult, "Teste finalizado", "Teste finalizado");
+      await finalizeWithResult(
+        nativeResult,
+        t("tests:common.finished"),
+        t("tests:common.speech.finished")
+      );
     });
 
     return () => {
       sub.remove();
     };
-  }, [finalizeWithResult]);
+  }, [finalizeWithResult, t]);
 
   const finalizeManualCapture = useCallback(async () => {
     try {
@@ -205,22 +181,22 @@ export default function TugTestScreen() {
 
       if (!recordingStarted) {
         setPhase("idle");
-        setStatusText("Teste cancelado antes da coleta");
+        setStatusText(t("tests:common.cancelledBeforeStart"));
         setCountdownText("");
         return;
       }
 
       const r = await imuStop();
-      await finalizeWithResult(r, "Teste interrompido", "Teste interrompido");
+      await finalizeWithResult(r, t("tests:common.stopped"), t("tests:common.speech.stopped"));
     } catch (e: any) {
       setPhase("idle");
       setRecordingStarted(false);
       setCountdownText("");
       stopRunTimer();
-      setStatusText("Falha ao finalizar");
-      Alert.alert("Erro", e?.message ?? "Falha ao finalizar o teste.");
+      setStatusText(t("tests:common.failedToFinish"));
+      Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToFinish"));
     }
-  }, [finalizeWithResult, recordingStarted]);
+  }, [finalizeWithResult, recordingStarted, t]);
 
   const startTest = useCallback(async () => {
     try {
@@ -236,51 +212,51 @@ export default function TugTestScreen() {
       setJsonSessionNumber(null);
 
       setPhase("countdown");
-      setStatusText("Prepare-se e permaneça parado até começar");
-      setCountdownText("Prepare-se");
+      setStatusText(t("tests:tug.baselineWait"));
+      setCountdownText(t("tests:common.speech.prepare"));
 
-      await speak("Prepare-se");
+      await speakText(t("tests:common.speech.prepare"));
       if (cancelledRef.current) return;
 
       setCountdownText("3");
-      await speak("3");
+      await speakText(t("tests:common.speech.three"));
       if (cancelledRef.current) return;
 
       setCountdownText("2");
-      const twoSpeechPromise = speak("2");
+      const twoSpeechPromise = speakText(t("tests:common.speech.two"));
 
       await imuStart({ hz: SAMPLE_HZ, mode: "tug" });
       setRecordingStarted(true);
       setPhase("running");
-      setStatusText("Coletando baseline e aguardando início real do teste...");
+      setStatusText(t("tests:tug.baselineWait"));
       startRunTimer();
 
       await twoSpeechPromise;
       if (cancelledRef.current) return;
 
       setCountdownText("1");
-      await speak("1");
+      await speakText(t("tests:common.speech.one"));
       if (cancelledRef.current) return;
 
-      setCountdownText("Começa");
-      await speak("Começa");
+      setCountdownText(t("tests:common.speech.start"));
+      await speakText(t("tests:common.speech.start"));
       if (cancelledRef.current) return;
 
       setCountdownText("");
-      setStatusText("Teste em andamento...");
+      setStatusText(t("tests:common.running"));
     } catch (e: any) {
       stopRunTimer();
       setRecordingStarted(false);
       setPhase("idle");
-      setStatusText("Falha ao iniciar");
+      setStatusText(t("tests:common.failedToStart"));
       setCountdownText("");
-      Alert.alert("Erro", e?.message ?? "Falha ao iniciar o teste.");
+      Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToStart"));
     }
-  }, []);
+  }, [t]);
 
   const stopTest = useCallback(async () => {
     cancelledRef.current = true;
-    stopSpeechSafely();
+    stopSpeech();
 
     if (recordingStarted) {
       await finalizeManualCapture();
@@ -289,14 +265,14 @@ export default function TugTestScreen() {
 
     stopRunTimer();
     setPhase("idle");
-    setStatusText("Teste cancelado");
+    setStatusText(t("tests:common.cancelled"));
     setCountdownText("");
-  }, [finalizeManualCapture, recordingStarted]);
+  }, [finalizeManualCapture, recordingStarted, t]);
 
   useEffect(() => {
     return () => {
       cancelledRef.current = true;
-      stopSpeechSafely();
+      stopSpeech();
       stopRunTimer();
     };
   }, []);
@@ -318,9 +294,9 @@ export default function TugTestScreen() {
   return (
     <Screen style={{ justifyContent: "space-between" }}>
       <View>
-        <T style={{ fontSize: 22, fontWeight: "900", marginTop: 18 }}>TUG</T>
+        <T style={{ fontSize: 22, fontWeight: "900", marginTop: 18 }}>{t("tests:tug.title")}</T>
         <T style={{ marginTop: 4, opacity: 0.7 }}>
-          Participante: {participant?.name ?? "—"}
+          {t("tests:common.participant", { name: participant?.name ?? "—" })}
         </T>
       </View>
 
@@ -358,17 +334,17 @@ export default function TugTestScreen() {
 
             <T style={{ textAlign: "center", opacity: 0.7, marginTop: 8 }}>
               {phase === "running"
-                ? "O tempo válido do teste será o detectado automaticamente"
-                : "Teste encerrado"}
+                ? t("tests:tug.detectedTimeHintRunning")
+                : t("tests:tug.detectedTimeHintFinished")}
             </T>
           </View>
         )}
 
         {!showStopButton ? (
-          <ThemedButton title="Iniciar teste" onPress={startTest} style={{ minWidth: 220 }} />
+          <ThemedButton title={t("tests:common.startTest")} onPress={startTest} style={{ minWidth: 220 }} />
         ) : (
           <ThemedButton
-            title="Interromper teste"
+            title={t("tests:common.stopTest")}
             variant="danger"
             onPress={stopTest}
             style={{ minWidth: 220 }}
@@ -379,19 +355,19 @@ export default function TugTestScreen() {
       <View>
         {phase === "finished" && !!result && (
           <View style={{ marginBottom: 16 }}>
-            <T>Amostras: {result.stats.n}</T>
-            <T>Hz médio: {result.stats.hzMean?.toFixed(2) ?? "—"}</T>
+            <T>{t("tests:common.samples")}: {result.stats.n}</T>
+            <T>{t("tests:common.hzMean")}: {result.stats.hzMean?.toFixed(2) ?? "—"}</T>
             <T>
-              Tempo TUG detectado:{" "}
+              {t("tests:tug.detectedDuration")}:{" "}
               {result.tug?.detected && result.tug.durationMs != null
                 ? `${(result.tug.durationMs / 1000).toFixed(3)} s`
                 : "—"}
             </T>
-            <T>Sessão: {jsonSessionNumber != null ? `S${jsonSessionNumber}` : "—"}</T>
+            <T>{t("tests:common.session")}: {jsonSessionNumber != null ? `S${jsonSessionNumber}` : "—"}</T>
           </View>
         )}
 
-        {showGoToResults && <ThemedButton title="Ir para resultados" onPress={goToResults} />}
+        {showGoToResults && <ThemedButton title={t("tests:common.goToResults")} onPress={goToResults} />}
       </View>
     </Screen>
   );

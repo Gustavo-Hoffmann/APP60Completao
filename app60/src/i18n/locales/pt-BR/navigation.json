@@ -1,0 +1,20 @@
+{
+  "titles": {
+    "settings": "Configurações",
+    "questionnaires": "Questionários",
+    "ivcf20": "IVCF-20",
+    "ivcf20Result": "Resultado IVCF-20",
+    "participant": "Participante",
+    "pickParticipant": "Selecionar participante",
+    "testSl": "Sentar e levantar",
+    "testSlResult": "Resultado Sentar e levantar",
+    "testEc": "Elevação de calcanhares",
+    "testEcResult": "Resultado Elevação de calcanhares",
+    "testLe": "Limite de estabilidade",
+    "testLeResult": "Resultado Limite de estabilidade",
+    "testMe": "Marcha estacionária",
+    "testMeResult": "Resultado Marcha estacionária",
+    "testTug": "TUG",
+    "testTugResult": "Resultado TUG"
+  }
+}

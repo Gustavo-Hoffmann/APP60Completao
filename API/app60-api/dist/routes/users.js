@@ -52,14 +52,28 @@ export function usersRouter(pool, cfg) {
             let q;
             if (isSuperAdmin(u)) {
                 q = await pool.query(`SELECT id, email, full_name, role::text AS role, primary_institution_id, is_active, created_at,
-                  cpf_normalized AS cpf, phone, country, city, state, birth_date
+                  cpf_normalized AS cpf, phone, country, city, state, birth_date,
+                  (SELECT se.supervisor_user_id
+                     FROM supervision_edges se
+                    WHERE se.evaluator_user_id = app_users.id
+                      AND se.institution_id = app_users.primary_institution_id
+                      AND se.valid_to IS NULL
+                    ORDER BY se.valid_from DESC
+                    LIMIT 1) AS supervisor_id
            FROM app_users
            WHERE ($1::boolean IS FALSE OR is_active = true)
            ORDER BY created_at ASC`, [activeOnly]);
             }
             else {
                 q = await pool.query(`SELECT id, email, full_name, role::text AS role, primary_institution_id, is_active, created_at,
-                  cpf_normalized AS cpf, phone, country, city, state, birth_date
+                  cpf_normalized AS cpf, phone, country, city, state, birth_date,
+                  (SELECT se.supervisor_user_id
+                     FROM supervision_edges se
+                    WHERE se.evaluator_user_id = app_users.id
+                      AND se.institution_id = app_users.primary_institution_id
+                      AND se.valid_to IS NULL
+                    ORDER BY se.valid_from DESC
+                    LIMIT 1) AS supervisor_id
            FROM app_users
            WHERE primary_institution_id = $1
              AND ($2::boolean IS FALSE OR is_active = true)

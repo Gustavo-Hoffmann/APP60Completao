@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Pressable, View, Text } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useTheme } from "../contexts/ThemeContext";
+import { formatDate } from "../i18n/formatters";
 
 export function DateField({
   label,
@@ -14,9 +15,6 @@ export function DateField({
 }) {
   const { theme } = useTheme();
   const [show, setShow] = useState(false);
-
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("pt-BR", { year: "numeric", month: "2-digit", day: "2-digit" });
 
   return (
     <View style={{ marginBottom: 12 }}>
@@ -35,7 +33,7 @@ export function DateField({
           borderColor: theme.colors.border,
         }}
       >
-        <Text style={{ color: theme.colors.text, fontWeight: "700" }}>{fmt(value)}</Text>
+        <Text style={{ color: theme.colors.text, fontWeight: "700" }}>{formatDate(value)}</Text>
       </Pressable>
 
       {show && (

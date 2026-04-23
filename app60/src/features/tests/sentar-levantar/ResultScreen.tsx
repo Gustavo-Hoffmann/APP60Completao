@@ -3,9 +3,11 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from "react-
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as Sharing from "expo-sharing";
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from "react-native-svg";
+import { useTranslation } from "react-i18next";
 
 import { T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
+import { useAuth } from "../../../contexts/AuthContext";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import { uploadSl30sJsonToCollection } from "../../../services/tests/uploadTestJson";
@@ -35,7 +37,7 @@ type Params = {
 };
 
 type SexKey = "M" | "F";
-type ClassificationLabel = "Abaixo da média" | "Na média" | "Acima da média" | "—" | string;
+type ClassificationLabel = string;
 
 type NormStats = { mean: number; sd: number };
 
@@ -96,10 +98,12 @@ export default function SentarLevantarResultScreen() {
   const navigation = useNavigation<any>();
   const { participant, result, jsonUri, sessionNumber } = route.params as Params;
   const [uploading, setUploading] = useState(false);
+  const { isGuest } = useAuth();
+  const { t } = useTranslation(["tests", "errors"]);
 
   useLayoutEffect(() => {
     navigation.setOptions?.({
-      title: "Sentar e Levantar",
+      title: t("tests:sentarLevantar.title"),
       headerStyle: {
         backgroundColor: "#0B63F6",
         borderBottomWidth: 0,
@@ -122,7 +126,7 @@ export default function SentarLevantarResultScreen() {
       headerBackButtonDisplayMode: "minimal",
       headerTitleAlign: "center",
     });
-  }, [navigation]);
+  }, [navigation, t]);
 
   const age = useMemo(() => calcAge(participant?.dob ?? participant?.birthDate), [participant]);
   const sex = useMemo(
@@ -139,9 +143,10 @@ export default function SentarLevantarResultScreen() {
   const displaySex = useMemo(
     () =>
       formatSexLabel(
-        participant?.biologicalSex ?? participant?.sex ?? participant?.gender ?? participant?.sexo
+        participant?.biologicalSex ?? participant?.sex ?? participant?.gender ?? participant?.sexo,
+        t
       ),
-    [participant]
+    [participant, t]
   );
 
   const displayMass = useMemo(() => formatMassLabel(readMassKg(participant)), [participant]);
@@ -153,17 +158,17 @@ export default function SentarLevantarResultScreen() {
     try {
       const available = await Sharing.isAvailableAsync();
       if (!available) {
-        Alert.alert("Compartilhar", "Compartilhamento não disponível neste aparelho.");
+        Alert.alert(t("tests:common.share.title"), t("tests:common.share.unavailable"));
         return;
       }
 
       await Sharing.shareAsync(jsonUri, {
         mimeType: "text/csv",
-        dialogTitle: "Compartilhar CSV do teste",
+        dialogTitle: t("tests:common.share.jsonDialog"),
         UTI: Platform.OS === "ios" ? "public.comma-separated-values-text" : undefined,
       });
     } catch (e: any) {
-      Alert.alert("Erro", e?.message ?? "Falha ao compartilhar CSV.");
+      Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.share.error"));
     }
   };
 
@@ -175,11 +180,11 @@ export default function SentarLevantarResultScreen() {
       const sent = await uploadSl30sJsonToCollection(result, participant);
 
       Alert.alert(
-        "Upload concluído",
-        `☁️ Dados enviados com sucesso.\nSessão: S${sent.sessionNumber}\nCaminho: ${sent.path}`
+        t("tests:common.upload.doneTitle"),
+        t("tests:common.upload.doneBody", { session: sent.sessionNumber, path: sent.path })
       );
     } catch (e: any) {
-      Alert.alert("Erro no upload", e?.message ?? "Falha ao enviar dados para a nuvem.");
+      Alert.alert(t("tests:common.upload.errorTitle"), e?.message ?? t("tests:common.upload.errorBody"));
     } finally {
       setUploading(false);
     }
@@ -195,7 +200,7 @@ export default function SentarLevantarResultScreen() {
       >
         <ParticipantCard
           name={participant?.name ?? "—"}
-          age={age != null ? `${age} anos` : "—"}
+          age={age != null ? `${age} ${t("tests:common.yearsSuffix")}` : "—"}
           sex={displaySex}
           mass={displayMass}
           height={displayHeight}
@@ -204,35 +209,38 @@ export default function SentarLevantarResultScreen() {
         {analysis ? (
           <>
             <InfoCard
-              title="Resumo do teste"
-              subtitle="Mesmo padrão da marcha, agora sem o CSV jurássico."
+              title={t("tests:common.resultsTitle")}
+              subtitle={t("tests:sentarLevantar.subtitle")}
             >
               <MetricTable
                 rows={[
-                  { label: "Repetições detectadas", value: String(analysis.cycles) },
+                  { label: t("tests:sentarLevantar.repetitionsDetected"), value: String(analysis.cycles) },
                   {
-                    label: "Tempo médio por repetição",
+                    label: t("tests:common.averageRepTime"),
                     value:
                       analysis.meanCycleDuration != null
                         ? `${analysis.meanCycleDuration.toFixed(2)} s`
                         : "—",
                   },
                   {
-                    label: "Cadência",
+                    label: t("tests:common.cadence"),
                     value: analysis.cadence != null ? `${analysis.cadence.toFixed(2)} rep/min` : "—",
                   },
-                  { label: "Massa", value: displayMass },
-                  { label: "Estatura", value: displayHeight },
-                  { label: "Classificação", value: analysis.classification },
-                  { label: "Sessão", value: sessionNumber != null ? `S${sessionNumber}` : "—" },
+                  { label: t("tests:common.massLabel"), value: displayMass },
+                  { label: t("tests:common.heightLabel"), value: displayHeight },
+                  {
+                    label: t("tests:common.classification"),
+                    value: t(`tests:sentarLevantar.classification.${analysis.classification}`),
+                  },
+                  { label: t("tests:common.session"), value: sessionNumber != null ? `S${sessionNumber}` : "—" },
                 ]}
               />
             </InfoCard>
 
             <View style={styles.chartSection}>
               <View style={styles.chartHeader}>
-                <T style={styles.chartEyebrow}>Sinal analisado</T>
-                <T style={styles.chartTitle}>30s STS – GX (°/s)</T>
+                <T style={styles.chartEyebrow}>{t("tests:common.analyzedSignal")}</T>
+                <T style={styles.chartTitle}>{t("tests:sentarLevantar.chartTitle")}</T>
               </View>
 
               <BluePeakChart
@@ -245,25 +253,32 @@ export default function SentarLevantarResultScreen() {
             </View>
 
             <InfoCard
-              title="Comparação com a literatura"
-              subtitle="Referência normativa por faixa etária e sexo biológico, com destaque da faixa do participante."
+              title={t("tests:common.comparisonWithLiterature")}
+              subtitle={t("tests:common.normativeReferenceSubtitle")}
             >
               <View style={styles.statGrid}>
-                <HighlightStatBox label="Faixa etária" value={analysis.ageBinLabel} />
-                <HighlightStatBox label="Repetições (30 s)" value={String(analysis.cycles)} />
+                <HighlightStatBox label={t("tests:common.ageRange")} value={analysis.ageBinLabel} />
+                <HighlightStatBox label={t("tests:sentarLevantar.repetitions30s")} value={String(analysis.cycles)} />
               </View>
 
               {sex && analysis.normRows.length ? (
                 <>
                   <View style={styles.badgeRow}>
                     <View style={styles.badge}>
-                      <T style={styles.badgeText}>{analysis.classification}</T>
+                      <T style={styles.badgeText}>
+                        {t(`tests:sentarLevantar.classification.${analysis.classification}`)}
+                      </T>
                     </View>
                     <T style={styles.badgeSubtext}>
-                      Referência da faixa: média {analysis.referenceMeanText} · DP {analysis.referenceSdText}
+                      {t("tests:sentarLevantar.referenceMeanSd", {
+                        mean: analysis.referenceMeanText,
+                        sd: analysis.referenceSdText,
+                      })}
                     </T>
                     <T style={styles.badgeSubtext}>
-                      Faixa esperada (média ± DP): {analysis.expectedRangeText}
+                      {t("tests:sentarLevantar.referenceExpectedRange", {
+                        range: analysis.expectedRangeText,
+                      })}
                     </T>
                   </View>
 
@@ -271,35 +286,37 @@ export default function SentarLevantarResultScreen() {
                 </>
               ) : (
                 <T style={styles.emptyText}>
-                  Classificação indisponível. Confira se idade e sexo biológico foram cadastrados e se a idade está dentro da faixa normativa.
+                  {t("tests:common.classificationUnavailable")}
                 </T>
               )}
             </InfoCard>
           </>
         ) : (
           <InfoCard
-            title="Resumo do teste"
-            subtitle="Não deu para extrair um sinal confiável desse arquivo."
+            title={t("tests:common.resultsTitle")}
+            subtitle={t("tests:sentarLevantar.insufficientSignalSubtitle")}
           >
             <T style={styles.emptyText}>
-              Sinal insuficiente para calcular as métricas do sentar e levantar.
+              {t("tests:common.insufficientSignal")}
             </T>
           </InfoCard>
         )}
 
         <View style={styles.buttonWrap}>
           <ThemedButton
-            title={`Compartilhar CSV${sessionNumber ? ` • S${sessionNumber}` : ""}`}
+            title={`${t("tests:common.share.csvButton")}${sessionNumber ? ` • S${sessionNumber}` : ""}`}
             onPress={shareCsv}
           />
         </View>
 
-        <View style={styles.buttonWrap}>
-          <ThemedButton
-            title={uploading ? "☁️ Enviando..." : "☁️ Enviar para nuvem"}
-            onPress={handleUploadCloud}
-          />
-        </View>
+        {!isGuest && (
+          <View style={styles.buttonWrap}>
+            <ThemedButton
+              title={uploading ? t("tests:common.upload.sending") : t("tests:common.upload.button")}
+              onPress={handleUploadCloud}
+            />
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -318,6 +335,7 @@ function ParticipantCard({
   mass: string;
   height: string;
 }) {
+  const { t } = useTranslation("tests");
   return (
     <View style={[styles.card, styles.participantCard]}>
       <View style={styles.participantHeader}>
@@ -326,19 +344,19 @@ function ParticipantCard({
         </View>
 
         <View style={styles.participantHeaderText}>
-          <T style={styles.participantOverline}>Participante</T>
+          <T style={styles.participantOverline}>{t("common.participantLabel")}</T>
           <T style={styles.participantName}>{name}</T>
         </View>
       </View>
 
       <View style={styles.pillRow}>
-        <StatPill label="Idade" value={age} />
-        <StatPill label="Sexo" value={sex} />
+        <StatPill label={t("common.ageLabel")} value={age} />
+        <StatPill label={t("common.sexLabel")} value={sex} />
       </View>
 
       <View style={styles.pillRow}>
-        <StatPill label="Massa" value={mass} />
-        <StatPill label="Estatura" value={height} />
+        <StatPill label={t("common.massLabel")} value={mass} />
+        <StatPill label={t("common.heightLabel")} value={height} />
       </View>
     </View>
   );
@@ -400,6 +418,7 @@ function MetricTable({ rows }: { rows: Array<{ label: string; value: string }> }
 
 function LiteratureTable({ rows }: { rows: NormDisplayRow[] }) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useTranslation("tests");
 
   const matchIndex = rows.findIndex((row) => row.isMatch);
   const visibleRows = useMemo(() => {
@@ -413,9 +432,13 @@ function LiteratureTable({ rows }: { rows: NormDisplayRow[] }) {
     <View style={styles.litTableBlock}>
       <View style={styles.litTable}>
         <View style={[styles.litTableRow, styles.litTableHead]}>
-          <T style={[styles.litCellHead, { flex: 1.05 }]}>Faixa</T>
-          <T style={[styles.litCellHead, { flex: 0.9, textAlign: "right" }]}>Média ± DP</T>
-          <T style={[styles.litCellHead, { flex: 1.05, textAlign: "right" }]}>Faixa esperada</T>
+          <T style={[styles.litCellHead, { flex: 1.05 }]}>{t("sentarLevantar.rangeLabel")}</T>
+          <T style={[styles.litCellHead, { flex: 0.9, textAlign: "right" }]}>
+            {t("sentarLevantar.meanSdLabel")}
+          </T>
+          <T style={[styles.litCellHead, { flex: 1.05, textAlign: "right" }]}>
+            {t("sentarLevantar.expectedRangeLabel")}
+          </T>
         </View>
 
         {visibleRows.map((row, idx) => (
@@ -454,13 +477,13 @@ function LiteratureTable({ rows }: { rows: NormDisplayRow[] }) {
 
       {rows.length > visibleRows.length ? (
         <Pressable onPress={() => setExpanded(true)} style={styles.expandButton}>
-          <T style={styles.expandButtonText}>Expandir tabela</T>
+          <T style={styles.expandButtonText}>{t("common.showMore")}</T>
         </Pressable>
       ) : null}
 
       {expanded && rows.length > 3 ? (
         <Pressable onPress={() => setExpanded(false)} style={styles.expandButtonSecondary}>
-          <T style={styles.expandButtonSecondaryText}>Mostrar menos</T>
+          <T style={styles.expandButtonSecondaryText}>{t("common.showLess")}</T>
         </Pressable>
       ) : null}
     </View>
@@ -735,14 +758,14 @@ function enforceAlternatingExtrema(
 function classify30STS(sex: SexKey, age: number, repetitions: number): ClassificationLabel {
   const ageBin = ageToBinLabel(age);
   const stats = NORM_30STS[sex][ageBin];
-  if (!stats) return "Idade fora da faixa da tabela";
+  if (!stats) return "outOfRange";
 
   const lower = stats.mean - stats.sd;
   const upper = stats.mean + stats.sd;
 
-  if (repetitions < lower) return "Abaixo da média";
-  if (repetitions > upper) return "Acima da média";
-  return "Na média";
+  if (repetitions < lower) return "belowAverage";
+  if (repetitions > upper) return "aboveAverage";
+  return "withinAverage";
 }
 
 function calcAge(dobISO?: string) {
@@ -782,10 +805,10 @@ function normalizeSex(value?: string | null): SexKey | null {
   return null;
 }
 
-function formatSexLabel(value?: string | null) {
+function formatSexLabel(value: string | null | undefined, t: (key: string) => string) {
   const normalized = normalizeSex(value);
-  if (normalized === "M") return "Masculino";
-  if (normalized === "F") return "Feminino";
+  if (normalized === "M") return t("tests:common.sexMale");
+  if (normalized === "F") return t("tests:common.sexFemale");
   return value?.trim() || "—";
 }
 

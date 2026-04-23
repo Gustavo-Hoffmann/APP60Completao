@@ -82,6 +82,7 @@ export function dashboardRouter(pool) {
         }
         try {
             const vis = collectionVisibilityClause(u, "c", 1);
+            const isAdminLike = u.role === "SUPER_ADMIN" || u.role === "ADMIN";
             const [participantsTotalQ, collectionsTotalQ, collectionsMonthQ, collectionsByMonthQ, topTestQ] = await Promise.all([
                 isSuperAdmin(u)
                     ? pool.query(`SELECT COUNT(*)::int AS count FROM participants`)
@@ -130,6 +131,70 @@ export function dashboardRouter(pool) {
                 if (cls === "Frágil")
                     ivcf.fragil += 1;
             }
+            const extra = isAdminLike
+                ? await (async () => {
+                    const instId = u.primary_institution_id;
+                    const institutionScope = u.role === "SUPER_ADMIN"
+                        ? { sql: "TRUE", params: [] }
+                        : instId
+                            ? { sql: `i.id = $1`, params: [instId] }
+                            : { sql: "FALSE", params: [] };
+                    const [institutionsTotalQ, usersTotalQ, topInstitutionUsersQ, topInstitutionCollectionsQ, dailyQ] = await Promise.all([
+                        pool.query(`SELECT COUNT(*)::int AS count FROM institutions i WHERE (${institutionScope.sql})`, institutionScope.params),
+                        pool.query(`SELECT COUNT(*)::int AS count FROM app_users au WHERE au.is_active = true AND au.primary_institution_id IS NOT NULL`),
+                        pool.query(`SELECT i.id, i.name, i.acronym, COUNT(au.id)::int AS count
+                   FROM institutions i
+                   JOIN app_users au ON au.primary_institution_id = i.id AND au.is_active = true
+                   WHERE (${institutionScope.sql})
+                   GROUP BY i.id, i.name, i.acronym
+                   ORDER BY count DESC, i.name ASC
+                   LIMIT 1`, institutionScope.params),
+                        pool.query(`SELECT i.id, i.name, i.acronym, COUNT(c.id)::int AS count
+                   FROM institutions i
+                   JOIN collections c ON c.institution_id_at_collection = i.id
+                   WHERE (${vis.sql})
+                     AND c.performed_at >= make_date($${vis.params.length + 1}::int, 1, 1)
+                     AND c.performed_at < make_date($${vis.params.length + 1}::int + 1, 1, 1)
+                   GROUP BY i.id, i.name, i.acronym
+                   ORDER BY count DESC, i.name ASC
+                   LIMIT 1`, [...vis.params, year]),
+                        pool.query(`SELECT to_char(date_trunc('day', c.performed_at), 'YYYY-MM-DD') AS day,
+                          COUNT(*)::int AS count
+                   FROM collections c
+                   WHERE (${vis.sql})
+                     AND c.performed_at >= make_date($${vis.params.length + 1}::int, 1, 1)
+                     AND c.performed_at < make_date($${vis.params.length + 1}::int + 1, 1, 1)
+                   GROUP BY 1
+                   ORDER BY 1 ASC`, [...vis.params, year]),
+                    ]);
+                    let running = 0;
+                    const collectionsCumulativeByDay = (dailyQ.rows ?? []).map((row) => {
+                        running += row.count ?? 0;
+                        return { day: row.day, total: running };
+                    });
+                    return {
+                        institutionsTotal: institutionsTotalQ.rows[0]?.count ?? 0,
+                        usersTotal: usersTotalQ.rows[0]?.count ?? 0,
+                        topInstitutionByUsers: topInstitutionUsersQ.rows[0]
+                            ? {
+                                id: topInstitutionUsersQ.rows[0].id,
+                                name: topInstitutionUsersQ.rows[0].name,
+                                acronym: topInstitutionUsersQ.rows[0].acronym,
+                                count: topInstitutionUsersQ.rows[0].count,
+                            }
+                            : null,
+                        topInstitutionByCollections: topInstitutionCollectionsQ.rows[0]
+                            ? {
+                                id: topInstitutionCollectionsQ.rows[0].id,
+                                name: topInstitutionCollectionsQ.rows[0].name,
+                                acronym: topInstitutionCollectionsQ.rows[0].acronym,
+                                count: topInstitutionCollectionsQ.rows[0].count,
+                            }
+                            : null,
+                        collectionsCumulativeByDay,
+                    };
+                })()
+                : null;
             res.json({
                 year,
                 participantsTotal: participantsTotalQ.rows[0]?.count ?? 0,
@@ -138,6 +203,7 @@ export function dashboardRouter(pool) {
                 collectionsByMonth: collectionsByMonthQ.rows ?? [],
                 topTest: topTestQ.rows[0] ? { testType: topTestQ.rows[0].test_type, count: topTestQ.rows[0].count } : null,
                 ivcf,
+                ...(extra ?? {}),
             });
         }
         catch (e) {

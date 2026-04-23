@@ -1,0 +1,29 @@
+{
+  "language": {
+    "pt": "PT",
+    "en": "EN",
+    "switchToPt": "Switch language to Portuguese",
+    "switchToEn": "Switch language to English"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "back": "Back",
+    "close": "Close",
+    "search": "Search",
+    "loading": "Loading..."
+  },
+  "status": {
+    "userFallback": "User",
+    "guest": "guest"
+  },
+  "labels": {
+    "email": "Email",
+    "password": "Password",
+    "name": "Name",
+    "birthDate": "Date of birth",
+    "cpf": "CPF",
+    "sexBiological": "Biological sex",
+    "city": "City"
+  }
+}

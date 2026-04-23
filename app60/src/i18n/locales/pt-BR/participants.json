@@ -1,0 +1,55 @@
+{
+  "form": {
+    "createTitle": "Cadastrar participante",
+    "editTitle": "Editar participante",
+    "namePlaceholder": "Nome completo",
+    "cepSearch": "Buscar CEP",
+    "cepSearching": "Buscando CEP...",
+    "save": "Salvar",
+    "saving": "Salvando...",
+    "sexHint": "Sexo biológico será usado nas análises normativas dos testes funcionais.",
+    "addressNumber": "Número da casa",
+    "fields": {
+      "cpfPlaceholder": "000.000.000-00",
+      "cep": "CEP",
+      "cepPlaceholder": "00000-000",
+      "street": "Rua",
+      "streetPlaceholder": "Logradouro",
+      "number": "Número",
+      "numberPlaceholder": "Número da casa",
+      "complement": "Complemento",
+      "complementPlaceholder": "Apto, bloco, casa fundos...",
+      "neighborhood": "Bairro",
+      "city": "Cidade",
+      "uf": "UF"
+    },
+    "sex": {
+      "male": "Masculino",
+      "female": "Feminino"
+    },
+    "validation": {
+      "invalidCep": "CEP inválido (8 dígitos).",
+      "nameRequired": "Nome é obrigatório.",
+      "cpfInvalid": "CPF inválido.",
+      "sexRequired": "Selecione o sexo biológico.",
+      "houseNumberRequired": "Número da casa é obrigatório."
+    },
+    "alerts": {
+      "cepTitle": "CEP",
+      "saveTitle": "Salvar",
+      "savedTitle": "Salvo",
+      "savedMessage": "Participante salvo com sucesso.",
+      "saveError": "Falha ao salvar participante.",
+      "cepLookupError": "Falha ao buscar CEP"
+    }
+  },
+  "pick": {
+    "title": "Escolha o participante",
+    "registered": "Cadastrados",
+    "testTag": "EXEMPLO",
+    "exampleDescription": "Maria Silva • sujeito exemplo fixo para testar fluxo/export.",
+    "empty": "Nenhum participante real cadastrado ainda. Só tem a Maria Silva travada em cima.",
+    "loadError": "Falha ao carregar participantes.",
+    "listTitle": "Participantes"
+  }
+}

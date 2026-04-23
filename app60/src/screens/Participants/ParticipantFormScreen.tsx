@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useTranslation } from "react-i18next";
 
 import { Screen, T } from "../../components/Themed";
 import { ThemedInput } from "../../components/ThemedInput";
@@ -96,6 +97,7 @@ export function ParticipantFormScreen() {
   const nav = useNavigation<any>();
   const route = useRoute<any>();
   const { theme } = useTheme();
+  const { t } = useTranslation(["participants", "common"]);
   const { mode = "create", participant } = (route.params ?? {}) as Params;
 
   const isEdit = mode === "edit";
@@ -146,7 +148,7 @@ export function ParticipantFormScreen() {
     try {
       const digits = normalizeDigits(cep);
       if (digits.length !== 8) {
-        Alert.alert("CEP", "CEP inválido (8 dígitos).");
+        Alert.alert(t("participants:form.alerts.cepTitle"), t("participants:form.validation.invalidCep"));
         return;
       }
 
@@ -160,19 +162,24 @@ export function ParticipantFormScreen() {
 
       setTimeout(() => numberRef.current?.focus(), 200);
     } catch (e: any) {
-      Alert.alert("CEP", e?.message ?? "Falha ao buscar CEP");
+      Alert.alert(
+        t("participants:form.alerts.cepTitle"),
+        e?.message ?? t("participants:form.alerts.cepLookupError")
+      );
     } finally {
       setLoadingCep(false);
     }
   };
 
   const validate = () => {
-    if (!name.trim()) return "Nome é obrigatório.";
-    if (!isValidCPF(normalizeDigits(cpf))) return "CPF inválido.";
-    if (!biologicalSex) return "Selecione o sexo biológico.";
+    if (!name.trim()) return t("participants:form.validation.nameRequired");
+    if (!isValidCPF(normalizeDigits(cpf))) return t("participants:form.validation.cpfInvalid");
+    if (!biologicalSex) return t("participants:form.validation.sexRequired");
 
     const cepDigits = normalizeDigits(cep);
-    if (cepDigits.length === 8 && !number.trim()) return "Número da casa é obrigatório.";
+    if (cepDigits.length === 8 && !number.trim()) {
+      return t("participants:form.validation.houseNumberRequired");
+    }
 
     return null;
   };
@@ -181,7 +188,7 @@ export function ParticipantFormScreen() {
     try {
       const err = validate();
       if (err) {
-        Alert.alert("Salvar", err);
+        Alert.alert(t("participants:form.alerts.saveTitle"), err);
         return;
       }
 
@@ -208,10 +215,13 @@ export function ParticipantFormScreen() {
 
       await upsertParticipant(payload);
 
-      Alert.alert("Salvo", "Participante salvo com sucesso.");
+      Alert.alert(t("participants:form.alerts.savedTitle"), t("participants:form.alerts.savedMessage"));
       nav.goBack();
     } catch (e: any) {
-      Alert.alert("Salvar", e?.message ?? "Falha ao salvar participante.");
+      Alert.alert(
+        t("participants:form.alerts.saveTitle"),
+        e?.message ?? t("participants:form.alerts.saveError")
+      );
     } finally {
       setSaving(false);
     }
@@ -229,16 +239,16 @@ export function ParticipantFormScreen() {
           contentContainerStyle={{ paddingBottom: 28 }}
         >
           <T style={{ fontSize: 20, fontWeight: "900" }}>
-            {isEdit ? "Editar participante" : "Cadastrar participante"}
+            {isEdit ? t("participants:form.editTitle") : t("participants:form.createTitle")}
           </T>
 
           <View style={{ height: 14 }} />
 
           <ThemedInput
-            label="Nome"
+            label={t("common:labels.name")}
             value={name}
             onChangeText={setName}
-            placeholder="Nome completo"
+            placeholder={t("participants:form.namePlaceholder")}
             autoCapitalize="words"
             returnKeyType="next"
             onSubmitEditing={() => cpfRef.current?.focus()}
@@ -247,10 +257,10 @@ export function ParticipantFormScreen() {
 
           <ThemedInput
             ref={cpfRef}
-            label="CPF"
+            label={t("common:labels.cpf")}
             value={cpf}
             onChangeText={(t) => setCpf(formatCPF(t))}
-            placeholder="000.000.000-00"
+            placeholder={t("participants:form.fields.cpfPlaceholder")}
             keyboardType={kbNumeric}
             inputMode="numeric"
             maxLength={14}
@@ -261,20 +271,20 @@ export function ParticipantFormScreen() {
             }}
           />
 
-          <DateField label="Data de nascimento" value={dob} onChange={setDob} />
+          <DateField label={t("common:labels.birthDate")} value={dob} onChange={setDob} />
 
           <View style={{ height: 14 }} />
 
-          <T style={{ fontWeight: "900", marginBottom: 8 }}>Sexo biológico</T>
+          <T style={{ fontWeight: "900", marginBottom: 8 }}>{t("common:labels.sexBiological")}</T>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <SexOption
-              label="Masculino"
+              label={t("participants:form.sex.male")}
               value="Masculino"
               selected={biologicalSex === "Masculino"}
               onPress={setBiologicalSex}
             />
             <SexOption
-              label="Feminino"
+              label={t("participants:form.sex.female")}
               value="Feminino"
               selected={biologicalSex === "Feminino"}
               onPress={setBiologicalSex}
@@ -285,10 +295,10 @@ export function ParticipantFormScreen() {
 
           <ThemedInput
             ref={cepRef}
-            label="CEP"
+            label={t("participants:form.fields.cep")}
             value={cep}
             onChangeText={(t) => setCep(formatCEP(t))}
-            placeholder="00000-000"
+            placeholder={t("participants:form.fields.cepPlaceholder")}
             keyboardType={kbNumeric}
             inputMode="numeric"
             maxLength={9}
@@ -297,7 +307,7 @@ export function ParticipantFormScreen() {
           />
 
           <ThemedButton
-            title={loadingCep ? "Buscando CEP..." : "Buscar CEP"}
+            title={loadingCep ? t("participants:form.cepSearching") : t("participants:form.cepSearch")}
             variant="secondary"
             onPress={onFetchCep}
             disabled={loadingCep}
@@ -308,10 +318,10 @@ export function ParticipantFormScreen() {
 
           <ThemedInput
             ref={streetRef}
-            label="Rua"
+            label={t("participants:form.fields.street")}
             value={street}
             onChangeText={setStreet}
-            placeholder="Logradouro"
+            placeholder={t("participants:form.fields.streetPlaceholder")}
             autoCapitalize="words"
             returnKeyType="next"
             onSubmitEditing={() => numberRef.current?.focus()}
@@ -319,10 +329,10 @@ export function ParticipantFormScreen() {
 
           <ThemedInput
             ref={numberRef}
-            label="Número"
+            label={t("participants:form.fields.number")}
             value={number}
             onChangeText={(t) => setNumber(normalizeDigits(t).slice(0, 8))}
-            placeholder="Número da casa"
+            placeholder={t("participants:form.fields.numberPlaceholder")}
             keyboardType={kbNumeric}
             inputMode="numeric"
             maxLength={8}
@@ -332,10 +342,10 @@ export function ParticipantFormScreen() {
 
           <ThemedInput
             ref={complementRef}
-            label="Complemento"
+            label={t("participants:form.fields.complement")}
             value={complement}
             onChangeText={setComplement}
-            placeholder="Apto, bloco, casa fundos..."
+            placeholder={t("participants:form.fields.complementPlaceholder")}
             autoCapitalize="sentences"
             returnKeyType="next"
             onSubmitEditing={() => neighRef.current?.focus()}
@@ -343,10 +353,10 @@ export function ParticipantFormScreen() {
 
           <ThemedInput
             ref={neighRef}
-            label="Bairro"
+            label={t("participants:form.fields.neighborhood")}
             value={neighborhood}
             onChangeText={setNeighborhood}
-            placeholder="Bairro"
+            placeholder={t("participants:form.fields.neighborhood")}
             autoCapitalize="words"
             returnKeyType="next"
             onSubmitEditing={() => cityRef.current?.focus()}
@@ -354,10 +364,10 @@ export function ParticipantFormScreen() {
 
           <ThemedInput
             ref={cityRef}
-            label="Cidade"
+            label={t("participants:form.fields.city")}
             value={city}
             onChangeText={setCity}
-            placeholder="Cidade"
+            placeholder={t("participants:form.fields.city")}
             autoCapitalize="words"
             returnKeyType="next"
             onSubmitEditing={() => ufRef.current?.focus()}
@@ -365,10 +375,10 @@ export function ParticipantFormScreen() {
 
           <ThemedInput
             ref={ufRef}
-            label="UF"
+            label={t("participants:form.fields.uf")}
             value={uf}
             onChangeText={(t) => setUf(t.toUpperCase().slice(0, 2))}
-            placeholder="UF"
+            placeholder={t("participants:form.fields.uf")}
             autoCapitalize="characters"
             maxLength={2}
             returnKeyType="done"
@@ -378,7 +388,7 @@ export function ParticipantFormScreen() {
           <View style={{ height: 10 }} />
 
           <ThemedButton
-            title={saving ? "Salvando..." : "Salvar"}
+            title={saving ? t("participants:form.saving") : t("participants:form.save")}
             onPress={onSave}
             disabled={saving}
             style={{ paddingVertical: 12, borderRadius: 10 }}
@@ -386,7 +396,7 @@ export function ParticipantFormScreen() {
 
           <View style={{ height: 12 }} />
           <T style={{ color: theme.colors.muted, fontSize: 12 }}>
-            Sexo biológico será usado nas análises normativas dos testes funcionais.
+            {t("participants:form.sexHint")}
           </T>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -2,10 +2,12 @@ import React, { useLayoutEffect, useMemo, useState } from "react";
 import { Alert, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as Sharing from "expo-sharing";
+import { useTranslation } from "react-i18next";
 import Svg, { Circle, Line, Path, Text as SvgText } from "react-native-svg";
 
 import { T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
+import { useAuth } from "../../../contexts/AuthContext";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import { uploadTugJsonToCollection } from "../../../services/tests/uploadTestJson";
@@ -32,10 +34,12 @@ export default function TugResultScreen() {
   const navigation = useNavigation<any>();
   const { participant, result, jsonUri, sessionNumber } = route.params as Params;
   const [uploading, setUploading] = useState(false);
+  const { isGuest } = useAuth();
+  const { t } = useTranslation(["tests", "errors"]);
 
   useLayoutEffect(() => {
     navigation.setOptions?.({
-      title: "TUG",
+      title: t("tests:tug.title"),
       headerStyle: {
         backgroundColor: "#0B63F6",
         borderBottomWidth: 0,
@@ -58,7 +62,7 @@ export default function TugResultScreen() {
       headerBackButtonDisplayMode: "minimal",
       headerTitleAlign: "center",
     });
-  }, [navigation]);
+  }, [navigation, t]);
 
   const age = useMemo(() => calcAge(participant?.dob ?? participant?.birthDate), [participant]);
   const displaySex = useMemo(
@@ -67,9 +71,10 @@ export default function TugResultScreen() {
         participant?.biologicalSex ??
           participant?.sex ??
           participant?.gender ??
-          participant?.sexo
+          participant?.sexo,
+        t
       ),
-    [participant]
+    [participant, t]
   );
 
   const analysis = useMemo(() => analyzeTug(result), [result]);
@@ -78,17 +83,17 @@ export default function TugResultScreen() {
     try {
       const available = await Sharing.isAvailableAsync();
       if (!available) {
-        Alert.alert("Compartilhar", "Compartilhamento não disponível neste aparelho.");
+        Alert.alert(t("tests:common.share.title"), t("tests:common.share.unavailable"));
         return;
       }
 
       await Sharing.shareAsync(jsonUri, {
         mimeType: "application/json",
-        dialogTitle: "Compartilhar JSON do teste",
+        dialogTitle: t("tests:common.share.jsonDialog"),
         UTI: Platform.OS === "ios" ? "public.json" : undefined,
       });
     } catch (e: any) {
-      Alert.alert("Erro", e?.message ?? "Falha ao compartilhar JSON.");
+      Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.share.error"));
     }
   };
 
@@ -100,11 +105,11 @@ export default function TugResultScreen() {
       const sent = await uploadTugJsonToCollection(result, participant);
 
       Alert.alert(
-        "Upload concluído",
-        `☁️ Dados enviados com sucesso.\nSessão: S${sent.sessionNumber}\nCaminho: ${sent.path}`
+        t("tests:common.upload.doneTitle"),
+        t("tests:common.upload.doneBody", { session: sent.sessionNumber, path: sent.path })
       );
     } catch (e: any) {
-      Alert.alert("Erro no upload", e?.message ?? "Falha ao enviar dados para a nuvem.");
+      Alert.alert(t("tests:common.upload.errorTitle"), e?.message ?? t("tests:common.upload.errorBody"));
     } finally {
       setUploading(false);
     }
@@ -120,44 +125,46 @@ export default function TugResultScreen() {
       >
         <ParticipantCard
           name={participant?.name ?? "—"}
-          age={age != null ? `${age} anos` : "—"}
+          age={age != null ? `${age} ${t("tests:common.yearsSuffix")}` : "—"}
           sex={displaySex}
         />
 
         <InfoCard
-          title="Resumo do teste"
-          subtitle="Início detectado quando sai da posição inicial. Fim detectado no último pico antes da estabilização final."
+          title={t("tests:common.resultsTitle")}
+          subtitle={t("tests:tug.subtitle")}
         >
           <MetricTable
             rows={[
               {
-                label: "Tempo TUG",
+                label: t("tests:tug.detectedDuration"),
                 value:
                   analysis.tugDurationSec != null
                     ? `${analysis.tugDurationSec.toFixed(3)} s`
-                    : "Não detectado",
+                    : t("tests:tug.notDetected"),
               },
               {
-                label: "Início detectado",
+                label: t("tests:tug.detectedStart"),
                 value: analysis.startSec != null ? `${analysis.startSec.toFixed(3)} s` : "—",
               },
               {
-                label: "Fim detectado",
+                label: t("tests:tug.detectedEnd"),
                 value: analysis.endSec != null ? `${analysis.endSec.toFixed(3)} s` : "—",
               },
               {
-                label: "Motivo da parada",
-                value: humanStopReason(result?.tug?.stopReason),
+                label: t("tests:tug.stopReason"),
+                value: t(`tests:tug.stopReasons.${humanStopReason(result?.tug?.stopReason)}`, {
+                  defaultValue: humanStopReason(result?.tug?.stopReason),
+                }),
               },
               {
-                label: "Tempo total gravado",
+                label: t("tests:tug.totalRecorded"),
                 value:
                   analysis.totalRecordedSec != null
                     ? `${analysis.totalRecordedSec.toFixed(3)} s`
                     : "—",
               },
               {
-                label: "Sessão",
+                label: t("tests:common.session"),
                 value: sessionNumber != null ? `S${sessionNumber}` : "—",
               },
             ]}
@@ -167,7 +174,7 @@ export default function TugResultScreen() {
         {analysis.chart.time.length > 2 && (
           <View style={styles.chartSection}>
             <View style={styles.chartHeader}>
-              <T style={styles.chartEyebrow}>Sinal analisado</T>
+              <T style={styles.chartEyebrow}>{t("tests:common.resultsTitle")}</T>
               <T style={styles.chartTitle}>TUG – Norma da velocidade angular filtrada (°/s)</T>
             </View>
 
@@ -184,17 +191,19 @@ export default function TugResultScreen() {
 
         <View style={styles.buttonWrap}>
           <ThemedButton
-            title={`Compartilhar JSON${sessionNumber ? ` • S${sessionNumber}` : ""}`}
+            title={`${t("tests:common.share.jsonButton")}${sessionNumber ? ` • S${sessionNumber}` : ""}`}
             onPress={shareJson}
           />
         </View>
 
-        <View style={styles.buttonWrap}>
-          <ThemedButton
-            title={uploading ? "☁️ Enviando..." : "☁️ Enviar para nuvem"}
-            onPress={handleUploadCloud}
-          />
-        </View>
+        {!isGuest && (
+          <View style={styles.buttonWrap}>
+            <ThemedButton
+              title={uploading ? t("tests:common.upload.sending") : t("tests:common.upload.button")}
+              onPress={handleUploadCloud}
+            />
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -330,9 +339,9 @@ function detectPeaks(signal: number[], threshold: number, minDistance: number) {
 function humanStopReason(reason?: string) {
   switch (reason) {
     case "manual":
-      return "Interrupção manual";
+      return "manual";
     case "auto_finish":
-      return "Conclusão automática";
+      return "auto_finish";
     default:
       return reason || "—";
   }
@@ -375,10 +384,10 @@ function normalizeSex(value?: string | null): "M" | "F" | null {
   return null;
 }
 
-function formatSexLabel(value?: string | null) {
+function formatSexLabel(value: string | null | undefined, t: (key: string) => string) {
   const normalized = normalizeSex(value);
-  if (normalized === "M") return "Masculino";
-  if (normalized === "F") return "Feminino";
+  if (normalized === "M") return t("common.sexMale");
+  if (normalized === "F") return t("common.sexFemale");
   return value?.trim() || "—";
 }
 
@@ -400,6 +409,7 @@ function ParticipantCard({
   age: string;
   sex: string;
 }) {
+  const { t } = useTranslation("tests");
   return (
     <View style={[styles.card, styles.participantCard]}>
       <View style={styles.participantHeader}>
@@ -408,14 +418,14 @@ function ParticipantCard({
         </View>
 
         <View style={styles.participantHeaderText}>
-          <T style={styles.participantOverline}>Participante</T>
+          <T style={styles.participantOverline}>{t("common.participantLabel")}</T>
           <T style={styles.participantName}>{name}</T>
         </View>
       </View>
 
       <View style={styles.pillRow}>
-        <StatPill label="Idade" value={age} />
-        <StatPill label="Sexo" value={sex} />
+        <StatPill label={t("common.ageLabel")} value={age} />
+        <StatPill label={t("common.sexLabel")} value={sex} />
       </View>
     </View>
   );

@@ -12,6 +12,7 @@ from datetime import datetime, timezone, date
 from typing import Any, Dict, Optional
 
 import boto3
+from botocore.exceptions import ClientError, NoCredentialsError
 import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Json
@@ -33,6 +34,11 @@ CALIBRATOR_PATH = os.environ.get(
     "./calibrador_global_SP2VC_features_stack.joblib",
 )
 
+CALIBRATOR_S3_BUCKET = os.environ.get("CALIBRATOR_S3_BUCKET")
+CALIBRATOR_S3_KEY = os.environ.get("CALIBRATOR_S3_KEY")
+
+AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL")
+
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "10"))
 
 DEFAULT_SEX = os.environ.get("DEFAULT_SEX", "M")
@@ -51,7 +57,12 @@ ENABLED_TEST_TYPES = {
     if s.strip()
 }
 
-s3_client = boto3.client("s3", region_name=AWS_REGION)
+def _make_s3_client():
+    session = boto3.session.Session(region_name=AWS_REGION)
+    return session.client("s3", endpoint_url=AWS_S3_ENDPOINT_URL) if AWS_S3_ENDPOINT_URL else session.client("s3")
+
+
+s3_client = _make_s3_client()
 
 
 def _connect() -> psycopg.Connection:
@@ -169,8 +180,52 @@ def resolve_subject_meta(session_row: Dict[str, Any]) -> Dict[str, Any]:
 # ===========================================================
 
 def download_raw_file(bucket: str, key: str) -> bytes:
-    obj = s3_client.get_object(Bucket=bucket, Key=key)
-    return obj["Body"].read()
+    try:
+        obj = s3_client.get_object(Bucket=bucket, Key=key)
+        return obj["Body"].read()
+    except NoCredentialsError as e:
+        raise RuntimeError(
+            "AWS sem credenciais. Defina AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (e opcional AWS_SESSION_TOKEN) no Render."
+        ) from e
+    except ClientError as e:
+        raise RuntimeError(f"Falha ao baixar do S3 (bucket={bucket}, key={key}): {e}") from e
+
+
+def ensure_calibrator_ready() -> None:
+    """
+    Garante que o calibrador exista localmente.
+    Em ambientes imutáveis (ex: Render), preferir baixar do S3 para /tmp.
+    """
+    global CALIBRATOR_PATH
+
+    if os.path.exists(CALIBRATOR_PATH):
+        return
+
+    if not CALIBRATOR_S3_BUCKET or not CALIBRATOR_S3_KEY:
+        raise FileNotFoundError(
+            "Calibrador .joblib não encontrado. "
+            "Ou inclua o arquivo no deploy em CALIBRATOR_PATH, "
+            "ou defina CALIBRATOR_S3_BUCKET e CALIBRATOR_S3_KEY para baixar do S3."
+        )
+
+    os.makedirs("/tmp/app60-worker", exist_ok=True)
+    local_path = os.path.join("/tmp/app60-worker", os.path.basename(CALIBRATOR_S3_KEY))
+
+    if os.path.exists(local_path):
+        CALIBRATOR_PATH = local_path
+        return
+
+    log(f"Baixando calibrador do S3 bucket={CALIBRATOR_S3_BUCKET} key={CALIBRATOR_S3_KEY}")
+    try:
+        s3_client.download_file(CALIBRATOR_S3_BUCKET, CALIBRATOR_S3_KEY, local_path)
+    except NoCredentialsError as e:
+        raise RuntimeError(
+            "AWS sem credenciais para baixar o calibrador. Defina AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY no Render."
+        ) from e
+    except ClientError as e:
+        raise RuntimeError(f"Falha ao baixar calibrador do S3: {e}") from e
+
+    CALIBRATOR_PATH = local_path
 
 
 def claim_next_session() -> Optional[Dict[str, Any]]:
@@ -412,6 +467,7 @@ def process_one(session_row: Dict[str, Any]) -> None:
 # ===========================================================
 
 def main() -> None:
+    ensure_calibrator_ready()
     log(f"Worker iniciado (RDS+S3). Testes habilitados: {sorted(ENABLED_TEST_TYPES)}")
 
     while True:

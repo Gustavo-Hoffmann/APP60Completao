@@ -1,0 +1,29 @@
+{
+  "language": {
+    "pt": "PT",
+    "en": "EN",
+    "switchToPt": "Trocar idioma para português",
+    "switchToEn": "Trocar idioma para inglês"
+  },
+  "actions": {
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "back": "Voltar",
+    "close": "Fechar",
+    "search": "Buscar",
+    "loading": "Carregando..."
+  },
+  "status": {
+    "userFallback": "Usuário",
+    "guest": "visitante"
+  },
+  "labels": {
+    "email": "Email",
+    "password": "Senha",
+    "name": "Nome",
+    "birthDate": "Data de nascimento",
+    "cpf": "CPF",
+    "sexBiological": "Sexo biológico",
+    "city": "Cidade"
+  }
+}

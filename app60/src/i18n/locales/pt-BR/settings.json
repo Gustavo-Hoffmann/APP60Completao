@@ -1,0 +1,19 @@
+{
+  "title": "Configurações",
+  "languageSection": "Idioma do aplicativo",
+  "changePassword": "Trocar senha (opcional)",
+  "currentPassword": "Senha atual",
+  "newPassword": "Nova senha",
+  "logout": "Sair",
+  "profile": "Perfil: {{role}}",
+  "updated": "Dados atualizados.",
+  "validation": {
+    "nameRequired": "Nome é obrigatório.",
+    "emailRequired": "E-mail é obrigatório.",
+    "cpfInvalid": "CPF inválido."
+  },
+  "errors": {
+    "saveFailed": "Falha ao salvar",
+    "logoutFailed": "Falha ao sair"
+  }
+}

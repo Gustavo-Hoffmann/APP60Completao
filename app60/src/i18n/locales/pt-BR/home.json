@@ -1,0 +1,29 @@
+{
+  "welcome": {
+    "guestGreeting": "Olá,",
+    "userGreeting": "Bem-vindo",
+    "guestModeHint": "Modo de teste (sem salvar na nuvem)",
+    "profile": "Perfil: {{role}}"
+  },
+  "actions": {
+    "registerParticipant": "Cadastrar participante",
+    "editParticipant": "Editar participante",
+    "openSettings": "Configurações",
+    "exitGuestMode": "Sair do modo visitante"
+  },
+  "roles": {
+    "SUPER_ADMIN": "Super Admin",
+    "ADMIN": "Administrador",
+    "GESTOR": "Gestor",
+    "SUPERVISOR": "Supervisor",
+    "AVALIADOR": "Avaliador / Pesquisador"
+  },
+  "cards": {
+    "sentar_levantar": "Sentar e Levantar",
+    "elevacao_calcanhares": "Elevação de calcanhares",
+    "limite_estabilidade": "Limite de Estabilidade",
+    "marcha_estacionaria": "Marcha estacionária",
+    "tug": "Time Up and Go",
+    "questionarios": "Questionários"
+  }
+}

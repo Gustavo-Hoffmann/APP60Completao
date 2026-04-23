@@ -3,9 +3,11 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, View } from "react-
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as Sharing from "expo-sharing";
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from "react-native-svg";
+import { useTranslation } from "react-i18next";
 
 import { T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
+import { useAuth } from "../../../contexts/AuthContext";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import { uploadMarchaJsonToCollection } from "../../../services/tests/uploadTestJson";
@@ -23,7 +25,7 @@ type Params = {
   sessionNumber?: number;
 };
 
-type TrendLabel = "Descendente" | "Ascendente" | "Constante" | "—";
+type TrendLabel = "strategyDescending" | "strategyAscending" | "strategyStable" | "—";
 
 type NormDisplayRow = {
   label: string;
@@ -292,10 +294,11 @@ export default function MarchaEstacionariaResultScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { participant, result, jsonUri, sessionNumber } = route.params as Params;
+  const { t } = useTranslation(["tests", "errors"]);
 
   useLayoutEffect(() => {
     navigation.setOptions?.({
-      title: "Marcha Estacionária",
+      title: t("tests:marchaEstacionaria.resultTitle"),
       headerStyle: {
         backgroundColor: "#0B63F6",
         borderBottomWidth: 0,
@@ -318,7 +321,7 @@ export default function MarchaEstacionariaResultScreen() {
       headerBackButtonDisplayMode: "minimal",
       headerTitleAlign: "center",
     });
-  }, [navigation]);
+  }, [navigation, t]);
 
   const age = useMemo(() => calcAge(participant?.dob ?? participant?.birthDate), [participant]);
   const sex = useMemo(
@@ -335,29 +338,31 @@ export default function MarchaEstacionariaResultScreen() {
   const displaySex = useMemo(
     () =>
       formatSexLabel(
-        participant?.biologicalSex ?? participant?.sex ?? participant?.gender ?? participant?.sexo
+        participant?.biologicalSex ?? participant?.sex ?? participant?.gender ?? participant?.sexo,
+        t
       ),
-    [participant]
+    [participant, t]
   );
 
   const analysis = useMemo(() => analyze2MST(result, age, sex), [result, age, sex]);
   const [uploading, setUploading] = useState(false);
+  const { isGuest } = useAuth();
 
   const shareJson = async () => {
     try {
       const available = await Sharing.isAvailableAsync();
       if (!available) {
-        Alert.alert("Compartilhar", "Compartilhamento não disponível neste aparelho.");
+        Alert.alert(t("tests:common.share.title"), t("tests:common.share.unavailable"));
         return;
       }
 
       await Sharing.shareAsync(jsonUri, {
         mimeType: "application/json",
-        dialogTitle: "Compartilhar JSON do teste",
+        dialogTitle: t("tests:common.share.jsonDialog"),
         UTI: Platform.OS === "ios" ? "public.json" : undefined,
       });
     } catch (e: any) {
-      Alert.alert("Erro", e?.message ?? "Falha ao compartilhar JSON.");
+      Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.share.error"));
     }
   };
 
@@ -369,11 +374,11 @@ export default function MarchaEstacionariaResultScreen() {
       const sent = await uploadMarchaJsonToCollection(result, participant);
 
       Alert.alert(
-        "Upload concluído",
-        `☁️ Dados enviados com sucesso.\nSessão: S${sent.sessionNumber}\nCaminho: ${sent.path}`
+        t("tests:common.upload.doneTitle"),
+        t("tests:common.upload.doneBody", { session: sent.sessionNumber, path: sent.path })
       );
     } catch (e: any) {
-      Alert.alert("Erro no upload", e?.message ?? "Falha ao enviar dados para a nuvem.");
+      Alert.alert(t("tests:common.upload.errorTitle"), e?.message ?? t("tests:common.upload.errorBody"));
     } finally {
       setUploading(false);
     }
@@ -389,30 +394,36 @@ export default function MarchaEstacionariaResultScreen() {
       >
         <ParticipantCard
           name={participant?.name ?? "—"}
-          age={age != null ? `${age} anos` : "—"}
+          age={age != null ? `${age} ${t("tests:common.yearsSuffix")}` : "—"}
           sex={displaySex}
         />
 
         {analysis ? (
           <>
             <InfoCard
-              title="Resumo do teste"
-              subtitle="As métricas principais ficaram mais organizadas e com menos cara de formulário."
+              title={t("tests:common.resultsTitle")}
+              subtitle={t("tests:marchaEstacionaria.subtitle")}
             >
               <MetricTable
                 rows={[
-                  { label: "Ciclos realizados", value: String(analysis.cycles) },
-                  { label: "Cadência", value: `${analysis.cadence.toFixed(2)} ciclos/min` },
-                  { label: "Δ (20s finais - 20s iniciais)", value: analysis.deltaLabel },
-                  { label: "Estratégia", value: analysis.strategy },
+                  { label: t("tests:marchaEstacionaria.cyclesCompleted"), value: String(analysis.cycles) },
+                  { label: t("tests:common.cadence"), value: `${analysis.cadence.toFixed(2)} ciclos/min` },
+                  { label: t("tests:marchaEstacionaria.deltaLabel"), value: analysis.deltaLabel },
+                  {
+                    label: t("tests:marchaEstacionaria.strategy"),
+                    value:
+                      analysis.strategy === "—"
+                        ? "—"
+                        : t(`tests:marchaEstacionaria.${analysis.strategy}`),
+                  },
                 ]}
               />
             </InfoCard>
 
             <View style={styles.chartSection}>
               <View style={styles.chartHeader}>
-                <T style={styles.chartEyebrow}>Sinal analisado</T>
-                <T style={styles.chartTitle}>2MST – GX (°/s)</T>
+                <T style={styles.chartEyebrow}>{t("tests:common.analyzedSignal")}</T>
+                <T style={styles.chartTitle}>{t("tests:marchaEstacionaria.chartTitle")}</T>
               </View>
 
               <BluePeakChart
@@ -423,13 +434,13 @@ export default function MarchaEstacionariaResultScreen() {
             </View>
 
             <InfoCard
-              title="Comparação com a literatura"
-              subtitle="Referência por faixa etária e sexo biológico, com destaque exato da faixa do participante."
+              title={t("tests:common.comparisonWithLiterature")}
+              subtitle={t("tests:common.normativeReferenceSubtitleExact")}
             >
               <View style={styles.statGrid}>
-                <HighlightStatBox label="Faixa etária" value={analysis.ageBinLabel} />
+                <HighlightStatBox label={t("tests:common.ageRange")} value={analysis.ageBinLabel} />
                 <HighlightStatBox
-                  label="Passos ajustados"
+                  label={t("tests:marchaEstacionaria.adjustedSteps")}
                   value={analysis.adjusted120Steps != null ? String(analysis.adjusted120Steps) : "—"}
                 />
               </View>
@@ -438,11 +449,17 @@ export default function MarchaEstacionariaResultScreen() {
                 <>
                   <View style={styles.badgeRow}>
                     <View style={styles.badge}>
-                      <T style={styles.badgeText}>{analysis.percentileLabel}</T>
+                      <T style={styles.badgeText}>
+                        {analysis.percentileLabel.startsWith("tests:")
+                          ? t(analysis.percentileLabel)
+                          : analysis.percentileLabel}
+                      </T>
                     </View>
                     {analysis.percentileApprox != null ? (
                       <T style={styles.badgeSubtext}>
-                        Estimativa aproximada: p{analysis.percentileApprox.toFixed(0)}
+                        {t("tests:marchaEstacionaria.approxPercentile", {
+                          value: analysis.percentileApprox.toFixed(0),
+                        })}
                       </T>
                     ) : null}
                   </View>
@@ -451,32 +468,34 @@ export default function MarchaEstacionariaResultScreen() {
                 </>
               ) : (
                 <T style={styles.emptyText}>
-                  Percentil indisponível. Confira se idade e sexo biológico foram cadastrados.
+                  {t("tests:marchaEstacionaria.percentileUnavailable")}
                 </T>
               )}
             </InfoCard>
           </>
         ) : (
-          <InfoCard title="Resumo do teste">
+          <InfoCard title={t("tests:common.resultsTitle")}>
             <T style={styles.emptyText}>
-              Sinal insuficiente para calcular as métricas da marcha estacionária.
+              {t("tests:common.insufficientSignal")}
             </T>
           </InfoCard>
         )}
 
         <View style={styles.buttonWrap}>
           <ThemedButton
-            title={`Compartilhar CSV${sessionNumber ? ` • S${sessionNumber}` : ""}`}
+            title={`${t("tests:common.share.csvButton")}${sessionNumber ? ` • S${sessionNumber}` : ""}`}
             onPress={shareJson}
           />
         </View>
 
-        <View style={styles.buttonWrap}>
-          <ThemedButton
-            title={uploading ? "☁️ Enviando..." : "☁️ Enviar para nuvem"}
-            onPress={handleUploadCloud}
-          />
-        </View>
+        {!isGuest && (
+          <View style={styles.buttonWrap}>
+            <ThemedButton
+              title={uploading ? t("tests:common.upload.sending") : t("tests:common.upload.button")}
+              onPress={handleUploadCloud}
+            />
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -506,10 +525,10 @@ function normalizeSex(value?: string | null): SexKey | null {
   return null;
 }
 
-function formatSexLabel(value?: string | null) {
+function formatSexLabel(value: string | null | undefined, t: (key: string) => string) {
   const s = normalizeSex(value);
-  if (s === "M") return "Masculino";
-  if (s === "F") return "Feminino";
+  if (s === "M") return t("tests:common.sexMale");
+  if (s === "F") return t("tests:common.sexFemale");
   return "—";
 }
 
@@ -556,9 +575,9 @@ function analyze2MST(
 
   let strategy: TrendLabel = "—";
   if (delta != null) {
-    if (delta <= -TREND_THRESH) strategy = "Descendente";
-    else if (delta >= TREND_THRESH) strategy = "Ascendente";
-    else strategy = "Constante";
+    if (delta <= -TREND_THRESH) strategy = "strategyDescending";
+    else if (delta >= TREND_THRESH) strategy = "strategyAscending";
+    else strategy = "strategyStable";
   }
 
   const adjusted120Steps = cycles;
@@ -619,7 +638,7 @@ function buildNormRows(sex: SexKey | null, ageBin: string): NormDisplayRow[] {
 function estimatePercentile(sex: SexKey | null, ageBin: string, steps: number | null) {
   if (!sex || steps == null) {
     return {
-      percentileLabel: "Percentil indisponível",
+      percentileLabel: "tests:marchaEstacionaria.percentileUnavailable",
       percentileApprox: null as number | null,
     };
   }
@@ -627,7 +646,7 @@ function estimatePercentile(sex: SexKey | null, ageBin: string, steps: number | 
   const rows = NORM_2MST[sex]?.[ageBin];
   if (!rows) {
     return {
-      percentileLabel: "Percentil indisponível",
+      percentileLabel: "tests:marchaEstacionaria.percentileUnavailable",
       percentileApprox: null as number | null,
     };
   }
@@ -638,7 +657,7 @@ function estimatePercentile(sex: SexKey | null, ageBin: string, steps: number | 
 
   if (!percentiles.length) {
     return {
-      percentileLabel: "Percentil indisponível",
+      percentileLabel: "tests:marchaEstacionaria.percentileUnavailable",
       percentileApprox: null as number | null,
     };
   }
@@ -675,7 +694,7 @@ function estimatePercentile(sex: SexKey | null, ageBin: string, steps: number | 
   }
 
   return {
-    percentileLabel: "Percentil indisponível",
+    percentileLabel: "tests:marchaEstacionaria.percentileUnavailable",
     percentileApprox: null as number | null,
   };
 }
@@ -768,6 +787,7 @@ function ParticipantCard({
   age: string;
   sex: string;
 }) {
+  const { t } = useTranslation("tests");
   const initials = getInitials(name);
 
   return (
@@ -778,19 +798,19 @@ function ParticipantCard({
         </View>
 
         <View style={styles.participantHeaderText}>
-          <T style={styles.participantOverline}>Participante</T>
+          <T style={styles.participantOverline}>{t("common.participantLabel")}</T>
           <T style={styles.participantName}>{name}</T>
         </View>
       </View>
 
       <View style={styles.pillRow}>
         <View style={styles.pill}>
-          <T style={styles.pillLabel}>Idade</T>
+          <T style={styles.pillLabel}>{t("common.ageLabel")}</T>
           <T style={styles.pillValue}>{age}</T>
         </View>
 
         <View style={styles.pill}>
-          <T style={styles.pillLabel}>Sexo biológico</T>
+          <T style={styles.pillLabel}>{t("common.sexLabel")}</T>
           <T style={styles.pillValue}>{sex}</T>
         </View>
       </View>
@@ -859,14 +879,17 @@ function LiteratureTable({
   rows: NormDisplayRow[];
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useTranslation("tests");
   const visibleRows = expanded ? rows : rows.slice(0, 5);
 
   return (
     <View style={styles.litTableBlock}>
       <View style={styles.litTable}>
         <View style={[styles.litTableRow, styles.litTableHead]}>
-          <T style={[styles.litCellHead, { flex: 1 }]}>Percentil</T>
-          <T style={[styles.litCellHead, { flex: 1, textAlign: "right" }]}>Passos</T>
+          <T style={[styles.litCellHead, { flex: 1 }]}>{t("marchaEstacionaria.percentileLabel")}</T>
+          <T style={[styles.litCellHead, { flex: 1, textAlign: "right" }]}>
+            {t("marchaEstacionaria.stepsLabel")}
+          </T>
         </View>
 
         {visibleRows.map((row, idx) => (
@@ -900,7 +923,7 @@ function LiteratureTable({
           style={expanded ? styles.expandButtonSecondary : styles.expandButton}
         >
           <T style={expanded ? styles.expandButtonSecondaryText : styles.expandButtonText}>
-            {expanded ? "Mostrar menos" : "Mostrar tabela completa"}
+            {expanded ? t("common.showLess") : t("marchaEstacionaria.showFullTable")}
           </T>
         </Pressable>
       ) : null}

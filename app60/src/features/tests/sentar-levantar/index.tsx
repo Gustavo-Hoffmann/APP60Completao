@@ -12,13 +12,14 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import * as Speech from "expo-speech";
+import { useTranslation } from "react-i18next";
 
 import { Screen, T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
 import { imuStart, imuStop, NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import type { Participant } from "../../../models/types";
 import { Routes } from "../../../navigation/routes";
+import { speakText, stopSpeech } from "../../../services/speech";
 import {
   getNextSessionNumber,
   saveSl30sJsonToCache,
@@ -42,35 +43,6 @@ type ParticipantWithAnthropometry = Participant & {
 const SAMPLE_HZ = 60;
 const RECORD_MS = 34_000;
 
-async function speak(text: string) {
-  try {
-    const SpeechModule: any = Speech as any;
-
-    if (!SpeechModule || typeof SpeechModule.speak !== "function") {
-      return;
-    }
-
-    await new Promise<void>((resolve) => {
-      Speech.speak(text, {
-        language: "pt-BR",
-        rate: 0.92,
-        pitch: 1.0,
-        onDone: () => resolve(),
-        onStopped: () => resolve(),
-        onError: () => resolve(),
-      });
-    });
-  } catch {}
-}
-
-function stopSpeechSafely() {
-  try {
-    const SpeechModule: any = Speech as any;
-    if (SpeechModule && typeof SpeechModule.stop === "function") {
-      Speech.stop();
-    }
-  } catch {}
-}
 
 function fmtMs(ms: number) {
   const sec = Math.max(0, Math.ceil(ms / 1000));
@@ -144,12 +116,13 @@ function readExistingHeightCm(participant?: Participant): number | null {
 }
 
 export default function SentarLevantar() {
+  const { t } = useTranslation(["tests", "errors"]);
   const nav = useNavigation<any>();
   const route = useRoute<any>();
   const participant = route.params?.participant as Participant | undefined;
 
   const [phase, setPhase] = useState<Phase>("idle");
-  const [statusText, setStatusText] = useState("Pronto para iniciar");
+  const [statusText, setStatusText] = useState(t("tests:common.ready"));
   const [countdownText, setCountdownText] = useState("");
   const [result, setResult] = useState<NativeImuStopResult | null>(null);
   const [jsonUri, setJsonUri] = useState<string | null>(null);
@@ -199,7 +172,7 @@ export default function SentarLevantar() {
     if (!participant) {
       nav.replace(Routes.ParticipantPick, {
         nextRoute: Routes.Test_SentarLevantar,
-        testTitle: "Sentar e levantar",
+        testTitle: t("tests:sentarLevantar.title"),
         testKey: "sentar_levantar",
       });
       return;
@@ -283,12 +256,12 @@ export default function SentarLevantar() {
 
   const confirmAnthropometry = useCallback(() => {
     if (parsedBodyMassKg == null || parsedBodyMassKg <= 0) {
-      Alert.alert("Massa inválida", "Digite a massa em kg.");
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
       return;
     }
 
     if (parsedHeightCm == null || parsedHeightCm <= 0) {
-      Alert.alert("Estatura inválida", "Digite a estatura em cm.");
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
       return;
     }
 
@@ -300,24 +273,24 @@ export default function SentarLevantar() {
 
   const ensureAnthropometryReady = useCallback(() => {
     if (!participant) {
-      Alert.alert("Erro", "Participante ausente.");
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
       return false;
     }
 
     if (parsedBodyMassKg == null || parsedBodyMassKg <= 0) {
-      Alert.alert("Massa obrigatória", "Informe uma massa válida em kg antes de iniciar.");
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
       setAnthropometryModalVisible(true);
       return false;
     }
 
     if (parsedHeightCm == null || parsedHeightCm <= 0) {
-      Alert.alert("Estatura obrigatória", "Informe uma estatura válida em cm antes de iniciar.");
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
       setAnthropometryModalVisible(true);
       return false;
     }
 
     if (!anthropometryConfirmed) {
-      Alert.alert("Confirme os dados", "Confirme massa e estatura antes de iniciar.");
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
       setAnthropometryModalVisible(true);
       return false;
     }
@@ -333,23 +306,23 @@ export default function SentarLevantar() {
       try {
         clearFinishTimeout();
         stopRunTimer();
-        stopSpeechSafely();
+        stopSpeech();
 
         if (!recordingStartedRef.current) {
           setPhase("idle");
-          setStatusText("Falha ao finalizar: coleta não iniciou");
+          setStatusText(t("tests:common.failedToFinish"));
           setCountdownText("");
           return;
         }
 
         if (!participantForTest) {
-          throw new Error("Participante ausente no fim da coleta.");
+          throw new Error(t("errors:titles.error"));
         }
 
         const r = await imuStop();
 
         if (!r?.samples || r.samples.length === 0) {
-          throw new Error("A coleta retornou sem amostras.");
+          throw new Error(t("tests:common.failedToFinish"));
         }
 
         const nextSession = await getNextSessionNumber(String(participantForTest.id), "SL30S");
@@ -364,11 +337,11 @@ export default function SentarLevantar() {
         setCountdownText("");
 
         if (reason === "auto") {
-          setStatusText("Teste concluído");
-          await speak("Teste concluído");
+          setStatusText(t("tests:common.finished"));
+          await speakText(t("tests:common.speech.finished"));
         } else {
-          setStatusText("Teste interrompido");
-          await speak("Teste interrompido");
+          setStatusText(t("tests:common.stopped"));
+          await speakText(t("tests:common.speech.stopped"));
         }
       } catch (e: any) {
         setPhase("idle");
@@ -376,13 +349,13 @@ export default function SentarLevantar() {
         recordingStartedRef.current = false;
         setCountdownText("");
         stopRunTimer();
-        setStatusText("Falha ao finalizar");
-        Alert.alert("Erro", e?.message ?? "Falha ao finalizar o teste.");
+        setStatusText(t("tests:common.failedToFinish"));
+        Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToFinish"));
       } finally {
         finishingRef.current = false;
       }
     },
-    [participantForTest]
+    [participantForTest, t]
   );
 
   const startTest = useCallback(async () => {
@@ -402,24 +375,24 @@ export default function SentarLevantar() {
       recordingStartedRef.current = false;
 
       setPhase("countdown");
-      setStatusText("Preparando teste...");
-      setCountdownText("Prepare-se");
+      setStatusText(t("tests:common.preparing"));
+      setCountdownText(t("tests:common.speech.prepare"));
 
-      await speak("Prepare-se");
+      await speakText(t("tests:common.speech.prepare"));
       if (cancelledRef.current) return;
 
       setCountdownText("3");
-      await speak("3");
+      await speakText(t("tests:common.speech.three"));
       if (cancelledRef.current) return;
 
       setCountdownText("2");
-      const speechTwoPromise = speak("2");
+      const speechTwoPromise = speakText(t("tests:common.speech.two"));
 
       await imuStart(SAMPLE_HZ);
       setRecordingStarted(true);
       recordingStartedRef.current = true;
       setPhase("running");
-      setStatusText("Coletando dados...");
+      setStatusText(t("tests:common.collecting"));
       startRunTimer();
 
       finishTimeoutRef.current = setTimeout(() => {
@@ -430,11 +403,11 @@ export default function SentarLevantar() {
       if (cancelledRef.current) return;
 
       setCountdownText("1");
-      await speak("1");
+      await speakText(t("tests:common.speech.one"));
       if (cancelledRef.current) return;
 
-      setCountdownText("Começa");
-      await speak("Começa");
+      setCountdownText(t("tests:common.speech.start"));
+      await speakText(t("tests:common.speech.start"));
       if (cancelledRef.current) return;
 
       setCountdownText("");
@@ -444,11 +417,11 @@ export default function SentarLevantar() {
       setRecordingStarted(false);
       recordingStartedRef.current = false;
       setPhase("idle");
-      setStatusText("Falha ao iniciar");
+      setStatusText(t("tests:common.failedToStart"));
       setCountdownText("");
-      Alert.alert("Erro", e?.message ?? "Falha ao iniciar o teste.");
+      Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToStart"));
     }
-  }, [ensureAnthropometryReady, finalizeCapture, participantForTest]);
+  }, [ensureAnthropometryReady, finalizeCapture, participantForTest, t]);
 
   const stopTest = useCallback(async () => {
     cancelledRef.current = true;
@@ -459,18 +432,18 @@ export default function SentarLevantar() {
       return;
     }
 
-    stopSpeechSafely();
+    stopSpeech();
     stopRunTimer();
     setPhase("idle");
-    setStatusText("Teste cancelado");
+    setStatusText(t("tests:common.cancelled"));
     setCountdownText("");
-  }, [finalizeCapture]);
+  }, [finalizeCapture, t]);
 
   useEffect(() => {
     return () => {
       cancelledRef.current = true;
       clearFinishTimeout();
-      stopSpeechSafely();
+      stopSpeech();
       stopRunTimer();
     };
   }, []);
@@ -495,10 +468,13 @@ export default function SentarLevantar() {
   return (
     <Screen style={{ justifyContent: "space-between" }}>
       <View>
-        <T style={{ fontSize: 22, fontWeight: "900", marginTop: 18 }}>Sentar e levantar</T>
-        <T style={{ marginTop: 4, opacity: 0.7 }}>Participante: {participant?.name ?? "—"}</T>
+        <T style={{ fontSize: 22, fontWeight: "900", marginTop: 18 }}>{t("tests:sentarLevantar.title")}</T>
         <T style={{ marginTop: 4, opacity: 0.7 }}>
-          Massa: {formatMassDisplay(parsedBodyMassKg)} · Estatura: {formatHeightDisplay(parsedHeightCm)}
+          {t("tests:common.participant", { name: participant?.name ?? "—" })}
+        </T>
+        <T style={{ marginTop: 4, opacity: 0.7 }}>
+          {t("tests:common.massLabel")}: {formatMassDisplay(parsedBodyMassKg)} ·{" "}
+          {t("tests:common.heightLabel")}: {formatHeightDisplay(parsedHeightCm)}
         </T>
       </View>
 
@@ -533,23 +509,25 @@ export default function SentarLevantar() {
             </View>
 
             <T style={{ textAlign: "center", opacity: 0.7, marginTop: 8 }}>
-              {Math.round(progress * 100)}% concluído
+              {t("tests:common.percentDone", { value: Math.round(progress * 100) })}
             </T>
           </View>
         )}
 
         {!showFinishButton ? (
           <View style={{ alignItems: "center", gap: 12 }}>
-            <ThemedButton title="Iniciar teste" onPress={startTest} style={{ minWidth: 220 }} />
+            <ThemedButton title={t("tests:common.startTest")} onPress={startTest} style={{ minWidth: 220 }} />
             <Pressable style={styles.secondaryButton} onPress={() => setAnthropometryModalVisible(true)}>
               <T style={styles.secondaryButtonText}>
-                {anthropometryConfirmed ? "Editar massa e estatura" : "Informar massa e estatura"}
+                {anthropometryConfirmed
+                  ? t("tests:sentarLevantar.anthropometry.editForm")
+                  : t("tests:sentarLevantar.anthropometry.openForm")}
               </T>
             </Pressable>
           </View>
         ) : (
           <ThemedButton
-            title="Finalizar teste"
+            title={t("tests:common.finishTest")}
             variant="danger"
             onPress={stopTest}
             style={{ minWidth: 220 }}
@@ -560,16 +538,19 @@ export default function SentarLevantar() {
       <View>
         {phase === "finished" && !!result && (
           <View style={{ marginBottom: 16 }}>
-            <T>Amostras: {result.stats.n}</T>
-            <T>Hz médio: {result.stats.hzMean?.toFixed(2) ?? "—"}</T>
-            <T>% 58–62 Hz: {result.stats.pctIn58to62?.toFixed(1) ?? "—"}%</T>
-            <T>Massa: {formatMassDisplay(parsedBodyMassKg)}</T>
-            <T>Estatura: {formatHeightDisplay(parsedHeightCm)}</T>
-            <T>Sessão: {jsonSessionNumber != null ? `S${jsonSessionNumber}` : "—"}</T>
+            <T>{t("tests:sentarLevantar.anthropometry.samplesLabel")}: {result.stats.n}</T>
+            <T>{t("tests:common.hzMean")}: {result.stats.hzMean?.toFixed(2) ?? "—"}</T>
+            <T>{t("tests:common.hzInRange")}: {result.stats.pctIn58to62?.toFixed(1) ?? "—"}%</T>
+            <T>{t("tests:common.massLabel")}: {formatMassDisplay(parsedBodyMassKg)}</T>
+            <T>{t("tests:common.heightLabel")}: {formatHeightDisplay(parsedHeightCm)}</T>
+            <T>
+              {t("tests:sentarLevantar.anthropometry.sessionLabel")}:{" "}
+              {jsonSessionNumber != null ? `S${jsonSessionNumber}` : "—"}
+            </T>
           </View>
         )}
 
-        {showGoToResults && <ThemedButton title="Ir para resultados" onPress={goToResults} />}
+        {showGoToResults && <ThemedButton title={t("tests:common.goToResults")} onPress={goToResults} />}
       </View>
 
       <Modal
@@ -588,26 +569,26 @@ export default function SentarLevantar() {
             style={styles.modalKeyboardWrap}
           >
             <View style={styles.modalCard}>
-              <T style={styles.modalTitle}>Dados antropométricos</T>
+              <T style={styles.modalTitle}>{t("tests:sentarLevantar.anthropometry.modalTitle")}</T>
               <T style={styles.modalSubtitle}>
-                Informe massa e estatura do participante antes da coleta.
+                {t("tests:sentarLevantar.anthropometry.modalSubtitle")}
               </T>
 
               <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                 <View style={styles.inputBlock}>
-                  <T style={styles.inputLabel}>Participante</T>
+                  <T style={styles.inputLabel}>{t("tests:common.participantLabel")}</T>
                   <View style={styles.readOnlyField}>
                     <T style={styles.readOnlyFieldText}>{participant?.name ?? "—"}</T>
                   </View>
                 </View>
 
                 <View style={styles.inputBlock}>
-                  <T style={styles.inputLabel}>Massa (kg)</T>
+                  <T style={styles.inputLabel}>{t("tests:sentarLevantar.anthropometry.massInputLabel")}</T>
                   <TextInput
                     value={bodyMassInput}
                     onChangeText={setBodyMassInput}
                     keyboardType="decimal-pad"
-                    placeholder="Ex.: 72.4"
+                    placeholder={t("tests:sentarLevantar.anthropometry.massPlaceholder")}
                     placeholderTextColor="#94A3B8"
                     style={styles.input}
                     editable={phase === "idle" || phase === "finished"}
@@ -615,12 +596,12 @@ export default function SentarLevantar() {
                 </View>
 
                 <View style={styles.inputBlock}>
-                  <T style={styles.inputLabel}>Estatura (cm)</T>
+                  <T style={styles.inputLabel}>{t("tests:sentarLevantar.anthropometry.heightInputLabel")}</T>
                   <TextInput
                     value={heightInput}
                     onChangeText={setHeightInput}
                     keyboardType="decimal-pad"
-                    placeholder="Ex.: 175"
+                    placeholder={t("tests:sentarLevantar.anthropometry.heightPlaceholder")}
                     placeholderTextColor="#94A3B8"
                     style={styles.input}
                     editable={phase === "idle" || phase === "finished"}
@@ -633,12 +614,16 @@ export default function SentarLevantar() {
                       style={styles.modalSecondaryButton}
                       onPress={() => setAnthropometryModalVisible(false)}
                     >
-                      <T style={styles.modalSecondaryButtonText}>Fechar</T>
+                      <T style={styles.modalSecondaryButtonText}>
+                        {t("tests:sentarLevantar.anthropometry.closeButton")}
+                      </T>
                     </Pressable>
                   )}
 
                   <Pressable style={styles.modalPrimaryButton} onPress={confirmAnthropometry}>
-                    <T style={styles.modalPrimaryButtonText}>Salvar</T>
+                    <T style={styles.modalPrimaryButtonText}>
+                      {t("tests:sentarLevantar.anthropometry.saveButton")}
+                    </T>
                   </Pressable>
                 </View>
               </ScrollView>

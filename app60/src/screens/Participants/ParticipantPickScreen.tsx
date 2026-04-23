@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, View } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import { useTranslation } from "react-i18next";
 
 import { Screen, T } from "../../components/Themed";
 import { useTheme } from "../../contexts/ThemeContext";
@@ -22,10 +23,12 @@ type RouteParams = {
 function ParticipantCard({
   p,
   pinned,
+  t,
   onPress,
 }: {
   p: Participant;
   pinned?: boolean;
+  t: (key: string, options?: any) => string;
   onPress: () => void;
 }) {
   const { theme } = useTheme();
@@ -55,7 +58,9 @@ function ParticipantCard({
               backgroundColor: theme.colors.primary,
             }}
           >
-            <T style={{ color: "#fff", fontWeight: "900", fontSize: 12 }}>EXEMPLO</T>
+            <T style={{ color: "#fff", fontWeight: "900", fontSize: 12 }}>
+              {t("participants:pick.testTag")}
+            </T>
           </View>
         ) : null}
       </View>
@@ -64,7 +69,7 @@ function ParticipantCard({
 
       {p.id === TEST_PARTICIPANT_ID ? (
         <T style={{ color: theme.colors.muted }}>
-          Maria Silva • sujeito exemplo fixo para testar fluxo/export.
+          {t("participants:pick.exampleDescription")}
         </T>
       ) : (
         <T style={{ color: theme.colors.muted }}>
@@ -81,6 +86,7 @@ export default function ParticipantPickScreen() {
   const nav = useNavigation<any>();
   const route = useRoute<any>();
   const { theme } = useTheme();
+  const { t } = useTranslation(["participants", "common"]);
 
   const { nextRoute, testTitle, testKey, nextParams } = (route.params ?? {}) as RouteParams;
 
@@ -93,7 +99,7 @@ export default function ParticipantPickScreen() {
       const list = await listParticipants();
       setAll(list);
     } catch (e: any) {
-      Alert.alert("Participantes", e?.message ?? "Falha ao carregar participantes.");
+      Alert.alert(t("participants:pick.listTitle"), e?.message ?? t("participants:pick.loadError"));
     } finally {
       setLoading(false);
     }
@@ -129,7 +135,7 @@ export default function ParticipantPickScreen() {
 
   return (
     <Screen>
-      <T style={{ fontSize: 20, fontWeight: "900" }}>Escolha o participante</T>
+      <T style={{ fontSize: 20, fontWeight: "900" }}>{t("participants:pick.title")}</T>
 
       {!!testTitle && (
         <T style={{ marginTop: 4, color: theme.colors.muted }}>
@@ -139,12 +145,12 @@ export default function ParticipantPickScreen() {
 
       <View style={{ height: 14 }} />
 
-      {testP ? <ParticipantCard p={testP} pinned onPress={() => go(testP)} /> : null}
+      {testP ? <ParticipantCard p={testP} t={t} pinned onPress={() => go(testP)} /> : null}
 
       <View style={{ height: 14 }} />
 
       <T style={{ fontWeight: "900", marginBottom: 8 }}>
-        {loading ? "Carregando..." : "Cadastrados"}
+        {loading ? t("common:actions.loading") : t("participants:pick.registered")}
       </T>
 
       <FlatList
@@ -157,12 +163,12 @@ export default function ParticipantPickScreen() {
         decelerationRate="fast"
         renderItem={({ item }) => (
           <View style={{ minHeight: ITEM_H }}>
-            <ParticipantCard p={item} onPress={() => go(item)} />
+            <ParticipantCard p={item} t={t} onPress={() => go(item)} />
           </View>
         )}
         ListEmptyComponent={
           <T style={{ color: theme.colors.muted }}>
-            Nenhum participante real cadastrado ainda. Só tem a Maria Silva travada em cima.
+            {t("participants:pick.empty")}
           </T>
         }
       />

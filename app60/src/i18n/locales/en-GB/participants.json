@@ -1,0 +1,55 @@
+{
+  "form": {
+    "createTitle": "Register participant",
+    "editTitle": "Edit participant",
+    "namePlaceholder": "Full name",
+    "cepSearch": "Lookup postcode",
+    "cepSearching": "Looking up postcode...",
+    "save": "Save",
+    "saving": "Saving...",
+    "sexHint": "Biological sex is used for normative analysis in functional tests.",
+    "addressNumber": "House number",
+    "fields": {
+      "cpfPlaceholder": "000.000.000-00",
+      "cep": "Postcode",
+      "cepPlaceholder": "00000-000",
+      "street": "Street",
+      "streetPlaceholder": "Street name",
+      "number": "Number",
+      "numberPlaceholder": "House number",
+      "complement": "Address line 2",
+      "complementPlaceholder": "Flat, block, back house...",
+      "neighborhood": "District",
+      "city": "City",
+      "uf": "State"
+    },
+    "sex": {
+      "male": "Male",
+      "female": "Female"
+    },
+    "validation": {
+      "invalidCep": "Invalid postcode (8 digits).",
+      "nameRequired": "Name is required.",
+      "cpfInvalid": "Invalid CPF.",
+      "sexRequired": "Select biological sex.",
+      "houseNumberRequired": "House number is required."
+    },
+    "alerts": {
+      "cepTitle": "Postcode",
+      "saveTitle": "Save",
+      "savedTitle": "Saved",
+      "savedMessage": "Participant saved successfully.",
+      "saveError": "Failed to save participant.",
+      "cepLookupError": "Failed to fetch postcode"
+    }
+  },
+  "pick": {
+    "title": "Choose participant",
+    "registered": "Registered",
+    "testTag": "EXAMPLE",
+    "exampleDescription": "Maria Silva • fixed sample subject for flow/export checks.",
+    "empty": "No real participants have been registered yet. Only the fixed Maria Silva sample is shown.",
+    "loadError": "Failed to load participants.",
+    "listTitle": "Participants"
+  }
+}

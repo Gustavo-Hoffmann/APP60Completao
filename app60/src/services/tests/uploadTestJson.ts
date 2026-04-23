@@ -2,6 +2,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
 import { apiFetch, apiJson } from "../apiClient";
+import { isGuestMode } from "../guestSession";
 import type { Participant } from "../../models/types";
 import type { NativeImuStopResult } from "../sensors/nativeImu";
 
@@ -477,6 +478,8 @@ export async function getNextSessionNumber(
   participantId: string,
   testType: SupportedTestType = "MARCHA"
 ): Promise<number> {
+  if (isGuestMode()) return 1;
+
   const dbTestType = getDbTestType(testType);
 
   const data = await apiJson<{ sessionNumber: number }>(
