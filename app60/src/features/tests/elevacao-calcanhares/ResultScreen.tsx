@@ -1,7 +1,8 @@
 import React, { useLayoutEffect, useMemo, useState } from "react";
-import { Alert, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as Sharing from "expo-sharing";
+import Svg, { Circle, Line, Path, Rect, Text as SvgText } from "react-native-svg";
 import { useTranslation } from "react-i18next";
 
 import { T } from "../../../components/Themed";
@@ -10,6 +11,8 @@ import { useAuth } from "../../../contexts/AuthContext";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import { uploadUttJsonToCollection } from "../../../services/tests/uploadTestJson";
+import { analyzeUttFromSamples } from "./analyzeUtt";
+import { chartInnerPlotWidth } from "../resultChartLayout";
 
 type Params = {
   participant: Participant & {
@@ -25,17 +28,20 @@ type Params = {
   sessionNumber?: number;
 };
 
+type SexKey = "M" | "F";
+
 export default function ElevacoesCalcanharesResultScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { participant, result, jsonUri, sessionNumber } = route.params as Params;
   const [uploading, setUploading] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const { isGuest } = useAuth();
   const { t } = useTranslation(["tests", "errors"]);
 
   useLayoutEffect(() => {
     navigation.setOptions?.({
-      title: t("tests:elevacaoCalcanhares.title"),
+      title: t("tests:elevacaoCalcanhares.resultTitle"),
       headerStyle: {
         backgroundColor: "#0B63F6",
         borderBottomWidth: 0,
@@ -67,13 +73,18 @@ export default function ElevacoesCalcanharesResultScreen() {
         participant?.biologicalSex ??
           participant?.sex ??
           participant?.gender ??
-          participant?.sexo
+          participant?.sexo,
+        t
       ),
-    [participant]
+    [participant, t]
   );
 
-  const shareJson = async () => {
+  const analysis = useMemo(() => analyzeUttFromSamples(result), [result]);
+
+  const shareCsv = async () => {
+    if (sharing) return;
     try {
+      setSharing(true);
       const available = await Sharing.isAvailableAsync();
       if (!available) {
         Alert.alert(t("tests:common.share.title"), t("tests:common.share.unavailable"));
@@ -81,12 +92,14 @@ export default function ElevacoesCalcanharesResultScreen() {
       }
 
       await Sharing.shareAsync(jsonUri, {
-        mimeType: "application/json",
-        dialogTitle: t("tests:common.share.jsonDialog"),
-        UTI: Platform.OS === "ios" ? "public.json" : undefined,
+        mimeType: "text/csv",
+        dialogTitle: t("tests:common.share.csvDialog"),
+        UTI: Platform.OS === "ios" ? "public.comma-separated-values-text" : undefined,
       });
     } catch (e: any) {
       Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.share.error"));
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -108,11 +121,13 @@ export default function ElevacoesCalcanharesResultScreen() {
     }
   };
 
+  const hasPlot = analysis && analysis.time.length >= 10;
+
   return (
     <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { flexGrow: 1 }]}
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
       >
@@ -122,34 +137,76 @@ export default function ElevacoesCalcanharesResultScreen() {
           sex={displaySex}
         />
 
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <T style={styles.cardTitle}>{t("tests:common.resultsTitle")}</T>
-            <T style={styles.cardSubtitle}>
-              Ainda sem métricas específicas. Mas agora pelo menos o bruto sobe direito, sem gambiarra de CSV.
-            </T>
-          </View>
+        {hasPlot && analysis ? (
+          <>
+            <InfoCard title={t("tests:common.resultsTitle")} subtitle={t("tests:elevacaoCalcanhares.resultSubtitle")}>
+              <MetricTable
+                rows={[
+                  { label: t("tests:elevacaoCalcanhares.cyclesCount"), value: String(analysis.cycles) },
+                  {
+                    label: t("tests:elevacaoCalcanhares.meanCycleSec"),
+                    value: analysis.cycles > 0 ? formatSec4(analysis.meanCycleSec) : "—",
+                  },
+                  {
+                    label: t("tests:elevacaoCalcanhares.meanAscentSec"),
+                    value: analysis.cycles > 0 ? formatSec4(analysis.meanRiseSec) : "—",
+                  },
+                  {
+                    label: t("tests:elevacaoCalcanhares.meanDescentSec"),
+                    value: analysis.cycles > 0 ? formatSec4(analysis.meanFallSec) : "—",
+                  },
+                  {
+                    label: t("tests:elevacaoCalcanhares.meanTransitionSec"),
+                    value: formatSec4(analysis.meanTransitionSec),
+                  },
+                ]}
+              />
+            </InfoCard>
 
-          <View style={styles.metricsWrap}>
-            <MetricRow label={t("tests:common.samples")} value={String(result?.stats?.n ?? "—")} />
-            <MetricRow
-              label={t("tests:common.hzMean")}
-              value={result?.stats?.hzMean != null ? result.stats.hzMean.toFixed(2) : "—"}
-            />
-            <MetricRow
-              label={t("tests:common.hzInRange")}
-              value={
-                result?.stats?.pctIn58to62 != null ? `${result.stats.pctIn58to62.toFixed(1)}%` : "—"
-              }
-            />
-            <MetricRow label={t("tests:common.sessionLocal")} value={sessionNumber ? `S${sessionNumber}` : "—"} />
-          </View>
-        </View>
+            <View style={styles.chartSection}>
+              <View style={styles.chartHeader}>
+                <T style={styles.chartEyebrow}>{t("tests:common.analyzedSignal")}</T>
+                <T style={styles.chartTitle}>{t("tests:elevacaoCalcanhares.chartTitle")}</T>
+              </View>
+
+              <UttPeakChart
+                time={analysis.time}
+                values={analysis.signal}
+                peakIndices={analysis.peakIndices}
+                xAxisLabel={t("tests:elevacaoCalcanhares.axisTime")}
+                yAxisLabel={t("tests:elevacaoCalcanhares.axisAy")}
+              />
+            </View>
+
+            <InfoCard title={t("tests:elevacaoCalcanhares.recordingCardTitle")}>
+              <MetricTable
+                rows={[
+                  { label: t("tests:common.samples"), value: String(result?.stats?.n ?? "—") },
+                  {
+                    label: t("tests:common.hzMean"),
+                    value: result?.stats?.hzMean != null ? result.stats.hzMean.toFixed(2) : "—",
+                  },
+                  {
+                    label: t("tests:common.hzInRange"),
+                    value:
+                      result?.stats?.pctIn58to62 != null ? `${result.stats.pctIn58to62.toFixed(1)}%` : "—",
+                  },
+                  { label: t("tests:common.sessionLocal"), value: sessionNumber ? `S${sessionNumber}` : "—" },
+                ]}
+              />
+            </InfoCard>
+          </>
+        ) : (
+          <InfoCard title={t("tests:common.resultsTitle")}>
+            <T style={styles.emptyText}>{t("tests:common.insufficientSignal")}</T>
+          </InfoCard>
+        )}
 
         <View style={styles.buttonWrap}>
           <ThemedButton
-            title={`${t("tests:common.share.jsonButton")}${sessionNumber ? ` • S${sessionNumber}` : ""}`}
-            onPress={shareJson}
+            title={`${t("tests:common.share.csvButton")}${sessionNumber ? ` • S${sessionNumber}` : ""}`}
+            onPress={shareCsv}
+            disabled={sharing}
           />
         </View>
 
@@ -166,105 +223,314 @@ export default function ElevacoesCalcanharesResultScreen() {
   );
 }
 
-function ParticipantCard({
-  name,
-  age,
-  sex,
-}: {
-  name: string;
-  age: string;
-  sex: string;
-}) {
+function formatSec4(s: number) {
+  if (!Number.isFinite(s)) return "—";
+  return `${s.toFixed(4)} s`;
+}
+
+function calcAge(dateStr?: string | null) {
+  if (!dateStr) return null;
+  const raw = String(dateStr).trim();
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  let d: Date;
+  if (br) {
+    const [, dd, mm, yyyy] = br;
+    d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  } else {
+    d = new Date(raw);
+  }
+  if (Number.isNaN(d.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const m = today.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age -= 1;
+  return age >= 0 && age <= 120 ? age : null;
+}
+
+function normalizeSex(value?: string | null): SexKey | null {
+  const s = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (!s) return null;
+  if (["m", "masculino", "male", "homem"].includes(s)) return "M";
+  if (["f", "feminino", "female", "mulher"].includes(s)) return "F";
+  return null;
+}
+
+function formatSexLabel(value: string | null | undefined, t: (key: string) => string) {
+  const s = normalizeSex(value);
+  if (s === "M") return t("tests:common.sexMale");
+  if (s === "F") return t("tests:common.sexFemale");
+  return "—";
+}
+
+function getInitials(name?: string | null) {
+  const raw = String(name ?? "").trim();
+  if (!raw) return "—";
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+}
+
+function last<T>(arr: T[]) {
+  return arr.length ? arr[arr.length - 1] : null;
+}
+
+function ParticipantCard({ name, age, sex }: { name: string; age: string; sex: string }) {
+  const { t } = useTranslation("tests");
+  const initials = getInitials(name);
+
   return (
     <View style={[styles.card, styles.participantCard]}>
       <View style={styles.participantHeader}>
         <View style={styles.avatar}>
-          <T style={styles.avatarText}>{getInitials(name)}</T>
+          <T style={styles.avatarText}>{initials}</T>
         </View>
 
         <View style={styles.participantHeaderText}>
-          <T style={styles.participantOverline}>Participante</T>
+          <T style={styles.participantOverline}>{t("tests:common.participantLabel")}</T>
           <T style={styles.participantName}>{name}</T>
         </View>
       </View>
 
       <View style={styles.pillRow}>
-        <StatPill label="Idade" value={age} />
-        <StatPill label="Sexo" value={sex} />
+        <View style={styles.pill}>
+          <T style={styles.pillLabel}>{t("tests:common.ageLabel")}</T>
+          <T style={styles.pillValue}>{age}</T>
+        </View>
+
+        <View style={styles.pill}>
+          <T style={styles.pillLabel}>{t("tests:common.sexLabel")}</T>
+          <T style={styles.pillValue}>{sex}</T>
+        </View>
       </View>
     </View>
   );
 }
 
-function StatPill({ label, value }: { label: string; value: string }) {
+function InfoCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <View style={styles.pill}>
-      <T style={styles.pillLabel}>{label}</T>
-      <T style={styles.pillValue}>{value}</T>
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <T style={styles.cardTitle}>{title}</T>
+        {subtitle ? <T style={styles.cardSubtitle}>{subtitle}</T> : null}
+      </View>
+      {children}
     </View>
   );
 }
 
-function MetricRow({ label, value }: { label: string; value: string }) {
+function MetricTable({ rows }: { rows: Array<{ label: string; value: string }> }) {
   return (
-    <View style={styles.metricRow}>
-      <T style={styles.metricLabel}>{label}</T>
-      <T style={styles.metricValue}>{value}</T>
+    <View style={styles.tableWrap}>
+      {rows.map((row, idx) => (
+        <View
+          key={`${row.label}-${idx}`}
+          style={[styles.tableRow, idx === rows.length - 1 && styles.tableRowLast]}
+        >
+          <T style={styles.tableLabel}>{row.label}</T>
+          <T style={styles.tableValue}>{row.value}</T>
+        </View>
+      ))}
     </View>
   );
 }
 
-function getInitials(name?: string | null) {
-  const base = String(name ?? "").trim();
-  if (!base || base === "—") return "P";
-  const parts = base.split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
-  return `${first}${last}`.toUpperCase();
-}
+const Y_AXIS_NORM_MIN = -1;
+const Y_AXIS_NORM_MAX = 1;
+/** Maior |pico| ou |vale| do sinal encaixa em ±0,8; eixo Y fixo em ±1. */
+const Y_PEAK_NORM = 0.8;
 
-function calcAge(dobISO?: string) {
-  if (!dobISO) return null;
+/** Mesmo estilo do gráfico da marcha (faixas iniciais/finais, linha azul, picos em círculo preto/branco). */
+function UttPeakChart({
+  time,
+  values,
+  peakIndices,
+  xAxisLabel,
+  yAxisLabel,
+}: {
+  time: number[];
+  values: number[];
+  peakIndices: number[];
+  xAxisLabel: string;
+  yAxisLabel: string;
+}) {
+  const { width: winW } = useWindowDimensions();
+  const height = 278;
+  const padL = 64;
+  const padR = 16;
+  const padT = 16;
+  const padB = 50;
 
-  const raw = String(dobISO).trim();
+  const xMin = 0;
+  const xMax = Math.max(last(time) ?? 1, 1);
 
-  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (br) {
-    const [, dd, mm, yyyy] = br;
-    return calcAgeFromDate(new Date(Number(yyyy), Number(mm) - 1, Number(dd)));
-  }
+  const rawMinY = values.length ? Math.min(...values) : 0;
+  const rawMaxY = values.length ? Math.max(...values) : 0;
+  const mag = Math.max(Math.abs(rawMinY), Math.abs(rawMaxY), 1e-12);
+  const normValues = values.map((v) => (v / mag) * Y_PEAK_NORM);
 
-  return calcAgeFromDate(new Date(raw));
-}
+  const yMin = Y_AXIS_NORM_MIN;
+  const yMax = Y_AXIS_NORM_MAX;
+  const yRange = yMax - yMin;
 
-function calcAgeFromDate(dob: Date) {
-  if (Number.isNaN(dob.getTime())) return null;
+  const viewportW = Math.max(300, Math.min(400, winW - 24));
+  const plotInnerW = Math.max(40, viewportW - padL - padR);
+  const plotW = chartInnerPlotWidth(xMax - xMin, plotInnerW);
+  const chartWidth = padL + padR + plotW;
 
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
+  const xToPx = (x: number) =>
+    padL + ((x - xMin) / Math.max(xMax - xMin, 1e-6)) * (chartWidth - padL - padR);
+  const yToPx = (y: number) =>
+    height - padB - ((y - yMin) / yRange) * (height - padT - padB);
 
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-    age -= 1;
-  }
+  const lineD = normValues
+    .map((y, i) => `${i === 0 ? "M" : "L"} ${xToPx(time[i]).toFixed(2)} ${yToPx(y).toFixed(2)}`)
+    .join(" ");
 
-  if (age < 0 || age > 120) return null;
-  return age;
-}
+  const y0Visible = true;
+  const firstWindowEnd = Math.min(20, xMax);
+  const lastWindowStart = Math.max(xMax - 20, 0);
 
-function normalizeSex(value?: string | null): "M" | "F" | null {
-  if (!value) return null;
-  const s = String(value).trim().toUpperCase();
-  if (["M", "MASCULINO", "HOMEM", "MALE"].includes(s)) return "M";
-  if (["F", "FEMININO", "MULHER", "FEMALE"].includes(s)) return "F";
-  return null;
-}
+  const yTicks = [yMin, 0, yMax];
+  const tickStep = xMax <= 20 ? 5 : xMax <= 60 ? 10 : 20;
+  const xTicks: number[] = [];
+  for (let x = 0; x <= xMax + 1e-9; x += tickStep) xTicks.push(Number(x.toFixed(0)));
 
-function formatSexLabel(value?: string | null) {
-  const normalized = normalizeSex(value);
-  if (normalized === "M") return "Masculino";
-  if (normalized === "F") return "Feminino";
-  return value?.trim() || "—";
+  const yAxisTitleX = 18;
+  const yAxisTitleY = height / 2;
+
+  return (
+    <View style={{ alignSelf: "stretch", maxWidth: "100%" }}>
+      <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
+        <Svg width={chartWidth} height={height}>
+        <Rect
+          x={xToPx(0)}
+          y={padT}
+          width={Math.max(xToPx(firstWindowEnd) - xToPx(0), 0)}
+          height={height - padT - padB}
+          fill="rgba(0,90,255,0.08)"
+        />
+        <Rect
+          x={xToPx(lastWindowStart)}
+          y={padT}
+          width={Math.max(xToPx(xMax) - xToPx(lastWindowStart), 0)}
+          height={height - padT - padB}
+          fill="rgba(0,90,255,0.08)"
+        />
+
+        <Line x1={padL} y1={padT} x2={padL} y2={height - padB} stroke="#7A869A" strokeWidth={1} />
+        <Line
+          x1={padL}
+          y1={height - padB}
+          x2={chartWidth - padR}
+          y2={height - padB}
+          stroke="#7A869A"
+          strokeWidth={1}
+        />
+
+        {y0Visible ? (
+          <Line
+            x1={padL}
+            x2={chartWidth - padR}
+            y1={yToPx(0)}
+            y2={yToPx(0)}
+            stroke="rgba(0,0,0,0.45)"
+            strokeWidth={1}
+            strokeDasharray="4 4"
+          />
+        ) : null}
+
+        <Line
+          x1={xToPx(0)}
+          x2={xToPx(0)}
+          y1={padT}
+          y2={height - padB}
+          stroke="#000"
+          strokeWidth={1.5}
+          strokeDasharray="5 4"
+        />
+
+        {xTicks.map((tick) => (
+          <React.Fragment key={`x-${tick}`}>
+            <Line
+              x1={xToPx(tick)}
+              y1={height - padB}
+              x2={xToPx(tick)}
+              y2={height - padB + 5}
+              stroke="#7A869A"
+              strokeWidth={1}
+            />
+            <SvgText
+              x={xToPx(tick)}
+              y={height - 22}
+              fontSize="10"
+              fill="#8E98A8"
+              textAnchor="middle"
+            >
+              {tick}
+            </SvgText>
+          </React.Fragment>
+        ))}
+
+        {yTicks.map((tick, idx) => (
+          <React.Fragment key={`y-${idx}`}>
+            <Line
+              x1={padL - 5}
+              y1={yToPx(tick)}
+              x2={padL}
+              y2={yToPx(tick)}
+              stroke="#7A869A"
+              strokeWidth={1}
+            />
+            <SvgText
+              x={padL - 8}
+              y={yToPx(tick) + 3}
+              fontSize="10"
+              fill="#8E98A8"
+              textAnchor="end"
+            >
+              {tick === 0 ? "0" : tick.toFixed(0)}
+            </SvgText>
+          </React.Fragment>
+        ))}
+
+        <Path d={lineD} stroke="#2A7BFF" strokeWidth={2.8} fill="none" />
+
+        {peakIndices.map((idx) => (
+          <React.Fragment key={`pk-${idx}`}>
+            <Circle cx={xToPx(time[idx])} cy={yToPx(normValues[idx] ?? 0)} r={5.8} fill="#000" />
+            <Circle cx={xToPx(time[idx])} cy={yToPx(normValues[idx] ?? 0)} r={2.9} fill="#FFF" />
+          </React.Fragment>
+        ))}
+
+        <SvgText x={chartWidth / 2} y={height - 5} fontSize="11" fill="#8E98A8" textAnchor="middle">
+          {xAxisLabel}
+        </SvgText>
+
+        <SvgText
+          x={yAxisTitleX}
+          y={yAxisTitleY}
+          fontSize="11"
+          fill="#8E98A8"
+          textAnchor="middle"
+          transform={`rotate(-90, ${yAxisTitleX}, ${yAxisTitleY})`}
+        >
+          {yAxisLabel}
+        </SvgText>
+      </Svg>
+      </ScrollView>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -320,20 +586,20 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 18,
-    fontWeight: "800",
-    color: "#0B63F6",
+    fontWeight: "900",
+    color: "#1456D9",
   },
   participantOverline: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#6B7280",
+    fontWeight: "800",
+    color: "#6E7A89",
     textTransform: "uppercase",
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
   },
   participantName: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#0F172A",
+    fontSize: 22,
+    fontWeight: "900",
+    lineHeight: 28,
   },
   pillRow: {
     flexDirection: "row",
@@ -342,56 +608,95 @@ const styles = StyleSheet.create({
   },
   pill: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F7F9FC",
+    borderWidth: 1,
+    borderColor: "#E9EEF5",
     borderRadius: 16,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    paddingVertical: 11,
+    gap: 2,
   },
   pillLabel: {
     fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "700",
-    marginBottom: 2,
+    color: "#708092",
   },
   pillValue: {
     fontSize: 15,
-    color: "#111827",
     fontWeight: "800",
+    color: "#111827",
   },
   cardHeader: {
-    gap: 4,
     marginBottom: 12,
+    gap: 3,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0F172A",
+    fontSize: 21,
+    fontWeight: "900",
+    lineHeight: 27,
   },
   cardSubtitle: {
     fontSize: 13,
     lineHeight: 18,
-    color: "#6B7280",
+    color: "#6D7887",
   },
-  metricsWrap: {
-    gap: 10,
+  chartSection: {
+    gap: 8,
   },
-  metricRow: {
+  chartHeader: {
+    gap: 2,
+    paddingHorizontal: 2,
+  },
+  chartEyebrow: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#6E7A89",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  chartTitle: {
+    fontSize: 21,
+    fontWeight: "900",
+    lineHeight: 27,
+  },
+  tableWrap: {
+    borderWidth: 1,
+    borderColor: "#E9EDF4",
+    borderRadius: 18,
+    overflow: "hidden",
+    backgroundColor: "#FBFCFE",
+  },
+  tableRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF2F7",
+    backgroundColor: "#FBFCFE",
     gap: 12,
-    paddingVertical: 4,
   },
-  metricLabel: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "700",
+  tableRowLast: {
+    borderBottomWidth: 0,
   },
-  metricValue: {
+  tableLabel: {
+    flex: 1.35,
     fontSize: 14,
-    color: "#111827",
+    lineHeight: 19,
+    color: "#3B4754",
+  },
+  tableValue: {
+    flex: 1,
+    fontSize: 14,
     fontWeight: "800",
+    lineHeight: 19,
+    textAlign: "right",
+    color: "#101828",
+  },
+  emptyText: {
+    opacity: 0.76,
+    lineHeight: 20,
+    color: "#4C5866",
   },
   buttonWrap: {
     marginTop: 2,

@@ -29,6 +29,42 @@ export function QuestionnaireHubScreen({ navigation }: any) {
     });
   };
 
+  const openActivitySedentary = () => {
+    if (isGuest) {
+      const guestParticipant = getGuestParticipant();
+      navigation.navigate(Routes.PhysicalActivitySedentary, {
+        participant: guestParticipant,
+        participantId: guestParticipant.id,
+        testKey: "activity_sedentary",
+      });
+      return;
+    }
+
+    navigation.navigate(Routes.ParticipantPick, {
+      nextRoute: Routes.PhysicalActivitySedentary,
+      testTitle: t("questionnaires:hub.openActivitySedentary"),
+      testKey: "activity_sedentary",
+    });
+  };
+
+  const openFesI = () => {
+    if (isGuest) {
+      const guestParticipant = getGuestParticipant();
+      navigation.navigate(Routes.FESI, {
+        participant: guestParticipant,
+        participantId: guestParticipant.id,
+        testKey: "fesi",
+      });
+      return;
+    }
+
+    navigation.navigate(Routes.ParticipantPick, {
+      nextRoute: Routes.FESI,
+      testTitle: t("questionnaires:hub.openFesI"),
+      testKey: "fesi",
+    });
+  };
+
   return (
     <Screen>
       <T style={{ fontSize: 22, fontWeight: "900", marginTop: 18 }}>
@@ -38,6 +74,17 @@ export function QuestionnaireHubScreen({ navigation }: any) {
       <View style={{ height: 14 }} />
 
       <ThemedButton title={t("questionnaires:hub.openIvcf20")} onPress={openIvcf20} />
+
+      <View style={{ height: 12 }} />
+
+      <ThemedButton title={t("questionnaires:hub.openFesI")} onPress={openFesI} />
+
+      <View style={{ height: 12 }} />
+
+      <ThemedButton
+        title={t("questionnaires:hub.openActivitySedentary")}
+        onPress={openActivitySedentary}
+      />
 
       <View style={{ height: 12 }} />
 

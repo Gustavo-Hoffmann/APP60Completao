@@ -5,6 +5,10 @@
     "switchToPt": "Trocar idioma para português",
     "switchToEn": "Trocar idioma para inglês"
   },
+  "boolean": {
+    "yes": "Sim",
+    "no": "Não"
+  },
   "actions": {
     "save": "Salvar",
     "cancel": "Cancelar",

@@ -1,0 +1,17 @@
+{
+  "build": {
+    "staging": {
+      "distribution": "internal",
+      "channel": "staging",
+      "env": {
+        "APP_VARIANT": "staging",
+        "EXPO_PUBLIC_APP_VARIANT": "staging",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api-staging.seniorsenseplus.com",
+        "EXPO_PUBLIC_COGNITO_REGION": "us-east-1",
+        "EXPO_PUBLIC_COGNITO_USER_POOL_ID": "us-east-1_NdFHCZPAt",
+        "EXPO_PUBLIC_COGNITO_CLIENT_ID": "4jpb6k00gflvri85cj47di10ep"
+      }
+    }
+  }
+}
+

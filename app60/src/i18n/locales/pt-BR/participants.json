@@ -14,6 +14,7 @@
     "addressNumber": "Número da casa",
     "fields": {
       "nationality": "Nacionalidade",
+      "institution": "Instituição",
       "identity": "Identidade",
       "identityPlaceholderBr": "000.000.000-00",
       "identityPlaceholderIntl": "Documento de identidade",
@@ -31,6 +32,11 @@
       "city": "Cidade",
       "uf": "UF"
     },
+    "institutionHint": "Escolha a instituição para cadastrar o participante.",
+    "institutionModalTitle": "Selecionar instituição",
+    "institutionClose": "Fechar",
+    "institutionEmpty": "Nenhuma instituição disponível.",
+    "institutionPlaceholder": "Selecione a instituição",
     "sex": {
       "male": "Masculino",
       "female": "Feminino"
@@ -42,7 +48,13 @@
       "identityInvalid": "Informe o documento de identidade.",
       "cpfInvalid": "CPF inválido.",
       "sexRequired": "Selecione o sexo biológico.",
-      "houseNumberRequired": "Número da casa é obrigatório."
+      "houseNumberRequired": "Número da casa é obrigatório.",
+      "institutionRequired": "Selecione a instituição."
+    },
+    "conflict": {
+      "message": "Participante já cadastrado em \"{{institution}}\". Deseja puxar os dados do participante?",
+      "pull": "Puxar dados",
+      "otherInstitution": "outra instituição"
     },
     "alerts": {
       "cepTitle": "CEP",

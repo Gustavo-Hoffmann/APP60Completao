@@ -137,6 +137,14 @@
     "save": "Save changes",
     "delete": "Delete participant",
     "deleteConfirm": "Delete this participant? This cannot be undone.",
+    "deleteTypeConfirm": "Delete confirmation\\n\\nParticipant: {{name}}\\n\\nTo delete, type the participant name exactly:",
+    "deleteTypeMismatch": "Name mismatch. Deletion cancelled.",
+    "deleteModalTitle": "Delete confirmation",
+    "deleteModalBody": "Participant: {{name}}. To delete, type the participant name below.",
+    "deleteModalInputLabel": "Type participant name",
+    "deleteModalPlaceholder": "Full name",
+    "deleteModalCancel": "Cancel",
+    "deleteModalConfirm": "Delete permanently",
     "deleting": "Deleting...",
     "deleteFailed": "Could not delete the participant.",
     "loadFailed": "Could not load the participant."
@@ -172,11 +180,59 @@
       "noData": "No detailed data at the moment.",
       "2mst": {
         "description": "Click to open processed 2MST step test data.",
-        "demoDescription": "Click to open demo 2MST step test data."
+        "demoDescription": "Click to open demo 2MST step test data.",
+        "sectionTitle": "2MST — Step test",
+        "duration": "2 minutes",
+        "repsEvolutionTitle": "2MST — repetitions trend",
+        "timeseriesGyroXTitle": "Time series — Gyroscope X",
+        "phonePeaks": "Phone peaks",
+        "calibratedPeaks": "Calibrated peaks",
+        "sessionOptionCycles": "Session {{session}} — {{cycles}} cycles",
+        "metrics": {
+          "meanAngularVelocity": "Mean angular vel.",
+          "meanAngularVelocityFull": "Mean angular velocity",
+          "cvVelocity": "Velocity CV",
+          "meanCycleTime": "Mean cycle time",
+          "cvCycleTime": "Cycle time CV",
+          "maxVelocity": "Max velocity",
+          "minVelocity": "Min velocity"
+        }
       },
       "sl30s": {
-        "description": "Click to open processed sit-to-stand data."
+        "description": "Click to open processed sit-to-stand data.",
+        "shortTitle": "30s-STST",
+        "sectionTitle": "30s-STST — Sit-to-stand",
+        "duration": "30 seconds",
+        "repsEvolutionTitle": "30s-STST — repetitions trend",
+        "timeseriesTrunkAngleTitle": "Time series — Trunk angle",
+        "sessionOptionReps": "Session {{session}} — {{reps}} repetitions",
+        "metrics": {
+          "meanPower": "Mean power",
+          "totalWork": "Total work",
+          "workPerRep": "Work per rep",
+          "meanCycleTime": "Mean cycle time",
+          "meanStandTime": "Mean stand time",
+          "meanSitTime": "Mean sit time",
+          "meanFrequency": "Mean frequency",
+          "cvCycleTime": "Cycle time CV",
+          "signalAmplitude": "Signal amplitude",
+          "velFlexStand": "Flexion vel. (stand)",
+          "velExtStand": "Extension vel. (stand)",
+          "velFlexSit": "Flexion vel. (sit)",
+          "velExtSit": "Extension vel. (sit)"
+        }
       }
+    },
+    "exports": {
+      "rawButton": "Download raw data",
+      "pdfButton": "Download PDF summary",
+      "rawModalTitle": "Download raw CSV",
+      "rawModalBody": "Select which session you want to download.",
+      "rawModalSessionLabel": "Session",
+      "rawModalCancel": "Cancel",
+      "rawModalDownload": "Download",
+      "downloading": "Downloading...",
+      "exportingPdf": "Exporting..."
     },
     "unclassified": "Unclassified",
     "active": "Active",
@@ -233,6 +289,8 @@
     },
     "metricsFilter": {
       "title": "Session filter (metrics)",
+      "bySession": "By session",
+      "byDate": "By date",
       "clear": "Clear",
       "button": "Filter sessions",
       "hint": "Drag to set the range (start and end).",
@@ -240,53 +298,6 @@
       "rangeLabel": "Sessions {{from}}–{{to}}",
       "pickStart": "Select the start session",
       "pickEnd": "Now select the end session (start: Session {{from}})"
-    },
-    "tests": {
-      "title": "Completed tests",
-      "noData": "No detailed data at the moment.",
-      "2mst": {
-        "description": "Click to open processed 2MST step test data.",
-        "demoDescription": "Click to open demo 2MST step test data.",
-        "sectionTitle": "2MST — Step test",
-        "duration": "2 minutes",
-        "repsEvolutionTitle": "2MST — repetitions trend",
-        "timeseriesGyroXTitle": "Time series — Gyroscope X",
-        "phonePeaks": "Phone peaks",
-        "calibratedPeaks": "Calibrated peaks",
-        "sessionOptionCycles": "Session {{session}} — {{cycles}} cycles",
-        "metrics": {
-          "meanAngularVelocity": "Mean angular vel.",
-          "meanAngularVelocityFull": "Mean angular velocity",
-          "cvVelocity": "Velocity CV",
-          "meanCycleTime": "Mean cycle time",
-          "cvCycleTime": "Cycle time CV",
-          "maxVelocity": "Max velocity",
-          "minVelocity": "Min velocity"
-        }
-      },
-      "sl30s": {
-        "description": "Click to open processed sit-to-stand data.",
-        "sectionTitle": "SL-30s — Sit-to-stand",
-        "duration": "30 seconds",
-        "repsEvolutionTitle": "SL-30s — repetitions trend",
-        "timeseriesTrunkAngleTitle": "Time series — Trunk angle",
-        "sessionOptionReps": "Session {{session}} — {{reps}} repetitions",
-        "metrics": {
-          "meanPower": "Mean power",
-          "totalWork": "Total work",
-          "workPerRep": "Work per rep",
-          "meanCycleTime": "Mean cycle time",
-          "meanStandTime": "Mean stand time",
-          "meanSitTime": "Mean sit time",
-          "meanFrequency": "Mean frequency",
-          "cvCycleTime": "Cycle time CV",
-          "signalAmplitude": "Signal amplitude",
-          "velFlexStand": "Flexion vel. (stand)",
-          "velExtStand": "Extension vel. (stand)",
-          "velFlexSit": "Flexion vel. (sit)",
-          "velExtSit": "Extension vel. (sit)"
-        }
-      }
     }
   },
   "institutions": {
@@ -311,7 +322,10 @@
     "country": {
       "usa": "USA",
       "uk": "UK"
-    }
+    },
+    "participantsChartTitle": "Participants registered by institution",
+    "participantsChartEmpty": "No participants linked yet.",
+    "participantsLabel": "Participants"
   },
   "users": {
     "title": "Users",

@@ -1,7 +1,7 @@
 import {
-  getCognitoClientId,
-  getCognitoRegion,
-} from "./runtimeConfig";
+  COGNITO_CLIENT_ID,
+  COGNITO_REGION,
+} from "../config/env";
 import { clearTokens, saveTokens } from "./tokenStorage";
 
 type InitiateAuthResult = {
@@ -11,8 +11,8 @@ type InitiateAuthResult = {
 };
 
 export async function signInWithPassword(email: string, password: string) {
-  const region = getCognitoRegion();
-  const clientId = getCognitoClientId();
+  const region = COGNITO_REGION;
+  const clientId = COGNITO_CLIENT_ID;
   const url = `https://cognito-idp.${region}.amazonaws.com/`;
 
   const res = await fetch(url, {

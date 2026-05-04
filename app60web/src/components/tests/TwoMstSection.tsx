@@ -344,12 +344,13 @@ export function TwoMstSection({ participant }: Props) {
           <div className="rounded-3xl border border-blue-100 bg-blue-50/40 p-3">
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={selectedSignal}>
+                <LineChart data={selectedSignal} margin={{ top: 8, right: 12, left: 8, bottom: 8 }}>
                   <CartesianGrid stroke="#dbeafe" strokeDasharray="2 2" />
 
                   <XAxis
                     dataKey="time"
                     type="number"
+                    scale="linear"
                     domain={["dataMin", "dataMax"]}
                     tick={{ fill: "#64748b", fontSize: 10 }}
                     axisLine={false}
@@ -358,10 +359,12 @@ export function TwoMstSection({ participant }: Props) {
                   />
 
                   <YAxis
+                    type="number"
+                    domain={["auto", "auto"]}
                     tick={{ fill: "#64748b", fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
-                    width={48}
+                    width={52}
                   />
 
                   <Tooltip
@@ -380,7 +383,7 @@ export function TwoMstSection({ participant }: Props) {
                   />
 
                   <Line
-                    type="monotone"
+                    type="linear"
                     dataKey="value"
                     stroke="#ff4d8d"
                     strokeWidth={2.8}

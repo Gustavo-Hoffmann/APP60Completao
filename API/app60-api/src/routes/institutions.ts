@@ -382,5 +382,32 @@ export function institutionsRouter(pool: Pool) {
     }
   });
 
+  r.get("/stats/participants-by-institution", async (req, res) => {
+    const u = req.authUser as AuthedUser;
+    if (!canManageInstitutions(u)) {
+      res.status(403).json({ error: "Sem permissão." });
+      return;
+    }
+    try {
+      const q = await pool.query(
+        `SELECT i.id,
+                i.acronym,
+                i.country,
+                COUNT(DISTINCT h.participant_id)::int AS participants_count
+         FROM institutions i
+         LEFT JOIN participant_institution_history h
+           ON h.institution_id = i.id
+          AND h.valid_to IS NULL
+         WHERE i.is_active = true
+         GROUP BY i.id, i.acronym, i.country
+         ORDER BY i.country ASC, participants_count DESC, i.acronym ASC`
+      );
+      res.json(q.rows);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Erro ao carregar estatísticas." });
+    }
+  });
+
   return r;
 }

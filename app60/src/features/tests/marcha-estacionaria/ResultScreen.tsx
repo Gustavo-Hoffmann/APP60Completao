@@ -48,6 +48,7 @@ type AnalysisResult = {
   meanFirst20: number | null;
   meanLast20: number | null;
   percentileLabel: string;
+  percentileLabelParams?: Record<string, any>;
   percentileApprox: number | null;
   ageBinLabel: string;
   adjusted120Steps: number | null;
@@ -450,9 +451,7 @@ export default function MarchaEstacionariaResultScreen() {
                   <View style={styles.badgeRow}>
                     <View style={styles.badge}>
                       <T style={styles.badgeText}>
-                        {analysis.percentileLabel.startsWith("tests:")
-                          ? t(analysis.percentileLabel)
-                          : analysis.percentileLabel}
+                        {t(analysis.percentileLabel, analysis.percentileLabelParams)}
                       </T>
                     </View>
                     {analysis.percentileApprox != null ? (
@@ -583,7 +582,11 @@ function analyze2MST(
   const adjusted120Steps = cycles;
   const ageBinLabel = resolveAgeBin(age);
   const normRows = buildNormRows(sex, ageBinLabel);
-  const { percentileLabel, percentileApprox } = estimatePercentile(sex, ageBinLabel, adjusted120Steps);
+  const { percentileLabel, percentileLabelParams, percentileApprox } = estimatePercentile(
+    sex,
+    ageBinLabel,
+    adjusted120Steps
+  );
 
   return {
     time: timeCut,
@@ -600,6 +603,7 @@ function analyze2MST(
     meanFirst20,
     meanLast20,
     percentileLabel,
+    percentileLabelParams,
     percentileApprox,
     ageBinLabel,
     adjusted120Steps,
@@ -639,6 +643,7 @@ function estimatePercentile(sex: SexKey | null, ageBin: string, steps: number | 
   if (!sex || steps == null) {
     return {
       percentileLabel: "tests:marchaEstacionaria.percentileUnavailable",
+      percentileLabelParams: undefined,
       percentileApprox: null as number | null,
     };
   }
@@ -647,6 +652,7 @@ function estimatePercentile(sex: SexKey | null, ageBin: string, steps: number | 
   if (!rows) {
     return {
       percentileLabel: "tests:marchaEstacionaria.percentileUnavailable",
+      percentileLabelParams: undefined,
       percentileApprox: null as number | null,
     };
   }
@@ -658,6 +664,7 @@ function estimatePercentile(sex: SexKey | null, ageBin: string, steps: number | 
   if (!percentiles.length) {
     return {
       percentileLabel: "tests:marchaEstacionaria.percentileUnavailable",
+      percentileLabelParams: undefined,
       percentileApprox: null as number | null,
     };
   }
@@ -666,7 +673,8 @@ function estimatePercentile(sex: SexKey | null, ageBin: string, steps: number | 
 
   if (steps <= pairs[0].value) {
     return {
-      percentileLabel: `Abaixo de p${pairs[0].p}`,
+      percentileLabel: "tests:marchaEstacionaria.percentileBelow",
+      percentileLabelParams: { p: pairs[0].p },
       percentileApprox: pairs[0].p,
     };
   }
@@ -674,7 +682,8 @@ function estimatePercentile(sex: SexKey | null, ageBin: string, steps: number | 
   const lastPair = pairs[pairs.length - 1];
   if (steps >= lastPair.value) {
     return {
-      percentileLabel: `Acima de p${lastPair.p}`,
+      percentileLabel: "tests:marchaEstacionaria.percentileAbove",
+      percentileLabelParams: { p: lastPair.p },
       percentileApprox: lastPair.p,
     };
   }
@@ -687,7 +696,8 @@ function estimatePercentile(sex: SexKey | null, ageBin: string, steps: number | 
       const pApprox = a.p + frac * (b.p - a.p);
 
       return {
-        percentileLabel: `Entre p${a.p} e p${b.p}`,
+        percentileLabel: "tests:marchaEstacionaria.percentileBetween",
+        percentileLabelParams: { pLow: a.p, pHigh: b.p },
         percentileApprox: pApprox,
       };
     }
@@ -695,6 +705,7 @@ function estimatePercentile(sex: SexKey | null, ageBin: string, steps: number | 
 
   return {
     percentileLabel: "tests:marchaEstacionaria.percentileUnavailable",
+    percentileLabelParams: undefined,
     percentileApprox: null as number | null,
   };
 }

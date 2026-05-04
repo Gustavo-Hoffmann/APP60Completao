@@ -50,6 +50,17 @@ const FALLBACK_REGIONS = [
 
 export type CountryOption = { code: string; label: string };
 
+function safeDisplayNames(language: string): Intl.DisplayNames | null {
+  try {
+    const DisplayNamesCtor = (Intl as unknown as { DisplayNames?: typeof Intl.DisplayNames }).DisplayNames;
+    if (typeof DisplayNamesCtor !== "function") return null;
+    const loc = language.toLowerCase().startsWith("pt") ? "pt-BR" : "en-GB";
+    return new DisplayNamesCtor([loc, "en"], { type: "region" });
+  } catch {
+    return null;
+  }
+}
+
 function regionCodesFromIntl(): string[] | null {
   try {
     const fn = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf;
@@ -65,11 +76,11 @@ function regionCodesFromIntl(): string[] | null {
 export function getCountryOptions(language: string): CountryOption[] {
   const codes = regionCodesFromIntl() ?? FALLBACK_REGIONS;
   const loc = language.toLowerCase().startsWith("pt") ? "pt-BR" : "en-GB";
-  const dn = new Intl.DisplayNames([loc, "en"], { type: "region" });
+  const dn = safeDisplayNames(language);
 
   const opts: CountryOption[] = Array.from(new Set(codes)).map((code) => ({
     code,
-    label: `${dn.of(code) ?? code} (${code})`,
+    label: `${dn?.of(code) ?? code} (${code})`,
   }));
 
   opts.sort((a, b) => a.label.localeCompare(b.label, loc, { sensitivity: "base" }));
@@ -86,7 +97,6 @@ export function getCountryOptions(language: string): CountryOption[] {
 export function countryLabel(language: string, code: string): string {
   const c = code.trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(c)) return code;
-  const loc = language.toLowerCase().startsWith("pt") ? "pt-BR" : "en-GB";
-  const dn = new Intl.DisplayNames([loc, "en"], { type: "region" });
-  return `${dn.of(c) ?? c} (${c})`;
+  const dn = safeDisplayNames(language);
+  return `${dn?.of(c) ?? c} (${c})`;
 }

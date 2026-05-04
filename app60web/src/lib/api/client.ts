@@ -17,10 +17,27 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   if (!headers.has("Content-Type") && init.body && typeof init.body === "string") {
     headers.set("Content-Type", "application/json");
   }
-  return fetch(`${baseUrl()}${path.startsWith("/") ? path : `/${path}`}`, {
+  const b = baseUrl();
+  const p = path.startsWith("/") ? path : `/${path}`;
+  const normalizedPath = b.endsWith("/api") && p.startsWith("/api/") ? p.slice(4) : p;
+
+  const url = `${b}${normalizedPath}`;
+  const res = await fetch(url, {
     ...init,
     headers,
   });
+
+  // Alguns ambientes colocam "/api" no base URL ou fazem rewrite no balanceador;
+  // esse retry deixa o client resiliente sem depender da config exata.
+  if (res.status === 404 && normalizedPath.startsWith("/api/")) {
+    const altUrl = `${b}${normalizedPath.slice(4)}`;
+    return fetch(altUrl, {
+      ...init,
+      headers,
+    });
+  }
+
+  return res;
 }
 
 export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {

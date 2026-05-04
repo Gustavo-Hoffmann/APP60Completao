@@ -3,22 +3,28 @@ import { NativeEventEmitter, NativeModules, Platform, EmitterSubscription } from
 const { NativeIMU } = NativeModules as any;
 
 export type NativeImuSampleRow = [
-  number, // t_ms
+  number, // wall_t_ms
+  number, // row_t_ms
+  number, // acc_t_ms
   number, // ax
   number, // ay
   number, // az
+  number, // gyro_t_ms
   number, // gx
   number, // gy
   number, // gz
-  number, // userAx
-  number, // userAy
-  number, // userAz
-  number, // gravX
-  number, // gravY
-  number, // gravZ
+  number, // user_acc_t_ms
+  number, // user_ax
+  number, // user_ay
+  number, // user_az
+  number, // grav_t_ms
+  number, // grav_x
+  number, // grav_y
+  number, // grav_z
+  number, // att_t_ms
   number, // roll
   number, // pitch
-  number // yaw
+  number, // yaw
 ];
 
 export type NativeImuStats = {
@@ -176,7 +182,7 @@ function normalizeSamples(value: unknown): NativeImuSampleRow[] {
   const out: NativeImuSampleRow[] = [];
 
   for (const row of value) {
-    if (!Array.isArray(row) || row.length < 16) continue;
+    if (!Array.isArray(row) || row.length < 22) continue;
 
     out.push([
       toNum(row[0]),
@@ -195,6 +201,12 @@ function normalizeSamples(value: unknown): NativeImuSampleRow[] {
       toNum(row[13]),
       toNum(row[14]),
       toNum(row[15]),
+      toNum(row[16]),
+      toNum(row[17]),
+      toNum(row[18]),
+      toNum(row[19]),
+      toNum(row[20]),
+      toNum(row[21]),
     ]);
   }
 

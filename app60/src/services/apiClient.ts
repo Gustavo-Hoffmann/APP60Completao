@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from "./runtimeConfig";
+import { API_BASE_URL } from "../config/env";
 import { getIdToken } from "./tokenStorage";
 
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
@@ -11,7 +11,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   if (!headers.has("Content-Type") && init.body && typeof init.body === "string") {
     headers.set("Content-Type", "application/json");
   }
-  const base = getApiBaseUrl();
+  const base = API_BASE_URL;
   return fetch(`${base}${path.startsWith("/") ? path : `/${path}`}`, {
     ...init,
     headers,

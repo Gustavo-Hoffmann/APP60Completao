@@ -137,6 +137,14 @@
     "save": "Salvar alterações",
     "delete": "Excluir participante",
     "deleteConfirm": "Excluir este participante? Esta ação não pode ser desfeita.",
+    "deleteTypeConfirm": "Confirmação de exclusão\\n\\nParticipante: {{name}}\\n\\nPara excluir, digite exatamente o nome do participante:",
+    "deleteTypeMismatch": "Nome não confere. Exclusão cancelada.",
+    "deleteModalTitle": "Confirmação de exclusão",
+    "deleteModalBody": "Participante: {{name}}. Para excluir, digite o nome do participante abaixo.",
+    "deleteModalInputLabel": "Digite o nome do participante",
+    "deleteModalPlaceholder": "Nome completo",
+    "deleteModalCancel": "Cancelar",
+    "deleteModalConfirm": "Excluir definitivamente",
     "deleting": "Excluindo...",
     "deleteFailed": "Não foi possível excluir o participante.",
     "loadFailed": "Não foi possível carregar o participante."
@@ -172,11 +180,59 @@
       "noData": "Sem dados detalhados no momento.",
       "2mst": {
         "description": "Clique para abrir os dados processados da marcha estacionária.",
-        "demoDescription": "Clique para abrir os dados de demonstração da marcha estacionária."
+        "demoDescription": "Clique para abrir os dados de demonstração da marcha estacionária.",
+        "sectionTitle": "2MST — Marcha estacionária",
+        "duration": "2 minutos",
+        "repsEvolutionTitle": "2MST — evolução de repetições",
+        "timeseriesGyroXTitle": "Série temporal — Giroscópio X",
+        "phonePeaks": "Picos phone",
+        "calibratedPeaks": "Picos calibrados",
+        "sessionOptionCycles": "Sessão {{session}} — {{cycles}} ciclos",
+        "metrics": {
+          "meanAngularVelocity": "Vel. angular média",
+          "meanAngularVelocityFull": "Velocidade angular média",
+          "cvVelocity": "CV velocidade",
+          "meanCycleTime": "Tempo médio ciclo",
+          "cvCycleTime": "CV tempo ciclo",
+          "maxVelocity": "Velocidade máxima",
+          "minVelocity": "Velocidade mínima"
+        }
       },
       "sl30s": {
-        "description": "Clique para abrir os dados processados do sentar e levantar."
+        "description": "Clique para abrir os dados processados do sentar e levantar.",
+        "shortTitle": "SL-30s",
+        "sectionTitle": "SL-30s — Sentar e levantar",
+        "duration": "30 segundos",
+        "repsEvolutionTitle": "SL-30s — evolução de repetições",
+        "timeseriesTrunkAngleTitle": "Série temporal — Ângulo do tronco",
+        "sessionOptionReps": "Sessão {{session}} — {{reps}} repetições",
+        "metrics": {
+          "meanPower": "Potência média",
+          "totalWork": "Trabalho total",
+          "workPerRep": "Trabalho por repetição",
+          "meanCycleTime": "Tempo médio ciclo",
+          "meanStandTime": "Tempo médio levantar",
+          "meanSitTime": "Tempo médio sentar",
+          "meanFrequency": "Frequência média",
+          "cvCycleTime": "CV tempo ciclo",
+          "signalAmplitude": "Amplitude do sinal",
+          "velFlexStand": "Vel. flexão levantar",
+          "velExtStand": "Vel. extensão levantar",
+          "velFlexSit": "Vel. flexão sentar",
+          "velExtSit": "Vel. extensão sentar"
+        }
       }
+    },
+    "exports": {
+      "rawButton": "Baixar dados brutos",
+      "pdfButton": "Baixar resumo em PDF",
+      "rawModalTitle": "Baixar CSV bruto",
+      "rawModalBody": "Selecione a sessão que deseja baixar.",
+      "rawModalSessionLabel": "Sessão",
+      "rawModalCancel": "Cancelar",
+      "rawModalDownload": "Baixar",
+      "downloading": "Baixando...",
+      "exportingPdf": "Gerando..."
     },
     "unclassified": "Sem classificação",
     "active": "Ativo",
@@ -233,6 +289,8 @@
     },
     "metricsFilter": {
       "title": "Filtro de sessões (métricas)",
+      "bySession": "Por sessão",
+      "byDate": "Por data",
       "clear": "Limpar",
       "button": "Filtrar sessões",
       "hint": "Arraste para definir o intervalo (início e fim).",
@@ -240,53 +298,6 @@
       "rangeLabel": "Sessões {{from}}–{{to}}",
       "pickStart": "Selecione a sessão de início",
       "pickEnd": "Agora selecione a sessão de fim (início: Sessão {{from}})"
-    },
-    "tests": {
-      "title": "Testes realizados",
-      "noData": "Sem dados detalhados no momento.",
-      "2mst": {
-        "description": "Clique para abrir os dados processados da marcha estacionária.",
-        "demoDescription": "Clique para abrir os dados de demonstração da marcha estacionária.",
-        "sectionTitle": "2MST — Marcha estacionária",
-        "duration": "2 minutos",
-        "repsEvolutionTitle": "2MST — evolução de repetições",
-        "timeseriesGyroXTitle": "Série temporal — Giroscópio X",
-        "phonePeaks": "Picos phone",
-        "calibratedPeaks": "Picos calibrados",
-        "sessionOptionCycles": "Sessão {{session}} — {{cycles}} ciclos",
-        "metrics": {
-          "meanAngularVelocity": "Vel. angular média",
-          "meanAngularVelocityFull": "Velocidade angular média",
-          "cvVelocity": "CV velocidade",
-          "meanCycleTime": "Tempo médio ciclo",
-          "cvCycleTime": "CV tempo ciclo",
-          "maxVelocity": "Velocidade máxima",
-          "minVelocity": "Velocidade mínima"
-        }
-      },
-      "sl30s": {
-        "description": "Clique para abrir os dados processados do sentar e levantar.",
-        "sectionTitle": "SL-30s — Sentar e levantar",
-        "duration": "30 segundos",
-        "repsEvolutionTitle": "SL-30s — evolução de repetições",
-        "timeseriesTrunkAngleTitle": "Série temporal — Ângulo do tronco",
-        "sessionOptionReps": "Sessão {{session}} — {{reps}} repetições",
-        "metrics": {
-          "meanPower": "Potência média",
-          "totalWork": "Trabalho total",
-          "workPerRep": "Trabalho por repetição",
-          "meanCycleTime": "Tempo médio ciclo",
-          "meanStandTime": "Tempo médio levantar",
-          "meanSitTime": "Tempo médio sentar",
-          "meanFrequency": "Frequência média",
-          "cvCycleTime": "CV tempo ciclo",
-          "signalAmplitude": "Amplitude do sinal",
-          "velFlexStand": "Vel. flexão levantar",
-          "velExtStand": "Vel. extensão levantar",
-          "velFlexSit": "Vel. flexão sentar",
-          "velExtSit": "Vel. extensão sentar"
-        }
-      }
     }
   },
   "institutions": {
@@ -311,7 +322,10 @@
     "country": {
       "usa": "EUA",
       "uk": "UK"
-    }
+    },
+    "participantsChartTitle": "Participantes cadastrados por instituição",
+    "participantsChartEmpty": "Nenhum participante vinculado ainda.",
+    "participantsLabel": "Participantes"
   },
   "users": {
     "title": "Usuários",

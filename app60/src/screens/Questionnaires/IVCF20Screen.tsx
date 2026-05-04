@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 
 import { useTheme } from "../../contexts/ThemeContext";
 import { Routes } from "../../navigation/routes";
@@ -132,10 +133,10 @@ const computeBMI = (answers: Answers) => {
   return Number.isFinite(bmi) ? bmi : null;
 };
 
-const classifyIVCF = (score: number) => {
-  if (score <= 6) return { label: "Robusto", key: "robusto" as const };
-  if (score <= 14) return { label: "Pré-frágil", key: "prefragil" as const };
-  return { label: "Frágil", key: "fragil" as const };
+const classifyIVCFKey = (score: number): "robusto" | "prefragil" | "fragil" => {
+  if (score <= 6) return "robusto";
+  if (score <= 14) return "prefragil";
+  return "fragil";
 };
 
 const formatSeconds = (sec: number | null | undefined) => {
@@ -189,16 +190,16 @@ const computeScores = (patient: Patient | null, answers: Answers, walkSecFromTim
   const comorbidityScore = comorbidityPositive ? 4 : 0;
 
   const blockScores = [
-    { key: "idade", label: "Idade", score: ageScore },
-    { key: "percepcao", label: "Percepção de saúde", score: perceptionScore },
-    { key: "avd_i", label: "AVD instrumental", score: avdInstrumentalScore },
-    { key: "avd_b", label: "AVD básica", score: avdBasicScore },
-    { key: "cognicao", label: "Cognição", score: cognitionScore },
-    { key: "humor", label: "Humor", score: moodScore },
-    { key: "mobilidade", label: "Mobilidade", score: mobilityScore },
-    { key: "continencia", label: "Continência", score: continenceScore },
-    { key: "comunicacao", label: "Comunicação", score: communicationScore },
-    { key: "comorbidades", label: "Comorbidade múltipla", score: comorbidityScore },
+    { key: "idade", score: ageScore },
+    { key: "percepcao", score: perceptionScore },
+    { key: "avd_i", score: avdInstrumentalScore },
+    { key: "avd_b", score: avdBasicScore },
+    { key: "cognicao", score: cognitionScore },
+    { key: "humor", score: moodScore },
+    { key: "mobilidade", score: mobilityScore },
+    { key: "continencia", score: continenceScore },
+    { key: "comunicacao", score: communicationScore },
+    { key: "comorbidades", score: comorbidityScore },
   ];
 
   const total = blockScores.reduce((acc, b) => acc + b.score, 0);
@@ -219,8 +220,8 @@ const YesNo = ({
   value,
   onChange,
   styles,
-  yesLabel = "Sim",
-  noLabel = "Não",
+  yesLabel,
+  noLabel,
 }: {
   value: boolean | undefined;
   onChange: (v: boolean) => void;
@@ -280,6 +281,19 @@ const Radio = ({
   );
 };
 
+const IVCF_BLOCK_KEYS = [
+  "idade",
+  "percepcao",
+  "avd_i",
+  "avd_b",
+  "cognicao",
+  "humor",
+  "mobilidade",
+  "continencia",
+  "comunicacao",
+  "comorbidades",
+] as const;
+
 const Checkbox = ({
   checked,
   label,
@@ -311,6 +325,7 @@ const Checkbox = ({
 
 export function IVCF20Screen({ navigation, route }: any) {
   const { theme } = useTheme();
+  const { t } = useTranslation(["questionnaires", "common"]);
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const participant = route?.params?.participant as Participant | undefined;
@@ -325,37 +340,31 @@ export function IVCF20Screen({ navigation, route }: any) {
       headerTintColor: "#fff",
       headerTitleStyle: { color: "#fff", fontWeight: "900" },
       headerShadowVisible: false,
+      title: t("questionnaires:ivcf20.shortTitle"),
     });
-  }, [navigation, theme.colors.primary]);
+  }, [navigation, theme.colors.primary, t]);
 
   useEffect(() => {
     if (!participant) {
       navigation.replace(Routes.ParticipantPick, {
         nextRoute: Routes.IVCF20,
-        testTitle: "IVCF-20",
+        testTitle: t("questionnaires:hub.openIvcf20"),
         testKey: "ivcf20",
       });
     }
-  }, [participant, navigation]);
+  }, [participant, navigation, t]);
 
   useEffect(() => {
     if (participant) setPatient(participantToPatient(participant));
   }, [participant]);
 
   const blocks = useMemo(
-    () => [
-      { key: "idade", title: "Idade (Q1)" },
-      { key: "percepcao", title: "Percepção da saúde (Q2)" },
-      { key: "avd_i", title: "AVD Instrumental (Q3–Q5)" },
-      { key: "avd_b", title: "AVD Básica (Q6)" },
-      { key: "cognicao", title: "Cognição (Q7–Q9)" },
-      { key: "humor", title: "Humor (Q10–Q11)" },
-      { key: "mobilidade", title: "Mobilidade (Q12–Q16)" },
-      { key: "continencia", title: "Continência (Q17)" },
-      { key: "comunicacao", title: "Comunicação (Q18–Q19)" },
-      { key: "comorbidades", title: "Comorbidade múltipla (Q20)" },
-    ],
-    []
+    () =>
+      IVCF_BLOCK_KEYS.map((key) => ({
+        key,
+        title: t(`questionnaires:ivcf20.blockTitles.${key}`),
+      })),
+    [t]
   );
 
   const [blockIndex, setBlockIndex] = useState(0);
@@ -421,7 +430,7 @@ export function IVCF20Screen({ navigation, route }: any) {
     if (key === "idade") {
       if ((ageAuto as any).bracket) return true;
       if (!answers.q1_ageBracket) {
-        setBlockError("Sem data de nascimento no cadastro. Selecione a faixa etária.");
+        setBlockError(t("questionnaires:ivcf20.errors.idadeNoDob"));
         return false;
       }
       return true;
@@ -429,7 +438,7 @@ export function IVCF20Screen({ navigation, route }: any) {
 
     if (key === "percepcao") {
       if (!answers.q2_health) {
-        setBlockError("Responda a percepção de saúde.");
+        setBlockError(t("questionnaires:ivcf20.errors.percepcao"));
         return false;
       }
       return true;
@@ -437,7 +446,7 @@ export function IVCF20Screen({ navigation, route }: any) {
 
     if (key === "avd_i") {
       if (!mustBool(answers.q3_shop) || !mustBool(answers.q4_money) || !mustBool(answers.q5_housework)) {
-        setBlockError("Responda as 3 questões de AVD instrumental.");
+        setBlockError(t("questionnaires:ivcf20.errors.avd_i"));
         return false;
       }
       return true;
@@ -445,7 +454,7 @@ export function IVCF20Screen({ navigation, route }: any) {
 
     if (key === "avd_b") {
       if (!mustBool(answers.q6_bath)) {
-        setBlockError("Responda a questão da AVD básica.");
+        setBlockError(t("questionnaires:ivcf20.errors.avd_b"));
         return false;
       }
       return true;
@@ -453,7 +462,7 @@ export function IVCF20Screen({ navigation, route }: any) {
 
     if (key === "cognicao") {
       if (!mustBool(answers.q7_forget) || !mustBool(answers.q8_worse) || !mustBool(answers.q9_impairs)) {
-        setBlockError("Responda as 3 questões de cognição.");
+        setBlockError(t("questionnaires:ivcf20.errors.cognicao"));
         return false;
       }
       return true;
@@ -461,7 +470,7 @@ export function IVCF20Screen({ navigation, route }: any) {
 
     if (key === "humor") {
       if (!mustBool(answers.q10_sad) || !mustBool(answers.q11_noPleasure)) {
-        setBlockError("Responda as 2 questões de humor.");
+        setBlockError(t("questionnaires:ivcf20.errors.humor"));
         return false;
       }
       return true;
@@ -469,35 +478,35 @@ export function IVCF20Screen({ navigation, route }: any) {
 
     if (key === "mobilidade") {
       if (!mustBool(answers.q12_reach) || !mustBool(answers.q13_pinch)) {
-        setBlockError("Responda alcance/preensão/pinça (Q12–Q13).");
+        setBlockError(t("questionnaires:ivcf20.errors.mobilidadeReach"));
         return false;
       }
 
       if (!mustBool(answers.q14_weightLoss)) {
-        setBlockError("Q14: marque se houve perda de peso (Sim/Não).");
+        setBlockError(t("questionnaires:ivcf20.errors.mobilidadeWeight"));
         return false;
       }
 
       const w = parseNumber(answers.q14_weightKg);
       const h = parseNumber(answers.q14_height);
       if (w == null || h == null || w <= 0 || h <= 0) {
-        setBlockError("Q14: informe peso e altura (para calcular o IMC).");
+        setBlockError(t("questionnaires:ivcf20.errors.mobilidadeBmi"));
         return false;
       }
 
       const calfVal = parseNumber(answers.q14_calfCm);
       if (calfVal == null) {
-        setBlockError("Q14: informe a circunferência da panturrilha (cm).");
+        setBlockError(t("questionnaires:ivcf20.errors.mobilidadeCalf"));
         return false;
       }
 
       if (walkSeconds == null || walkSeconds <= 0) {
-        setBlockError("Q14: faça o teste de marcha 4m (cronômetro obrigatório).");
+        setBlockError(t("questionnaires:ivcf20.errors.mobilidadeWalk"));
         return false;
       }
 
       if (!mustBool(answers.q15_walkDifficulty) || !mustBool(answers.q16_falls)) {
-        setBlockError("Responda marcha e quedas (Q15–Q16).");
+        setBlockError(t("questionnaires:ivcf20.errors.mobilidadeGait"));
         return false;
       }
 
@@ -506,7 +515,7 @@ export function IVCF20Screen({ navigation, route }: any) {
 
     if (key === "continencia") {
       if (!mustBool(answers.q17_incontinence)) {
-        setBlockError("Responda a questão de continência.");
+        setBlockError(t("questionnaires:ivcf20.errors.continencia"));
         return false;
       }
       return true;
@@ -514,7 +523,7 @@ export function IVCF20Screen({ navigation, route }: any) {
 
     if (key === "comunicacao") {
       if (!mustBool(answers.q18_vision) || !mustBool(answers.q19_hearing)) {
-        setBlockError("Responda visão e audição.");
+        setBlockError(t("questionnaires:ivcf20.errors.comunicacao"));
         return false;
       }
       return true;
@@ -528,13 +537,13 @@ export function IVCF20Screen({ navigation, route }: any) {
         answers.q20_hosp6m === true;
 
       if (!any) {
-        setBlockError('Q20: marque ao menos uma opção (ou “Nenhuma”).');
+        setBlockError(t("questionnaires:ivcf20.errors.comorbidadesPick"));
         return false;
       }
 
       if (answers.q20_none) {
         if (answers.q20_chronic5 || answers.q20_meds5 || answers.q20_hosp6m) {
-          setBlockError('Q20: “Nenhuma” não pode coexistir com outras opções.');
+          setBlockError(t("questionnaires:ivcf20.errors.comorbidadesExclusive"));
           return false;
         }
       }
@@ -558,7 +567,15 @@ export function IVCF20Screen({ navigation, route }: any) {
       setBlockError("");
     } else {
       const scored = computeScores(patient, answers, walkSeconds);
-      const cls = classifyIVCF(scored.total);
+      const clsKey = classifyIVCFKey(scored.total);
+      const classification = {
+        key: clsKey,
+        label: t(`questionnaires:ivcf20.classification.${clsKey}`),
+      };
+      const blockScoresNav = scored.blockScores.map((b) => ({
+        ...b,
+        label: t(`questionnaires:ivcf20.domains.${b.key}`),
+      }));
 
       navigation.navigate(Routes.IVCF20Result, {
         participant,
@@ -567,8 +584,8 @@ export function IVCF20Screen({ navigation, route }: any) {
         patientId: participantId,
         patientName: patient?.name ?? participant?.name ?? "",
         scoreTotal: scored.total,
-        classification: cls,
-        blockScores: scored.blockScores,
+        classification,
+        blockScores: blockScoresNav,
         answers: { ...answers, q14_walk4mSeconds: walkSeconds },
         meta: scored.meta,
       });
@@ -592,13 +609,15 @@ export function IVCF20Screen({ navigation, route }: any) {
         </View>
 
         <View style={styles.heroTopRow}>
-          <Text style={styles.heroTitle}>IVCF-20</Text>
+          <Text style={styles.heroTitle}>{t("questionnaires:ivcf20.shortTitle")}</Text>
           <View style={styles.pill}>
             <Text style={styles.pillText}>{progress}</Text>
           </View>
         </View>
 
-        <Text style={styles.heroSub}>{patient?.name ?? "Participante"}</Text>
+        <Text style={styles.heroSub}>
+          {patient?.name ?? t("questionnaires:ivcf20.participantFallback")}
+        </Text>
         <Text style={styles.heroHint}>{blocks[blockIndex]?.title}</Text>
       </View>
     );
@@ -608,31 +627,49 @@ export function IVCF20Screen({ navigation, route }: any) {
     const key = blocks[blockIndex].key;
 
     if (key === "idade") {
+      const dash = t("questionnaires:ivcf20.result.unknown");
+      const ab = (ageAuto as any).bracket as "60-74" | "75-84" | "85+" | undefined;
+      const bracketLabel = ab
+        ? t(
+            `questionnaires:ivcf20.idade.${
+              ab === "60-74" ? "bracket6074" : ab === "75-84" ? "bracket7584" : "bracket85"
+            }`
+          )
+        : "";
+
       return (
         <View style={styles.card}>
-          <Text style={styles.blockTitle}>Q1. Idade</Text>
+          <Text style={styles.blockTitle}>{t("questionnaires:ivcf20.idade.qTitle")}</Text>
 
           <View style={{ marginTop: 8 }}>
-            <Text style={styles.metaLine}>Nascimento: {patient?.dateOfBirth ?? "—"}</Text>
-            <Text style={styles.metaLine}>Idade calculada: {age != null ? `${age} anos` : "—"}</Text>
+            <Text style={styles.metaLine}>
+              {t("questionnaires:ivcf20.idade.birth")} {patient?.dateOfBirth ?? dash}
+            </Text>
+            <Text style={styles.metaLine}>
+              {t("questionnaires:ivcf20.idade.ageCalc")}{" "}
+              {age != null ? t("questionnaires:ivcf20.idade.ageYears", { n: age }) : dash}
+            </Text>
           </View>
 
           {(ageAuto as any).bracket ? (
             <View style={styles.infoBox}>
               <Text style={styles.infoText}>
-                Faixa automática: {(ageAuto as any).bracket} • Pontos: {(ageAuto as any).score}
+                {t("questionnaires:ivcf20.idade.autoBand", {
+                  bracket: bracketLabel,
+                  score: (ageAuto as any).score,
+                })}
               </Text>
             </View>
           ) : (
             <>
-              <Text style={styles.qText}>Sem data de nascimento válida no cadastro. Selecione:</Text>
+              <Text style={styles.qText}>{t("questionnaires:ivcf20.idade.noValidDob")}</Text>
               <Radio
                 styles={styles}
                 value={answers.q1_ageBracket}
                 options={[
-                  { key: "60-74", label: "60 a 74 anos (0)" },
-                  { key: "75-84", label: "75 a 84 anos (1)" },
-                  { key: "85+", label: "≥ 85 anos (3)" },
+                  { key: "60-74", label: t("questionnaires:ivcf20.idade.bracket6074") },
+                  { key: "75-84", label: t("questionnaires:ivcf20.idade.bracket7584") },
+                  { key: "85+", label: t("questionnaires:ivcf20.idade.bracket85") },
                 ]}
                 onChange={(k) => setAnswers((prev) => ({ ...prev, q1_ageBracket: k as any }))}
               />
@@ -645,17 +682,15 @@ export function IVCF20Screen({ navigation, route }: any) {
     if (key === "percepcao") {
       return (
         <View style={styles.card}>
-          <Text style={styles.blockTitle}>Q2. Percepção da saúde</Text>
-          <Text style={styles.qText}>
-            Em geral, comparando com outras pessoas de sua idade, você diria que sua saúde é:
-          </Text>
+          <Text style={styles.blockTitle}>{t("questionnaires:ivcf20.percepcao.blockTitle")}</Text>
+          <Text style={styles.qText}>{t("questionnaires:ivcf20.percepcao.intro")}</Text>
 
           <Radio
             styles={styles}
             value={answers.q2_health}
             options={[
-              { key: "good", label: "Excelente, muito boa ou boa (0)" },
-              { key: "bad", label: "Regular ou ruim (1)" },
+              { key: "good", label: t("questionnaires:ivcf20.percepcao.good") },
+              { key: "bad", label: t("questionnaires:ivcf20.percepcao.bad") },
             ]}
             onChange={(k) => setAnswers((prev) => ({ ...prev, q2_health: k as any }))}
           />
@@ -667,29 +702,28 @@ export function IVCF20Screen({ navigation, route }: any) {
       const q = (label: string, v: boolean | undefined, onChange: (b: boolean) => void) => (
         <View style={styles.qBox}>
           <Text style={styles.qText}>{label}</Text>
-          <YesNo styles={styles} value={v} onChange={onChange} />
+          <YesNo
+            yesLabel={t("common:boolean.yes")}
+            noLabel={t("common:boolean.no")}
+            styles={styles} value={v} onChange={onChange} />
         </View>
       );
 
       return (
         <View style={styles.card}>
-          <Text style={styles.blockTitle}>AVD Instrumental (Q3–Q5)</Text>
-          <Text style={styles.hintText}>Observação: este bloco tem pontuação máxima de 4 pontos.</Text>
+          <Text style={styles.blockTitle}>{t("questionnaires:ivcf20.avd_i.blockTitle")}</Text>
+          <Text style={styles.hintText}>{t("questionnaires:ivcf20.avd_i.hint")}</Text>
 
-          {q("Q3. Por causa de sua saúde ou condição física, você deixou de fazer compras?", answers.q3_shop, (b) =>
+          {q(t("questionnaires:ivcf20.avd_i.q3"), answers.q3_shop, (b) =>
             setAnswers((prev) => ({ ...prev, q3_shop: b }))
           )}
 
-          {q(
-            "Q4. Por causa de sua saúde ou condição física, você deixou de controlar seu dinheiro, gasto ou pagar as contas de sua casa?",
-            answers.q4_money,
-            (b) => setAnswers((prev) => ({ ...prev, q4_money: b }))
+          {q(t("questionnaires:ivcf20.avd_i.q4"), answers.q4_money, (b) =>
+            setAnswers((prev) => ({ ...prev, q4_money: b }))
           )}
 
-          {q(
-            "Q5. Por causa de sua saúde ou condição física, você deixou de realizar pequenos trabalhos domésticos (lavar louça, arrumar a casa ou limpeza leve)?",
-            answers.q5_housework,
-            (b) => setAnswers((prev) => ({ ...prev, q5_housework: b }))
+          {q(t("questionnaires:ivcf20.avd_i.q5"), answers.q5_housework, (b) =>
+            setAnswers((prev) => ({ ...prev, q5_housework: b }))
           )}
         </View>
       );
@@ -698,10 +732,16 @@ export function IVCF20Screen({ navigation, route }: any) {
     if (key === "avd_b") {
       return (
         <View style={styles.card}>
-          <Text style={styles.blockTitle}>AVD Básica (Q6)</Text>
+          <Text style={styles.blockTitle}>{t("questionnaires:ivcf20.avd_b.blockTitle")}</Text>
           <View style={styles.qBox}>
-            <Text style={styles.qText}>Q6. Por causa de sua saúde ou condição física, você deixou de tomar banho sozinho?</Text>
-            <YesNo styles={styles} value={answers.q6_bath} onChange={(b) => setAnswers((prev) => ({ ...prev, q6_bath: b }))} />
+            <Text style={styles.qText}>{t("questionnaires:ivcf20.avd_b.q6")}</Text>
+            <YesNo
+              yesLabel={t("common:boolean.yes")}
+              noLabel={t("common:boolean.no")}
+              styles={styles}
+              value={answers.q6_bath}
+              onChange={(b) => setAnswers((prev) => ({ ...prev, q6_bath: b }))}
+            />
           </View>
         </View>
       );
@@ -711,23 +751,26 @@ export function IVCF20Screen({ navigation, route }: any) {
       const q = (label: string, v: boolean | undefined, onChange: (b: boolean) => void) => (
         <View style={styles.qBox}>
           <Text style={styles.qText}>{label}</Text>
-          <YesNo styles={styles} value={v} onChange={onChange} />
+          <YesNo
+            yesLabel={t("common:boolean.yes")}
+            noLabel={t("common:boolean.no")}
+            styles={styles} value={v} onChange={onChange} />
         </View>
       );
 
       return (
         <View style={styles.card}>
-          <Text style={styles.blockTitle}>Cognição (Q7–Q9)</Text>
+          <Text style={styles.blockTitle}>{t("questionnaires:ivcf20.cognicao.blockTitle")}</Text>
 
-          {q("Q7. Algum familiar ou amigo falou que você está ficando esquecido?", answers.q7_forget, (b) =>
+          {q(t("questionnaires:ivcf20.cognicao.q7"), answers.q7_forget, (b) =>
             setAnswers((prev) => ({ ...prev, q7_forget: b }))
           )}
 
-          {q("Q8. Este esquecimento está piorando nos últimos meses?", answers.q8_worse, (b) =>
+          {q(t("questionnaires:ivcf20.cognicao.q8"), answers.q8_worse, (b) =>
             setAnswers((prev) => ({ ...prev, q8_worse: b }))
           )}
 
-          {q("Q9. Este esquecimento está impedindo a realização de alguma atividade do cotidiano?", answers.q9_impairs, (b) =>
+          {q(t("questionnaires:ivcf20.cognicao.q9"), answers.q9_impairs, (b) =>
             setAnswers((prev) => ({ ...prev, q9_impairs: b }))
           )}
         </View>
@@ -738,19 +781,22 @@ export function IVCF20Screen({ navigation, route }: any) {
       const q = (label: string, v: boolean | undefined, onChange: (b: boolean) => void) => (
         <View style={styles.qBox}>
           <Text style={styles.qText}>{label}</Text>
-          <YesNo styles={styles} value={v} onChange={onChange} />
+          <YesNo
+            yesLabel={t("common:boolean.yes")}
+            noLabel={t("common:boolean.no")}
+            styles={styles} value={v} onChange={onChange} />
         </View>
       );
 
       return (
         <View style={styles.card}>
-          <Text style={styles.blockTitle}>Humor (Q10–Q11)</Text>
+          <Text style={styles.blockTitle}>{t("questionnaires:ivcf20.humor.blockTitle")}</Text>
 
-          {q("Q10. No último mês, você ficou com desânimo, tristeza ou desesperança?", answers.q10_sad, (b) =>
+          {q(t("questionnaires:ivcf20.humor.q10"), answers.q10_sad, (b) =>
             setAnswers((prev) => ({ ...prev, q10_sad: b }))
           )}
 
-          {q("Q11. No último mês, você perdeu o interesse ou prazer em atividades anteriormente prazerosas?", answers.q11_noPleasure, (b) =>
+          {q(t("questionnaires:ivcf20.humor.q11"), answers.q11_noPleasure, (b) =>
             setAnswers((prev) => ({ ...prev, q11_noPleasure: b }))
           )}
         </View>
@@ -758,104 +804,137 @@ export function IVCF20Screen({ navigation, route }: any) {
     }
 
     if (key === "mobilidade") {
+      const dash = t("questionnaires:ivcf20.result.unknown");
+      const yn = (v: boolean | undefined) => (v ? t("questionnaires:ivcf20.mobilidade.yes") : t("questionnaires:ivcf20.mobilidade.no"));
+
       const q = (label: string, v: boolean | undefined, onChange: (b: boolean) => void) => (
         <View style={styles.qBox}>
           <Text style={styles.qText}>{label}</Text>
-          <YesNo styles={styles} value={v} onChange={onChange} />
+          <YesNo
+            yesLabel={t("common:boolean.yes")}
+            noLabel={t("common:boolean.no")}
+            styles={styles}
+            value={v}
+            onChange={onChange}
+          />
         </View>
       );
 
       return (
         <View style={styles.card}>
-          <Text style={styles.blockTitle}>Mobilidade (Q12–Q16)</Text>
-          <Text style={styles.hintText}>Observação: a Q14 pontua no máximo 2 pontos (mesmo com vários critérios positivos).</Text>
+          <Text style={styles.blockTitle}>{t("questionnaires:ivcf20.mobilidade.blockTitle")}</Text>
+          <Text style={styles.hintText}>{t("questionnaires:ivcf20.mobilidade.hint")}</Text>
 
-          {q("Q12. Você é incapaz de elevar os braços acima do nível do ombro?", answers.q12_reach, (b) =>
+          {q(t("questionnaires:ivcf20.mobilidade.q12"), answers.q12_reach, (b) =>
             setAnswers((prev) => ({ ...prev, q12_reach: b }))
           )}
 
-          {q("Q13. Você é incapaz de manusear ou segurar pequenos objetos?", answers.q13_pinch, (b) =>
+          {q(t("questionnaires:ivcf20.mobilidade.q13"), answers.q13_pinch, (b) =>
             setAnswers((prev) => ({ ...prev, q13_pinch: b }))
           )}
 
           <View style={styles.divider} />
 
-          <Text style={styles.subBlockTitle}>Q14. Capacidade aeróbica e/ou muscular</Text>
+          <Text style={styles.subBlockTitle}>{t("questionnaires:ivcf20.mobilidade.q14Title")}</Text>
 
           <View style={styles.qBox}>
-            <Text style={styles.qText}>Houve perda de peso não intencional?</Text>
-            <Text style={styles.smallHint}>4,5kg ou 5% no último ano, ou 6kg nos últimos 6 meses, ou 3kg no último mês.</Text>
-            <YesNo styles={styles} value={answers.q14_weightLoss} onChange={(b) => setAnswers((prev) => ({ ...prev, q14_weightLoss: b }))} />
+            <Text style={styles.qText}>{t("questionnaires:ivcf20.mobilidade.weightLossQ")}</Text>
+            <Text style={styles.smallHint}>{t("questionnaires:ivcf20.mobilidade.weightLossHint")}</Text>
+            <YesNo
+              yesLabel={t("common:boolean.yes")}
+              noLabel={t("common:boolean.no")}
+              styles={styles}
+              value={answers.q14_weightLoss}
+              onChange={(b) => setAnswers((prev) => ({ ...prev, q14_weightLoss: b }))}
+            />
           </View>
 
           <View style={styles.qBox}>
-            <Text style={styles.qText}>IMC &lt; 22 kg/m²</Text>
+            <Text style={styles.qText}>{t("questionnaires:ivcf20.mobilidade.bmiTitle")}</Text>
             <View style={styles.inlineInputs}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Peso (kg)</Text>
+                <Text style={styles.inputLabel}>{t("questionnaires:ivcf20.mobilidade.weightKg")}</Text>
                 <TextInput
                   value={answers.q14_weightKg ?? ""}
-                  onChangeText={(t) => setAnswers((prev) => ({ ...prev, q14_weightKg: t }))}
+                  onChangeText={(text) => setAnswers((prev) => ({ ...prev, q14_weightKg: text }))}
                   keyboardType="decimal-pad"
                   style={styles.input}
-                  placeholder="ex: 70"
+                  placeholder={t("questionnaires:ivcf20.mobilidade.phWeight")}
                   placeholderTextColor={theme.colors.muted}
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.inputLabel}>Altura (cm ou m)</Text>
+                <Text style={styles.inputLabel}>{t("questionnaires:ivcf20.mobilidade.height")}</Text>
                 <TextInput
                   value={answers.q14_height ?? ""}
-                  onChangeText={(t) => setAnswers((prev) => ({ ...prev, q14_height: t }))}
+                  onChangeText={(text) => setAnswers((prev) => ({ ...prev, q14_height: text }))}
                   keyboardType="decimal-pad"
                   style={styles.input}
-                  placeholder="ex: 170 ou 1,70"
+                  placeholder={t("questionnaires:ivcf20.mobilidade.phHeight")}
                   placeholderTextColor={theme.colors.muted}
                 />
               </View>
             </View>
             <Text style={styles.infoLine}>
-              IMC: {bmi != null ? bmi.toFixed(1) : "—"} • Critério IMC&lt;22: {bmi != null ? (bmiLow ? "SIM" : "NÃO") : "—"}
+              {t("questionnaires:ivcf20.mobilidade.bmiLine", {
+                bmi: bmi != null ? bmi.toFixed(1) : dash,
+                flag: bmi != null ? yn(bmiLow) : dash,
+              })}
             </Text>
           </View>
 
           <View style={styles.qBox}>
-            <Text style={styles.qText}>Circunferência da panturrilha (cm)</Text>
+            <Text style={styles.qText}>{t("questionnaires:ivcf20.mobilidade.calfTitle")}</Text>
             <TextInput
               value={answers.q14_calfCm ?? ""}
-              onChangeText={(t) => setAnswers((prev) => ({ ...prev, q14_calfCm: t }))}
+              onChangeText={(text) => setAnswers((prev) => ({ ...prev, q14_calfCm: text }))}
               keyboardType="decimal-pad"
               style={styles.input}
-              placeholder="ex: 30,5"
+              placeholder={t("questionnaires:ivcf20.mobilidade.phCalf")}
               placeholderTextColor={theme.colors.muted}
             />
-            <Text style={styles.infoLine}>Critério &lt; 31 cm: {calfLow ? "SIM" : calf != null ? "NÃO" : "—"}</Text>
+            <Text style={styles.infoLine}>
+              {t("questionnaires:ivcf20.mobilidade.calfCriterion", {
+                flag: calf != null ? yn(calfLow) : dash,
+              })}
+            </Text>
           </View>
 
           <View style={styles.qBox}>
-            <Text style={styles.qText}>Marcha (4m) — cronômetro obrigatório</Text>
-            <Text style={styles.smallHint}>Critério positivo se tempo &gt; 5 segundos.</Text>
+            <Text style={styles.qText}>{t("questionnaires:ivcf20.mobilidade.walkTitle")}</Text>
+            <Text style={styles.smallHint}>{t("questionnaires:ivcf20.mobilidade.walkHint")}</Text>
 
             <Text style={styles.timer}>{formatSeconds(walkSeconds)}</Text>
-            <Text style={styles.infoLine}>Critério &gt; 5s: {walkSlow ? "SIM" : walkSeconds != null ? "NÃO" : "—"}</Text>
+            <Text style={styles.infoLine}>
+              {t("questionnaires:ivcf20.mobilidade.walkCriterion", {
+                flag: walkSeconds != null ? yn(walkSlow) : dash,
+              })}
+            </Text>
 
             <View style={styles.row}>
-              <TouchableOpacity style={[styles.btn, walkRunning ? styles.btnStop : styles.btnStart]} onPress={() => setWalkRunning((v) => !v)}>
-                <Text style={styles.btnText}>{walkRunning ? "Parar" : "Iniciar"}</Text>
+              <TouchableOpacity
+                style={[styles.btn, walkRunning ? styles.btnStop : styles.btnStart]}
+                onPress={() => setWalkRunning((v) => !v)}
+              >
+                <Text style={styles.btnText}>
+                  {walkRunning ? t("questionnaires:ivcf20.mobilidade.stop") : t("questionnaires:ivcf20.mobilidade.start")}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={resetWalkTimer}>
-                <Text style={[styles.btnText, styles.btnGhostText]}>Refazer</Text>
+                <Text style={[styles.btnText, styles.btnGhostText]}>
+                  {t("questionnaires:ivcf20.mobilidade.reset")}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.divider} />
 
-          {q("Q15. Você tem dificuldade para caminhar capaz de impedir a realização de alguma atividade do cotidiano?", answers.q15_walkDifficulty, (b) =>
+          {q(t("questionnaires:ivcf20.mobilidade.q15"), answers.q15_walkDifficulty, (b) =>
             setAnswers((prev) => ({ ...prev, q15_walkDifficulty: b }))
           )}
 
-          {q("Q16. Você teve duas ou mais quedas no último ano?", answers.q16_falls, (b) =>
+          {q(t("questionnaires:ivcf20.mobilidade.q16"), answers.q16_falls, (b) =>
             setAnswers((prev) => ({ ...prev, q16_falls: b }))
           )}
         </View>
@@ -865,10 +944,16 @@ export function IVCF20Screen({ navigation, route }: any) {
     if (key === "continencia") {
       return (
         <View style={styles.card}>
-          <Text style={styles.blockTitle}>Continência (Q17)</Text>
+          <Text style={styles.blockTitle}>{t("questionnaires:ivcf20.continencia.blockTitle")}</Text>
           <View style={styles.qBox}>
-            <Text style={styles.qText}>Q17. Você perde urina ou fezes, sem querer, em algum momento?</Text>
-            <YesNo styles={styles} value={answers.q17_incontinence} onChange={(b) => setAnswers((prev) => ({ ...prev, q17_incontinence: b }))} />
+            <Text style={styles.qText}>{t("questionnaires:ivcf20.continencia.q17")}</Text>
+            <YesNo
+              yesLabel={t("common:boolean.yes")}
+              noLabel={t("common:boolean.no")}
+              styles={styles}
+              value={answers.q17_incontinence}
+              onChange={(b) => setAnswers((prev) => ({ ...prev, q17_incontinence: b }))}
+            />
           </View>
         </View>
       );
@@ -879,20 +964,29 @@ export function IVCF20Screen({ navigation, route }: any) {
         <View style={styles.qBox}>
           <Text style={styles.qText}>{label}</Text>
           {hint ? <Text style={styles.smallHint}>{hint}</Text> : null}
-          <YesNo styles={styles} value={v} onChange={onChange} />
+          <YesNo
+            yesLabel={t("common:boolean.yes")}
+            noLabel={t("common:boolean.no")}
+            styles={styles} value={v} onChange={onChange} />
         </View>
       );
 
       return (
         <View style={styles.card}>
-          <Text style={styles.blockTitle}>Comunicação (Q18–Q19)</Text>
+          <Text style={styles.blockTitle}>{t("questionnaires:ivcf20.comunicacao.blockTitle")}</Text>
 
-          {q("Q18. Você tem problemas de visão capazes de impedir a realização de alguma atividade do cotidiano?", answers.q18_vision, (b) =>
-            setAnswers((prev) => ({ ...prev, q18_vision: b })), "É permitido o uso de óculos ou lentes de contato."
+          {q(
+            t("questionnaires:ivcf20.comunicacao.q18"),
+            answers.q18_vision,
+            (b) => setAnswers((prev) => ({ ...prev, q18_vision: b })),
+            t("questionnaires:ivcf20.comunicacao.q18Hint")
           )}
 
-          {q("Q19. Você tem problemas de audição capazes de impedir a realização de alguma atividade do cotidiano?", answers.q19_hearing, (b) =>
-            setAnswers((prev) => ({ ...prev, q19_hearing: b })), "É permitido o uso de aparelhos de audição."
+          {q(
+            t("questionnaires:ivcf20.comunicacao.q19"),
+            answers.q19_hearing,
+            (b) => setAnswers((prev) => ({ ...prev, q19_hearing: b })),
+            t("questionnaires:ivcf20.comunicacao.q19Hint")
           )}
         </View>
       );
@@ -920,16 +1014,34 @@ export function IVCF20Screen({ navigation, route }: any) {
 
       return (
         <View style={styles.card}>
-          <Text style={styles.blockTitle}>Comorbidade múltipla (Q20)</Text>
-          <Text style={styles.hintText}>Pontuação máxima da Q20: 4 pontos (se qualquer condição for positiva).</Text>
+          <Text style={styles.blockTitle}>{t("questionnaires:ivcf20.comorbidades.blockTitle")}</Text>
+          <Text style={styles.hintText}>{t("questionnaires:ivcf20.comorbidades.hint")}</Text>
 
-          <Checkbox styles={styles} checked={none} label="Nenhuma das opções abaixo" onToggle={toggleNone} />
+          <Checkbox styles={styles} checked={none} label={t("questionnaires:ivcf20.comorbidades.none")} onToggle={toggleNone} />
 
           <View style={styles.divider} />
 
-          <Checkbox styles={styles} checked={!!answers.q20_chronic5} label="Cinco ou mais doenças crônicas" onToggle={() => toggle("q20_chronic5")} disabled={none} />
-          <Checkbox styles={styles} checked={!!answers.q20_meds5} label="Uso regular de cinco ou mais medicamentos diferentes, todo dia" onToggle={() => toggle("q20_meds5")} disabled={none} />
-          <Checkbox styles={styles} checked={!!answers.q20_hosp6m} label="Internação recente, nos últimos seis meses" onToggle={() => toggle("q20_hosp6m")} disabled={none} />
+          <Checkbox
+            styles={styles}
+            checked={!!answers.q20_chronic5}
+            label={t("questionnaires:ivcf20.comorbidades.chronic")}
+            onToggle={() => toggle("q20_chronic5")}
+            disabled={none}
+          />
+          <Checkbox
+            styles={styles}
+            checked={!!answers.q20_meds5}
+            label={t("questionnaires:ivcf20.comorbidades.meds")}
+            onToggle={() => toggle("q20_meds5")}
+            disabled={none}
+          />
+          <Checkbox
+            styles={styles}
+            checked={!!answers.q20_hosp6m}
+            label={t("questionnaires:ivcf20.comorbidades.hosp")}
+            onToggle={() => toggle("q20_hosp6m")}
+            disabled={none}
+          />
         </View>
       );
     }
@@ -955,11 +1067,13 @@ export function IVCF20Screen({ navigation, route }: any) {
 
         <View style={styles.footer}>
           <TouchableOpacity style={[styles.navBtn, blockIndex === 0 && styles.navBtnDisabled]} disabled={blockIndex === 0} onPress={goPrev}>
-            <Text style={styles.navText}>Voltar</Text>
+            <Text style={styles.navText}>{t("questionnaires:ivcf20.nav.back")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.navBtn, styles.navBtnPrimary]} onPress={goNext}>
-            <Text style={[styles.navText, styles.navTextPrimary]}>{canFinish ? "Finalizar" : "Próximo bloco"}</Text>
+            <Text style={[styles.navText, styles.navTextPrimary]}>
+              {canFinish ? t("questionnaires:ivcf20.nav.finish") : t("questionnaires:ivcf20.nav.nextBlock")}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1050,7 +1164,7 @@ function makeStyles(theme: any) {
 
     card: {
       marginHorizontal: SPACING.lg,
-      marginTop: -18,
+      marginTop: 14,
       backgroundColor: COLORS.surface,
       borderRadius: 18,
       padding: SPACING.lg,

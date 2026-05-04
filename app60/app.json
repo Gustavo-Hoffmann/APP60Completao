@@ -14,11 +14,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "br.ufpr.app60",
+      "bundleIdentifier": "br.ufpr.app60.staging",
       "infoPlist": {
         "NSMotionUsageDescription": "O app usa acelerômetro e giroscópio para avaliar testes funcionais.",
         "NSCameraUsageDescription": "A câmera poderá ser usada em versões futuras para registro e documentação.",
-        "NSMicrophoneUsageDescription": "O microfone poderá ser usado em versões futuras para gravações/observações."
+        "NSMicrophoneUsageDescription": "O microfone poderá ser usado em versões futuras para gravações/observações.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

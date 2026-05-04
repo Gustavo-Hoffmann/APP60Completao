@@ -10,6 +10,7 @@ import { ThemedButton } from "../../../components/ThemedButton";
 import { useAuth } from "../../../contexts/AuthContext";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
+import { IMU22 } from "../nativeImuSampleLayout";
 import { uploadTugJsonToCollection } from "../../../services/tests/uploadTestJson";
 
 type Params = {
@@ -175,7 +176,7 @@ export default function TugResultScreen() {
           <View style={styles.chartSection}>
             <View style={styles.chartHeader}>
               <T style={styles.chartEyebrow}>{t("tests:common.resultsTitle")}</T>
-              <T style={styles.chartTitle}>TUG – Norma da velocidade angular filtrada (°/s)</T>
+              <T style={styles.chartTitle}>{t("tests:tug.chartTitle")}</T>
             </View>
 
             <BluePeakChart
@@ -224,14 +225,14 @@ function analyzeTug(result: NativeImuStopResult) {
     };
   }
 
-  const t0 = Number(rows[0][0] ?? 0);
+  const t0 = Number(rows[0][IMU22.ROW_T_MS] ?? 0);
 
-  const time = rows.map((r) => (Number(r[0] ?? 0) - t0) / 1000);
+  const time = rows.map((r) => (Number(r[IMU22.ROW_T_MS] ?? 0) - t0) / 1000);
 
   const gyroNorm = rows.map((r) => {
-    const gx = Number(r[7] ?? 0) * DEG;
-    const gy = Number(r[8] ?? 0) * DEG;
-    const gz = Number(r[9] ?? 0) * DEG;
+    const gx = Number(r[IMU22.GX] ?? 0) * DEG;
+    const gy = Number(r[IMU22.GY] ?? 0) * DEG;
+    const gz = Number(r[IMU22.GZ] ?? 0) * DEG;
     return Math.sqrt(gx * gx + gy * gy + gz * gz);
   });
 
@@ -491,6 +492,7 @@ function BluePeakChart({
   firstPeakIndex: number | null;
   lastPeakIndex: number | null;
 }) {
+  const { t } = useTranslation("tests");
   const width = 340;
   const height = 278;
   const padL = 64;
@@ -604,7 +606,7 @@ function BluePeakChart({
               textAnchor="middle"
               fontWeight="700"
             >
-              Início
+              {t("tug.chartMarkStart")}
             </SvgText>
           </>
         )}
@@ -628,7 +630,7 @@ function BluePeakChart({
               textAnchor="middle"
               fontWeight="700"
             >
-              Fim
+              {t("tug.chartMarkEnd")}
             </SvgText>
           </>
         )}
@@ -648,7 +650,7 @@ function BluePeakChart({
         )}
 
         <SvgText x={width / 2} y={height - 5} fontSize="11" fill="#8E98A8" textAnchor="middle">
-          Tempo (s)
+          {t("tug.chartAxisTime")}
         </SvgText>
 
         <SvgText
@@ -659,7 +661,7 @@ function BluePeakChart({
           textAnchor="middle"
           transform={`rotate(-90, ${yAxisTitleX}, ${yAxisTitleY})`}
         >
-          |ω| (°/s)
+          {t("tug.chartAxisOmega")}
         </SvgText>
       </Svg>
     </View>

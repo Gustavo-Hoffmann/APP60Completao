@@ -16,10 +16,15 @@ import { useTranslation } from "react-i18next";
 
 import { Screen, T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
+import {
+  TestCollectionGoToResultsRow,
+  TestCollectionHeader,
+  TestCollectionHeroImage,
+} from "../components/TestCollectionChrome";
 import { imuStart, imuStop, NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import type { Participant } from "../../../models/types";
 import { Routes } from "../../../navigation/routes";
-import { speakText, stopSpeech } from "../../../services/speech";
+import { speakText, speakTextMinDuration, stopSpeech } from "../../../services/speech";
 import {
   getNextSessionNumber,
   saveSl30sJsonToCache,
@@ -381,12 +386,20 @@ export default function SentarLevantar() {
       await speakText(t("tests:common.speech.prepare"));
       if (cancelledRef.current) return;
 
+      setCountdownText("5");
+      await speakTextMinDuration(t("tests:common.speech.five"), 1000);
+      if (cancelledRef.current) return;
+
+      setCountdownText("4");
+      await speakTextMinDuration(t("tests:common.speech.four"), 1000);
+      if (cancelledRef.current) return;
+
       setCountdownText("3");
-      await speakText(t("tests:common.speech.three"));
+      await speakTextMinDuration(t("tests:common.speech.three"), 1000);
       if (cancelledRef.current) return;
 
       setCountdownText("2");
-      const speechTwoPromise = speakText(t("tests:common.speech.two"));
+      const speechTwoPromise = speakTextMinDuration(t("tests:common.speech.two"), 1000);
 
       await imuStart(SAMPLE_HZ);
       setRecordingStarted(true);
@@ -403,7 +416,7 @@ export default function SentarLevantar() {
       if (cancelledRef.current) return;
 
       setCountdownText("1");
-      await speakText(t("tests:common.speech.one"));
+      await speakTextMinDuration(t("tests:common.speech.one"), 1000);
       if (cancelledRef.current) return;
 
       setCountdownText(t("tests:common.speech.start"));
@@ -465,28 +478,28 @@ export default function SentarLevantar() {
   const progress = Math.min(elapsedMs / RECORD_MS, 1);
   const remainingMs = Math.max(RECORD_MS - elapsedMs, 0);
 
+  const anthropometryExtra =
+    parsedBodyMassKg != null || parsedHeightCm != null
+      ? `${t("tests:common.massLabel")}: ${formatMassDisplay(parsedBodyMassKg)} · ${t("tests:common.heightLabel")}: ${formatHeightDisplay(parsedHeightCm)}`
+      : undefined;
+
   return (
     <Screen style={{ justifyContent: "space-between" }}>
-      <View>
-        <T style={{ fontSize: 22, fontWeight: "900", marginTop: 18 }}>{t("tests:sentarLevantar.title")}</T>
-        <T style={{ marginTop: 4, opacity: 0.7 }}>
-          {t("tests:common.participant", { name: participant?.name ?? "—" })}
-        </T>
-        <T style={{ marginTop: 4, opacity: 0.7 }}>
-          {t("tests:common.massLabel")}: {formatMassDisplay(parsedBodyMassKg)} ·{" "}
-          {t("tests:common.heightLabel")}: {formatHeightDisplay(parsedHeightCm)}
-        </T>
-      </View>
+      <TestCollectionHeader
+        title={t("tests:sentarLevantar.title")}
+        participant={participant}
+        participantLineExtra={anthropometryExtra}
+      />
 
       <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
         {!!countdownText && (
-          <T style={{ fontSize: 42, fontWeight: "900", marginBottom: 16 }}>{countdownText}</T>
+          <T style={{ fontSize: 42, fontWeight: "900", marginBottom: 12, textAlign: "center" }}>{countdownText}</T>
         )}
 
-        <T style={{ fontSize: 18, opacity: 0.8, marginBottom: 16 }}>{statusText}</T>
+        <T style={{ fontSize: 18, opacity: 0.8, marginBottom: 12, textAlign: "center" }}>{statusText}</T>
 
         {(phase === "running" || phase === "finished") && (
-          <View style={{ width: "100%", marginBottom: 20 }}>
+          <View style={{ width: "100%", marginBottom: 16 }}>
             <T style={{ textAlign: "center", fontSize: 28, fontWeight: "900", marginBottom: 10 }}>
               {fmtMs(remainingMs)}
             </T>
@@ -514,8 +527,10 @@ export default function SentarLevantar() {
           </View>
         )}
 
+        <TestCollectionHeroImage testKey="sentar_levantar" style={{ marginBottom: 20 }} />
+
         {!showFinishButton ? (
-          <View style={{ alignItems: "center", gap: 12 }}>
+          <View style={{ alignItems: "center", gap: 12, width: "100%" }}>
             <ThemedButton title={t("tests:common.startTest")} onPress={startTest} style={{ minWidth: 220 }} />
             <Pressable style={styles.secondaryButton} onPress={() => setAnthropometryModalVisible(true)}>
               <T style={styles.secondaryButtonText}>
@@ -535,23 +550,11 @@ export default function SentarLevantar() {
         )}
       </View>
 
-      <View>
-        {phase === "finished" && !!result && (
-          <View style={{ marginBottom: 16 }}>
-            <T>{t("tests:sentarLevantar.anthropometry.samplesLabel")}: {result.stats.n}</T>
-            <T>{t("tests:common.hzMean")}: {result.stats.hzMean?.toFixed(2) ?? "—"}</T>
-            <T>{t("tests:common.hzInRange")}: {result.stats.pctIn58to62?.toFixed(1) ?? "—"}%</T>
-            <T>{t("tests:common.massLabel")}: {formatMassDisplay(parsedBodyMassKg)}</T>
-            <T>{t("tests:common.heightLabel")}: {formatHeightDisplay(parsedHeightCm)}</T>
-            <T>
-              {t("tests:sentarLevantar.anthropometry.sessionLabel")}:{" "}
-              {jsonSessionNumber != null ? `S${jsonSessionNumber}` : "—"}
-            </T>
-          </View>
-        )}
-
-        {showGoToResults && <ThemedButton title={t("tests:common.goToResults")} onPress={goToResults} />}
-      </View>
+      <TestCollectionGoToResultsRow
+        visible={showGoToResults}
+        title={t("tests:common.goToResults")}
+        onPress={goToResults}
+      />
 
       <Modal
         visible={anthropometryModalVisible}

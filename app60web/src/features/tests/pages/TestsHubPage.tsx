@@ -10,7 +10,7 @@ const tests = [
     path: routes.test2mst,
   },
   {
-    name: "SL-30s",
+    name: "SL30S",
     descriptionKey: "sl30s",
     path: routes.testSl30s,
   },
@@ -46,7 +46,9 @@ export function TestsHubPage() {
             key={test.name}
             className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft"
           >
-            <h2 className="text-lg font-bold text-slate-900">{test.name}</h2>
+            <h2 className="text-lg font-bold text-slate-900">
+              {test.name === "SL30S" ? t("participantDetail.tests.sl30s.shortTitle") : test.name}
+            </h2>
             <p className="mt-2 text-sm text-slate-500">
               {t(`testsHub.items.${test.descriptionKey}`)}
             </p>

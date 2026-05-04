@@ -19,6 +19,10 @@ import { SettingsScreen } from "../screens/Home/SettingsScreen";
 import { QuestionnaireHubScreen } from "../screens/Questionnaires/QuestionnaireHubScreen";
 import { IVCF20Screen } from "../screens/Questionnaires/IVCF20Screen";
 import { IVCF20ResultScreen } from "../screens/Questionnaires/IVCF20ResultScreen";
+import { PhysicalActivitySedentaryScreen } from "../screens/Questionnaires/PhysicalActivitySedentaryScreen";
+import { PhysicalActivitySedentaryResultScreen } from "../screens/Questionnaires/PhysicalActivitySedentaryResultScreen";
+import { FESIScreen } from "../screens/Questionnaires/FESIScreen";
+import { FESIResultScreen } from "../screens/Questionnaires/FESIResultScreen";
 
 import { ParticipantFormScreen } from "../screens/Participants/ParticipantFormScreen";
 import ParticipantPickScreen from "../screens/Participants/ParticipantPickScreen";
@@ -109,6 +113,26 @@ export function NavigationRoot() {
               name={Routes.IVCF20Result}
               component={IVCF20ResultScreen}
               options={{ title: t("titles.ivcf20Result") }}
+            />
+            <Stack.Screen
+              name={Routes.PhysicalActivitySedentary}
+              component={PhysicalActivitySedentaryScreen}
+              options={{ title: t("titles.activitySedentary") }}
+            />
+            <Stack.Screen
+              name={Routes.PhysicalActivitySedentaryResult}
+              component={PhysicalActivitySedentaryResultScreen}
+              options={{ title: t("titles.activitySedentaryResult") }}
+            />
+            <Stack.Screen
+              name={Routes.FESI}
+              component={FESIScreen}
+              options={{ title: t("titles.fesi") }}
+            />
+            <Stack.Screen
+              name={Routes.FESIResult}
+              component={FESIResultScreen}
+              options={{ title: t("titles.fesiResult") }}
             />
 
             <Stack.Screen

@@ -9,8 +9,15 @@ import type { NativeImuStopResult } from "../sensors/nativeImu";
 const SAMPLING_HZ = 60;
 const MAX_SESSION_INSERT_RETRIES = 6;
 
-export type SupportedTestType = "MARCHA" | "TUG" | "LOS" | "SL30S" | "UTT" | "IVCF20";
-type SensorCsvTestType = Exclude<SupportedTestType, "IVCF20">;
+export type SupportedTestType =
+  | "MARCHA"
+  | "TUG"
+  | "LOS"
+  | "SL30S"
+  | "UTT"
+  | "IVCF20"
+  | "ACT_SEDENTARY";
+type SensorCsvTestType = Exclude<SupportedTestType, "IVCF20" | "ACT_SEDENTARY">;
 
 export type Ivcf20Classification = {
   key: "robusto" | "prefragil" | "fragil";
@@ -64,6 +71,23 @@ export type Ivcf20JsonPayload = {
     classification: Ivcf20Classification;
     categories: Ivcf20Categories;
     block_scores: Ivcf20CategoryScore[];
+    answers?: Record<string, unknown>;
+    meta?: Record<string, unknown>;
+  };
+};
+
+export type ActivitySedentaryJsonPayload = {
+  schema_version: 1;
+  test_type: "ACT_SEDENTARY";
+  participant_id: string;
+  participant_name?: string;
+  session_number: number;
+  session_label: string;
+  performed_at: string;
+  platform: string;
+  sampling_hz: number;
+  questionnaire: {
+    summary: Record<string, unknown>;
     answers?: Record<string, unknown>;
     meta?: Record<string, unknown>;
   };
@@ -1004,4 +1028,104 @@ export async function uploadIvcf20ResultToCollection(data: {
   });
 
   return uploadIvcf20JsonToCollectionInternal(payload, data.participant);
+}
+
+async function uploadActivitySedentaryJsonToCollectionInternal(
+  payload: ActivitySedentaryJsonPayload,
+  participant: Participant
+) {
+  const performedAt = payload.performed_at || new Date().toISOString();
+
+  const firstGuessSessionNumber =
+    payload.session_number ||
+    (await getNextSessionNumber(String(participant.id), "ACT_SEDENTARY"));
+
+  const reserved = await reserveTestSessionWithRetry({
+    testType: "ACT_SEDENTARY",
+    participant,
+    sessionNumber: firstGuessSessionNumber,
+    samplingHz: payload.sampling_hz ?? 0,
+    performedAt,
+    fileExtension: "json",
+    contentType: "application/json",
+  });
+
+  const finalSessionNumber = reserved.session_number;
+  const finalPayload: ActivitySedentaryJsonPayload = {
+    ...payload,
+    session_number: finalSessionNumber,
+    session_label: `S${finalSessionNumber}`,
+    participant_id: String(participant.id),
+    participant_name: participant.name,
+    platform: Platform.OS,
+    performed_at: performedAt,
+    sampling_hz: payload.sampling_hz ?? 0,
+  };
+
+  const path = reserved.rawS3Key;
+  const body = JSON.stringify(finalPayload);
+  const binary = new TextEncoder().encode(body);
+
+  try {
+    const put = await fetch(reserved.uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: binary as unknown as BodyInit,
+    });
+
+    if (!put.ok) {
+      throw new Error(`Falha no upload S3 (${put.status}).`);
+    }
+
+    await finalizeReservedSession({
+      sessionId: reserved.id,
+    });
+
+    return {
+      sessionNumber: finalSessionNumber,
+      path,
+      payload: finalPayload,
+    };
+  } catch (error) {
+    await removeFromStorageIfExists(path);
+    await failReservedSession(
+      reserved.id,
+      error instanceof Error ? error.message : "Falha no upload do JSON."
+    );
+    await deleteSessionIfExists(reserved.id);
+    throw error;
+  }
+}
+
+export async function uploadActivitySedentaryResultToCollection(data: {
+  participant: Participant;
+  summary: Record<string, unknown>;
+  answers?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
+  sessionNumber?: number;
+}) {
+  const guessedSessionNumber =
+    data.sessionNumber ??
+    (await getNextSessionNumber(String(data.participant.id), "ACT_SEDENTARY"));
+
+  const payload: ActivitySedentaryJsonPayload = {
+    schema_version: 1,
+    test_type: "ACT_SEDENTARY",
+    participant_id: String(data.participant.id),
+    participant_name: data.participant.name,
+    session_number: guessedSessionNumber,
+    session_label: `S${guessedSessionNumber}`,
+    performed_at: new Date().toISOString(),
+    platform: Platform.OS,
+    sampling_hz: 0,
+    questionnaire: {
+      summary: data.summary ?? {},
+      answers: data.answers,
+      meta: data.meta,
+    },
+  };
+
+  return uploadActivitySedentaryJsonToCollectionInternal(payload, data.participant);
 }

@@ -6,6 +6,11 @@ import { useTranslation } from "react-i18next";
 import { Screen, T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
 import {
+  TestCollectionGoToResultsRow,
+  TestCollectionHeader,
+  TestCollectionHeroImage,
+} from "../components/TestCollectionChrome";
+import {
   imuAddAutoStopListener,
   imuStart,
   imuStop,
@@ -13,7 +18,7 @@ import {
 } from "../../../services/sensors/nativeImu";
 import type { Participant } from "../../../models/types";
 import { Routes } from "../../../navigation/routes";
-import { speakText, stopSpeech } from "../../../services/speech";
+import { speakText, speakTextMinDuration, stopSpeech } from "../../../services/speech";
 import {
   getNextSessionNumber,
   saveTugJsonToCache,
@@ -218,12 +223,20 @@ export default function TugTestScreen() {
       await speakText(t("tests:common.speech.prepare"));
       if (cancelledRef.current) return;
 
+      setCountdownText("5");
+      await speakTextMinDuration(t("tests:common.speech.five"), 1000);
+      if (cancelledRef.current) return;
+
+      setCountdownText("4");
+      await speakTextMinDuration(t("tests:common.speech.four"), 1000);
+      if (cancelledRef.current) return;
+
       setCountdownText("3");
-      await speakText(t("tests:common.speech.three"));
+      await speakTextMinDuration(t("tests:common.speech.three"), 1000);
       if (cancelledRef.current) return;
 
       setCountdownText("2");
-      const twoSpeechPromise = speakText(t("tests:common.speech.two"));
+      const twoSpeechPromise = speakTextMinDuration(t("tests:common.speech.two"), 1000);
 
       await imuStart({ hz: SAMPLE_HZ, mode: "tug" });
       setRecordingStarted(true);
@@ -235,7 +248,7 @@ export default function TugTestScreen() {
       if (cancelledRef.current) return;
 
       setCountdownText("1");
-      await speakText(t("tests:common.speech.one"));
+      await speakTextMinDuration(t("tests:common.speech.one"), 1000);
       if (cancelledRef.current) return;
 
       setCountdownText(t("tests:common.speech.start"));
@@ -293,24 +306,17 @@ export default function TugTestScreen() {
 
   return (
     <Screen style={{ justifyContent: "space-between" }}>
-      <View>
-        <T style={{ fontSize: 22, fontWeight: "900", marginTop: 18 }}>{t("tests:tug.title")}</T>
-        <T style={{ marginTop: 4, opacity: 0.7 }}>
-          {t("tests:common.participant", { name: participant?.name ?? "—" })}
-        </T>
-      </View>
+      <TestCollectionHeader title={t("tests:tug.title")} participant={participant} />
 
       <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
         {!!countdownText && (
-          <T style={{ fontSize: 42, fontWeight: "900", marginBottom: 16 }}>{countdownText}</T>
+          <T style={{ fontSize: 42, fontWeight: "900", marginBottom: 12, textAlign: "center" }}>{countdownText}</T>
         )}
 
-        <T style={{ fontSize: 18, opacity: 0.8, marginBottom: 16, textAlign: "center" }}>
-          {statusText}
-        </T>
+        <T style={{ fontSize: 18, opacity: 0.8, marginBottom: 12, textAlign: "center" }}>{statusText}</T>
 
         {(phase === "running" || phase === "finished") && (
-          <View style={{ width: "100%", marginBottom: 20 }}>
+          <View style={{ width: "100%", marginBottom: 16 }}>
             <T style={{ textAlign: "center", fontSize: 28, fontWeight: "900", marginBottom: 10 }}>
               {fmtElapsed(elapsedMs)}
             </T>
@@ -340,6 +346,8 @@ export default function TugTestScreen() {
           </View>
         )}
 
+        <TestCollectionHeroImage testKey="tug" style={{ marginBottom: 20 }} />
+
         {!showStopButton ? (
           <ThemedButton title={t("tests:common.startTest")} onPress={startTest} style={{ minWidth: 220 }} />
         ) : (
@@ -352,23 +360,11 @@ export default function TugTestScreen() {
         )}
       </View>
 
-      <View>
-        {phase === "finished" && !!result && (
-          <View style={{ marginBottom: 16 }}>
-            <T>{t("tests:common.samples")}: {result.stats.n}</T>
-            <T>{t("tests:common.hzMean")}: {result.stats.hzMean?.toFixed(2) ?? "—"}</T>
-            <T>
-              {t("tests:tug.detectedDuration")}:{" "}
-              {result.tug?.detected && result.tug.durationMs != null
-                ? `${(result.tug.durationMs / 1000).toFixed(3)} s`
-                : "—"}
-            </T>
-            <T>{t("tests:common.session")}: {jsonSessionNumber != null ? `S${jsonSessionNumber}` : "—"}</T>
-          </View>
-        )}
-
-        {showGoToResults && <ThemedButton title={t("tests:common.goToResults")} onPress={goToResults} />}
-      </View>
+      <TestCollectionGoToResultsRow
+        visible={showGoToResults}
+        title={t("tests:common.goToResults")}
+        onPress={goToResults}
+      />
     </Screen>
   );
 }

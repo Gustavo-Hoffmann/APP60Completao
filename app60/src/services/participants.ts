@@ -194,10 +194,23 @@ export async function upsertParticipant(p: Participant): Promise<Participant> {
     complement: p.address?.complement?.trim() || undefined,
   };
 
-  const created = await apiJson<ParticipantRow>("/api/participants", {
+  const res = await apiFetch("/api/participants", {
     method: "POST",
     body: JSON.stringify(payload),
   });
+
+  // Precisamos ler o JSON mesmo em erro para tratar conflito (409) e mostrar a instituição.
+  const raw = await res.text();
+  const data = raw ? (JSON.parse(raw) as any) : null;
+  if (!res.ok) {
+    const msg = data?.error && typeof data.error === "string" ? data.error : `HTTP ${res.status}`;
+    const err = new Error(msg) as Error & { code?: string; details?: unknown };
+    if (data?.code && typeof data.code === "string") err.code = data.code;
+    err.details = data;
+    throw err;
+  }
+
+  const created = data as ParticipantRow;
 
   return mapRowToParticipant(created);
 }

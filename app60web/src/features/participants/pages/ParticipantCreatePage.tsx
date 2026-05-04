@@ -128,6 +128,8 @@ export function ParticipantCreatePage() {
   const [deleting, setDeleting] = useState(false);
   const [loadingParticipant, setLoadingParticipant] = useState(isEdit);
   const [error, setError] = useState<string | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteTypedName, setDeleteTypedName] = useState("");
 
   const canSubmitParticipant = useMemo(
     () => canWriteParticipantForm && (!needsInstitutionPicker || Boolean(selectedInstitutionId)),
@@ -366,7 +368,12 @@ export function ParticipantCreatePage() {
 
   async function onDelete() {
     if (!isEdit || !routeParticipantId) return;
-    if (!window.confirm(t("participantEdit.deleteConfirm"))) return;
+    setDeleteTypedName("");
+    setDeleteModalOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!isEdit || !routeParticipantId) return;
 
     try {
       setDeleting(true);
@@ -383,6 +390,14 @@ export function ParticipantCreatePage() {
   const backHref = isEdit && routeParticipantId ? routes.participantDetail(routeParticipantId) : routes.participants;
   const backLabel = isEdit ? t("participantEdit.back") : t("participantCreate.back");
 
+  const deleteName = fullName.trim();
+  const deleteNameMatches =
+    deleteTypedName.trim().length > 0 &&
+    new Intl.Collator(i18n.resolvedLanguage ?? i18n.language ?? "pt-BR", {
+      sensitivity: "base",
+      usage: "search",
+    }).compare(deleteTypedName.trim(), deleteName) === 0;
+
   return (
     <div className="min-h-screen bg-slate-100">
       <AppHeader
@@ -391,6 +406,54 @@ export function ParticipantCreatePage() {
       />
 
       <main className="space-y-6 px-6 py-8">
+        {deleteModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+            <Card className="w-full max-w-lg p-6 shadow-xl">
+              <p className="text-sm font-semibold text-slate-900">{t("participantEdit.deleteModalTitle")}</p>
+              <p className="mt-2 text-sm text-slate-600">
+                {t("participantEdit.deleteModalBody", { name: deleteName || "—" })}
+              </p>
+
+              <div className="mt-4">
+                <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                  {t("participantEdit.deleteModalInputLabel")}
+                </label>
+                <Input
+                  value={deleteTypedName}
+                  onChange={(e) => setDeleteTypedName(e.target.value)}
+                  placeholder={t("participantEdit.deleteModalPlaceholder")}
+                />
+                {!deleteNameMatches && deleteTypedName.trim().length ? (
+                  <p className="mt-2 text-xs font-semibold text-red-700">{t("participantEdit.deleteTypeMismatch")}</p>
+                ) : null}
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setDeleteModalOpen(false)}
+                  disabled={deleting}
+                >
+                  {t("participantEdit.deleteModalCancel")}
+                </Button>
+                <button
+                  type="button"
+                  className={
+                    deleteNameMatches && !deleting
+                      ? "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-red-500 px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-red-600"
+                      : "inline-flex items-center justify-center rounded-xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-100"
+                  }
+                  onClick={() => void confirmDelete()}
+                  disabled={deleting || !deleteNameMatches}
+                >
+                  {deleting ? t("participantEdit.deleting") : t("participantEdit.deleteModalConfirm")}
+                </button>
+              </div>
+            </Card>
+          </div>
+        ) : null}
+
         <div>
           <Link
             to={backHref}

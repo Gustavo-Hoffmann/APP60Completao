@@ -7,6 +7,10 @@ export const Routes = {
   QuestionnaireHub: "QuestionnaireHub",
   IVCF20: "IVCF20",
   IVCF20Result: "IVCF20Result",
+  PhysicalActivitySedentary: "PhysicalActivitySedentary",
+  PhysicalActivitySedentaryResult: "PhysicalActivitySedentaryResult",
+  FESI: "FESI",
+  FESIResult: "FESIResult",
 
   ParticipantForm: "ParticipantForm",
   ParticipantPick: "ParticipantPick",

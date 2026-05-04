@@ -1,20 +1,49 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Alert, BackHandler, View } from "react-native";
+import {
+  Alert,
+  BackHandler,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 
 import { Screen, T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
+import {
+  TestCollectionGoToResultsRow,
+  TestCollectionHeader,
+  TestCollectionHeroImage,
+} from "../components/TestCollectionChrome";
 import { imuStart, imuStop, NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import type { Participant } from "../../../models/types";
 import { Routes } from "../../../navigation/routes";
-import { speakText, stopSpeech } from "../../../services/speech";
+import { speakText, speakTextMinDuration, stopSpeech } from "../../../services/speech";
 import {
   getNextSessionNumber,
   saveUttJsonToCache,
 } from "../../../services/tests/uploadTestJson";
 
 type Phase = "idle" | "countdown" | "running" | "finished";
+
+type ParticipantWithAnthropometry = Participant & {
+  bodyMassKg?: number | null;
+  massKg?: number | null;
+  weight?: number | null;
+  heightCm?: number | null;
+  estaturaCm?: number | null;
+  height?: number | null;
+  massa?: number | null;
+  peso?: number | null;
+  estatura?: number | null;
+  altura?: number | null;
+};
 
 const SAMPLE_HZ = 60;
 const RECORD_MS = 34_000;
@@ -24,6 +53,70 @@ function fmtMs(ms: number) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function sanitizeDecimalInput(value: string) {
+  return value.replace(",", ".").replace(/[^0-9.]/g, "");
+}
+
+function parseMassKg(value: string): number | null {
+  const cleaned = sanitizeDecimalInput(value);
+  if (!cleaned) return null;
+
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || n <= 0 || n > 400) return null;
+
+  return Math.round(n * 1000) / 1000;
+}
+
+function parseHeightCm(value: string): number | null {
+  const cleaned = sanitizeDecimalInput(value);
+  if (!cleaned) return null;
+
+  let n = Number(cleaned);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n <= 3) n *= 100;
+  if (n < 50 || n > 260) return null;
+
+  return Math.round(n * 10) / 10;
+}
+
+function formatDecimalInput(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function formatMassDisplay(value: number | null) {
+  return value != null ? `${formatDecimalInput(value)} kg` : "—";
+}
+
+function formatHeightDisplay(value: number | null) {
+  return value != null ? `${formatDecimalInput(value)} cm` : "—";
+}
+
+function readExistingMassKg(participant?: Participant): number | null {
+  if (!participant) return null;
+
+  const p = participant as ParticipantWithAnthropometry;
+  const candidate = p.bodyMassKg ?? p.massKg ?? p.weight ?? p.massa ?? p.peso;
+  if (candidate == null) return null;
+
+  const n = Number(candidate);
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 1000) / 1000 : null;
+}
+
+function readExistingHeightCm(participant?: Participant): number | null {
+  if (!participant) return null;
+
+  const p = participant as ParticipantWithAnthropometry;
+  let candidate = p.heightCm ?? p.estaturaCm ?? p.height ?? p.estatura ?? p.altura;
+  if (candidate == null) return null;
+
+  let n = Number(candidate);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n <= 3) n *= 100;
+
+  return Math.round(n * 10) / 10;
 }
 
 export default function ElevacoesCalcanhares() {
@@ -41,10 +134,38 @@ export default function ElevacoesCalcanhares() {
   const [recordingStarted, setRecordingStarted] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
 
+  const [bodyMassInput, setBodyMassInput] = useState("");
+  const [heightInput, setHeightInput] = useState("");
+  const [anthropometryModalVisible, setAnthropometryModalVisible] = useState(false);
+  const [anthropometryConfirmed, setAnthropometryConfirmed] = useState(false);
+
   const cancelledRef = useRef(false);
   const finishTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const runStartRef = useRef<number | null>(null);
+  const recordingStartedRef = useRef(false);
+  const participantKeyRef = useRef<string>("");
+
+  const parsedBodyMassKg = parseMassKg(bodyMassInput);
+  const parsedHeightCm = parseHeightCm(heightInput);
+
+  const participantForTest = useCallback((): ParticipantWithAnthropometry | undefined => {
+    if (!participant) return undefined;
+
+    return {
+      ...participant,
+      bodyMassKg: parsedBodyMassKg,
+      massKg: parsedBodyMassKg,
+      weight: parsedBodyMassKg,
+      heightCm: parsedHeightCm,
+      estaturaCm: parsedHeightCm,
+      height: parsedHeightCm,
+      massa: parsedBodyMassKg,
+      peso: parsedBodyMassKg,
+      estatura: parsedHeightCm,
+      altura: parsedHeightCm,
+    };
+  }, [participant, parsedBodyMassKg, parsedHeightCm]);
 
   useEffect(() => {
     if (!participant) {
@@ -53,7 +174,20 @@ export default function ElevacoesCalcanhares() {
         testTitle: t("tests:elevacaoCalcanhares.title"),
         testKey: "elevacoes_calcanhares",
       });
+      return;
     }
+
+    const participantKey = String(participant.id ?? participant.name ?? "");
+    if (participantKeyRef.current === participantKey) return;
+    participantKeyRef.current = participantKey;
+
+    const initialMass = readExistingMassKg(participant);
+    const initialHeight = readExistingHeightCm(participant);
+
+    setBodyMassInput(initialMass != null ? formatDecimalInput(initialMass) : "");
+    setHeightInput(initialHeight != null ? formatDecimalInput(initialHeight) : "");
+    setAnthropometryConfirmed(false);
+    setAnthropometryModalVisible(true);
   }, [participant, nav]);
 
   useLayoutEffect(() => {
@@ -119,13 +253,57 @@ export default function ElevacoesCalcanhares() {
     runStartRef.current = null;
   };
 
+  const confirmAnthropometry = useCallback(() => {
+    if (parsedBodyMassKg == null || parsedBodyMassKg <= 0) {
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
+      return;
+    }
+
+    if (parsedHeightCm == null || parsedHeightCm <= 0) {
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
+      return;
+    }
+
+    setBodyMassInput(formatDecimalInput(parsedBodyMassKg));
+    setHeightInput(formatDecimalInput(parsedHeightCm));
+    setAnthropometryConfirmed(true);
+    setAnthropometryModalVisible(false);
+  }, [parsedBodyMassKg, parsedHeightCm, t]);
+
+  const ensureAnthropometryReady = useCallback(() => {
+    if (!participant) {
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
+      return false;
+    }
+
+    if (parsedBodyMassKg == null || parsedBodyMassKg <= 0) {
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
+      setAnthropometryModalVisible(true);
+      return false;
+    }
+
+    if (parsedHeightCm == null || parsedHeightCm <= 0) {
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
+      setAnthropometryModalVisible(true);
+      return false;
+    }
+
+    if (!anthropometryConfirmed) {
+      Alert.alert(t("errors:titles.error"), t("tests:common.failedToStart"));
+      setAnthropometryModalVisible(true);
+      return false;
+    }
+
+    return true;
+  }, [anthropometryConfirmed, parsedBodyMassKg, parsedHeightCm, participant, t]);
+
   const finalizeCapture = useCallback(
     async (reason: "auto" | "manual") => {
       try {
         clearFinishTimeout();
         stopRunTimer();
 
-        if (!recordingStarted) {
+        if (!recordingStartedRef.current) {
           setPhase("idle");
           setStatusText(t("tests:common.cancelledBeforeStart"));
           setCountdownText("");
@@ -133,18 +311,20 @@ export default function ElevacoesCalcanhares() {
         }
 
         const r = await imuStop();
-        if (!participant) {
+        const pForTest = participantForTest();
+        if (!pForTest) {
           throw new Error(t("errors:titles.error"));
         }
 
-        const nextSession = await getNextSessionNumber(String(participant.id), "UTT");
-        const saved = await saveUttJsonToCache(r, participant, nextSession);
+        const nextSession = await getNextSessionNumber(String(pForTest.id), "UTT");
+        const saved = await saveUttJsonToCache(r, pForTest, nextSession);
 
         setResult(r);
         setJsonUri(saved.uri);
         setJsonSessionNumber(nextSession);
         setPhase("finished");
         setRecordingStarted(false);
+        recordingStartedRef.current = false;
         setCountdownText("");
 
         if (reason === "auto") {
@@ -157,17 +337,20 @@ export default function ElevacoesCalcanhares() {
       } catch (e: any) {
         setPhase("idle");
         setRecordingStarted(false);
+        recordingStartedRef.current = false;
         setCountdownText("");
         stopRunTimer();
         setStatusText(t("tests:common.failedToFinish"));
         Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToFinish"));
       }
     },
-    [participant, recordingStarted, t]
+    [participant, t]
   );
 
   const startTest = useCallback(async () => {
     try {
+      if (!ensureAnthropometryReady()) return;
+
       cancelledRef.current = false;
       clearFinishTimeout();
       clearTimerInterval();
@@ -176,6 +359,8 @@ export default function ElevacoesCalcanhares() {
       setResult(null);
       setJsonUri(null);
       setJsonSessionNumber(null);
+      setRecordingStarted(false);
+      recordingStartedRef.current = false;
       setPhase("countdown");
       setStatusText(t("tests:common.preparing"));
       setCountdownText(t("tests:common.speech.prepare"));
@@ -183,14 +368,23 @@ export default function ElevacoesCalcanhares() {
       await speakText(t("tests:common.speech.prepare"));
       if (cancelledRef.current) return;
 
+      setCountdownText("5");
+      await speakTextMinDuration(t("tests:common.speech.five"), 1000);
+      if (cancelledRef.current) return;
+
+      setCountdownText("4");
+      await speakTextMinDuration(t("tests:common.speech.four"), 1000);
+      if (cancelledRef.current) return;
+
       setCountdownText("3");
-      await speakText(t("tests:common.speech.three"));
+      await speakTextMinDuration(t("tests:common.speech.three"), 1000);
       if (cancelledRef.current) return;
 
       setCountdownText("2");
-      const speechTwoPromise = speakText(t("tests:common.speech.two"));
+      const speechTwoPromise = speakTextMinDuration(t("tests:common.speech.two"), 1000);
 
       await imuStart(SAMPLE_HZ);
+      recordingStartedRef.current = true;
       setRecordingStarted(true);
       setPhase("running");
       setStatusText(t("tests:common.collecting"));
@@ -204,7 +398,7 @@ export default function ElevacoesCalcanhares() {
       if (cancelledRef.current) return;
 
       setCountdownText("1");
-      await speakText(t("tests:common.speech.one"));
+      await speakTextMinDuration(t("tests:common.speech.one"), 1000);
       if (cancelledRef.current) return;
 
       setCountdownText(t("tests:common.speech.start"));
@@ -216,19 +410,20 @@ export default function ElevacoesCalcanhares() {
       clearFinishTimeout();
       stopRunTimer();
       setRecordingStarted(false);
+      recordingStartedRef.current = false;
       setPhase("idle");
       setStatusText(t("tests:common.failedToStart"));
       setCountdownText("");
       Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToStart"));
     }
-  }, [finalizeCapture, t]);
+  }, [ensureAnthropometryReady, finalizeCapture, t]);
 
   const stopTest = useCallback(async () => {
     cancelledRef.current = true;
     stopSpeech();
     clearFinishTimeout();
 
-    if (recordingStarted) {
+    if (recordingStartedRef.current) {
       await finalizeCapture("manual");
       return;
     }
@@ -237,7 +432,7 @@ export default function ElevacoesCalcanhares() {
     setPhase("idle");
     setStatusText(t("tests:common.cancelled"));
     setCountdownText("");
-  }, [finalizeCapture, recordingStarted, t]);
+  }, [finalizeCapture, t]);
 
   useEffect(() => {
     return () => {
@@ -249,10 +444,11 @@ export default function ElevacoesCalcanhares() {
   }, []);
 
   const goToResults = () => {
-    if (!result || !jsonUri || !participant) return;
+    const pForTest = participantForTest();
+    if (!result || !jsonUri || !pForTest) return;
 
     nav.navigate(Routes.Test_ElevacaoCalcanhares_Result, {
-      participant,
+      participant: pForTest,
       result,
       jsonUri,
       sessionNumber: jsonSessionNumber,
@@ -265,26 +461,28 @@ export default function ElevacoesCalcanhares() {
   const progress = Math.min(elapsedMs / RECORD_MS, 1);
   const remainingMs = Math.max(RECORD_MS - elapsedMs, 0);
 
+  const anthropometryExtra =
+    parsedBodyMassKg != null || parsedHeightCm != null
+      ? `${t("tests:common.massLabel")}: ${formatMassDisplay(parsedBodyMassKg)} · ${t("tests:common.heightLabel")}: ${formatHeightDisplay(parsedHeightCm)}`
+      : undefined;
+
   return (
     <Screen style={{ justifyContent: "space-between" }}>
-      <View>
-        <T style={{ fontSize: 22, fontWeight: "900", marginTop: 18 }}>
-          {t("tests:elevacaoCalcanhares.title")}
-        </T>
-        <T style={{ marginTop: 4, opacity: 0.7 }}>
-          {t("tests:common.participant", { name: participant?.name ?? "—" })}
-        </T>
-      </View>
+      <TestCollectionHeader
+        title={t("tests:elevacaoCalcanhares.title")}
+        participant={participant}
+        participantLineExtra={anthropometryExtra}
+      />
 
       <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
         {!!countdownText && (
-          <T style={{ fontSize: 42, fontWeight: "900", marginBottom: 16 }}>{countdownText}</T>
+          <T style={{ fontSize: 42, fontWeight: "900", marginBottom: 12, textAlign: "center" }}>{countdownText}</T>
         )}
 
-        <T style={{ fontSize: 18, opacity: 0.8, marginBottom: 16 }}>{statusText}</T>
+        <T style={{ fontSize: 18, opacity: 0.8, marginBottom: 12, textAlign: "center" }}>{statusText}</T>
 
         {(phase === "running" || phase === "finished") && (
-          <View style={{ width: "100%", marginBottom: 20 }}>
+          <View style={{ width: "100%", marginBottom: 16 }}>
             <T style={{ textAlign: "center", fontSize: 28, fontWeight: "900", marginBottom: 10 }}>
               {fmtMs(remainingMs)}
             </T>
@@ -312,8 +510,19 @@ export default function ElevacoesCalcanhares() {
           </View>
         )}
 
+        <TestCollectionHeroImage testKey="elevacao_calcanhares" style={{ marginBottom: 20 }} />
+
         {!showFinishButton ? (
-          <ThemedButton title={t("tests:common.startTest")} onPress={startTest} style={{ minWidth: 220 }} />
+          <View style={{ alignItems: "center", gap: 12, width: "100%" }}>
+            <ThemedButton title={t("tests:common.startTest")} onPress={startTest} style={{ minWidth: 220 }} />
+            <Pressable style={styles.secondaryButton} onPress={() => setAnthropometryModalVisible(true)}>
+              <T style={styles.secondaryButtonText}>
+                {anthropometryConfirmed
+                  ? t("tests:sentarLevantar.anthropometry.editForm")
+                  : t("tests:sentarLevantar.anthropometry.openForm")}
+              </T>
+            </Pressable>
+          </View>
         ) : (
           <ThemedButton
             title={t("tests:common.finishTest")}
@@ -324,19 +533,193 @@ export default function ElevacoesCalcanhares() {
         )}
       </View>
 
-      <View>
-        {phase === "finished" && !!result && (
-          <View style={{ marginBottom: 16 }}>
-            <T>{t("tests:common.samples")}: {result.stats.n}</T>
-            <T>{t("tests:common.hzMean")}: {result.stats.hzMean?.toFixed(2) ?? "—"}</T>
-            <T>{t("tests:common.hzInRange")}: {result.stats.pctIn58to62?.toFixed(1) ?? "—"}%</T>
-          </View>
-        )}
+      <TestCollectionGoToResultsRow
+        visible={showGoToResults}
+        title={t("tests:common.goToResults")}
+        onPress={goToResults}
+      />
 
-        {showGoToResults && (
-          <ThemedButton title={t("tests:common.goToResults")} onPress={goToResults} />
-        )}
-      </View>
+      <Modal
+        visible={anthropometryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (phase === "idle" || phase === "finished") {
+            setAnthropometryModalVisible(false);
+          }
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.modalKeyboardWrap}
+          >
+            <View style={styles.modalCard}>
+              <T style={styles.modalTitle}>{t("tests:sentarLevantar.anthropometry.modalTitle")}</T>
+              <T style={styles.modalSubtitle}>{t("tests:sentarLevantar.anthropometry.modalSubtitle")}</T>
+
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <View style={styles.inputBlock}>
+                  <T style={styles.inputLabel}>{t("tests:common.participantLabel")}</T>
+                  <View style={styles.readOnlyField}>
+                    <T style={styles.readOnlyFieldText}>{participant?.name ?? "—"}</T>
+                  </View>
+                </View>
+
+                <View style={styles.inputBlock}>
+                  <T style={styles.inputLabel}>{t("tests:sentarLevantar.anthropometry.massInputLabel")}</T>
+                  <TextInput
+                    value={bodyMassInput}
+                    onChangeText={setBodyMassInput}
+                    keyboardType="decimal-pad"
+                    placeholder={t("tests:sentarLevantar.anthropometry.massPlaceholder")}
+                    placeholderTextColor="#94A3B8"
+                    style={styles.input}
+                    editable={phase === "idle" || phase === "finished"}
+                  />
+                </View>
+
+                <View style={styles.inputBlock}>
+                  <T style={styles.inputLabel}>{t("tests:sentarLevantar.anthropometry.heightInputLabel")}</T>
+                  <TextInput
+                    value={heightInput}
+                    onChangeText={setHeightInput}
+                    keyboardType="decimal-pad"
+                    placeholder={t("tests:sentarLevantar.anthropometry.heightPlaceholder")}
+                    placeholderTextColor="#94A3B8"
+                    style={styles.input}
+                    editable={phase === "idle" || phase === "finished"}
+                  />
+                </View>
+
+                <View style={styles.modalActions}>
+                  {(phase === "idle" || phase === "finished") && (
+                    <Pressable style={styles.modalSecondaryButton} onPress={() => setAnthropometryModalVisible(false)}>
+                      <T style={styles.modalSecondaryButtonText}>{t("tests:sentarLevantar.anthropometry.closeButton")}</T>
+                    </Pressable>
+                  )}
+
+                  <Pressable style={styles.modalPrimaryButton} onPress={confirmAnthropometry}>
+                    <T style={styles.modalPrimaryButtonText}>{t("tests:sentarLevantar.anthropometry.saveButton")}</T>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  secondaryButton: {
+    minWidth: 220,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryButtonText: {
+    fontWeight: "800",
+    color: "#1D4ED8",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+    paddingHorizontal: 18,
+    justifyContent: "center",
+  },
+  modalKeyboardWrap: {
+    width: "100%",
+  },
+  modalCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    maxHeight: "82%",
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    opacity: 0.72,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  inputBlock: {
+    marginBottom: 14,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 8,
+    color: "#334155",
+  },
+  readOnlyField: {
+    minHeight: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 14,
+    justifyContent: "center",
+  },
+  readOnlyFieldText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  input: {
+    minHeight: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: "#0F172A",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 10,
+  },
+  modalSecondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  modalSecondaryButtonText: {
+    fontWeight: "800",
+    color: "#475569",
+  },
+  modalPrimaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 16,
+    backgroundColor: "#0B5FFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  modalPrimaryButtonText: {
+    fontWeight: "900",
+    color: "#FFFFFF",
+  },
+});

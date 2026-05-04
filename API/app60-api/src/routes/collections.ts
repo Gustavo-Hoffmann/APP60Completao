@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Router } from "express";
 import { z } from "zod";
@@ -7,7 +7,15 @@ import type { AppConfig } from "../config.js";
 import { institutionIdOrThrow, isSuperAdmin } from "../lib/authz.js";
 import type { AuthedUser } from "../middleware/auth.js";
 
-const TEST_TYPES = z.enum(["TUG", "MARCHA", "LOS", "SL30S", "UTT", "IVCF20"]);
+const TEST_TYPES = z.enum([
+  "TUG",
+  "MARCHA",
+  "LOS",
+  "SL30S",
+  "UTT",
+  "IVCF20",
+  "ACT_SEDENTARY",
+]);
 
 function buildRawKey(
   testType: string,
@@ -47,6 +55,124 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
   // Linhas em 'uploading' mais antigas que esse TTL são consideradas órfãs
   // (presigned URL expira em 15 min — damos folga para retry/rede).
   const UPLOADING_TTL_INTERVAL = "30 minutes";
+
+  function isAdminLike(u: AuthedUser) {
+    return isSuperAdmin(u) || u.role === "ADMIN";
+  }
+
+  async function canReadCollectionRaw(
+    u: AuthedUser,
+    args: { participantId: string; testType: string; sessionNumber: number },
+  ): Promise<{ ok: true; bucket: string; key: string } | { ok: false; status: number; error: string }> {
+    const testType = args.testType.toUpperCase();
+    const parsedType = TEST_TYPES.safeParse(testType);
+    if (!parsedType.success) {
+      return { ok: false, status: 400, error: "test_type inválido." };
+    }
+
+    const participantId = args.participantId;
+    const sessionNumber = args.sessionNumber;
+
+    // SUPER_ADMIN/ADMIN têm visão global (ainda precisa existir).
+    if (isAdminLike(u)) {
+      const q = await pool.query(
+        `SELECT raw_s3_bucket, raw_s3_key
+         FROM collections
+         WHERE participant_id = $1
+           AND test_type = $2::test_kind
+           AND session_number = $3
+         LIMIT 1`,
+        [participantId, testType, sessionNumber],
+      );
+      const row = q.rows[0];
+      if (!row?.raw_s3_bucket || !row?.raw_s3_key) {
+        return { ok: false, status: 404, error: "Arquivo bruto não encontrado." };
+      }
+      return { ok: true, bucket: row.raw_s3_bucket, key: row.raw_s3_key };
+    }
+
+    const inst = institutionIdOrThrow(u);
+    if (!(await assertParticipantInInstitution(participantId, inst))) {
+      return { ok: false, status: 404, error: "Participante não encontrado." };
+    }
+
+    // Papéis por instituição: GESTOR pode ler qualquer coleta da instituição;
+    // SUPERVISOR pode ler as próprias e de avaliadores supervisionados;
+    // AVALIADOR só lê as próprias.
+    const params: unknown[] = [participantId, testType, sessionNumber, inst];
+    let visibilitySql = "c.institution_id_at_collection = $4";
+
+    if (u.role === "AVALIADOR") {
+      params.push(u.id);
+      visibilitySql += " AND c.performed_by_user_id = $5";
+    } else if (u.role === "SUPERVISOR") {
+      params.push(u.id);
+      visibilitySql += ` AND (
+        c.performed_by_user_id = $5
+        OR c.performed_by_user_id IN (
+          SELECT evaluator_user_id
+          FROM supervision_edges
+          WHERE supervisor_user_id = $5 AND institution_id = $4 AND valid_to IS NULL
+        )
+      )`;
+    } else if (u.role === "GESTOR") {
+      // já está coberto por institution
+    } else {
+      return { ok: false, status: 403, error: "Sem permissão." };
+    }
+
+    const q = await pool.query(
+      `SELECT c.raw_s3_bucket, c.raw_s3_key
+       FROM collections c
+       WHERE c.participant_id = $1
+         AND c.test_type = $2::test_kind
+         AND c.session_number = $3
+         AND (${visibilitySql})
+       LIMIT 1`,
+      params,
+    );
+    const row = q.rows[0];
+    if (!row?.raw_s3_bucket || !row?.raw_s3_key) {
+      return { ok: false, status: 404, error: "Arquivo bruto não encontrado." };
+    }
+    return { ok: true, bucket: row.raw_s3_bucket, key: row.raw_s3_key };
+  }
+
+  r.get("/raw-url/:participantId/:testType/:sessionNumber", async (req, res) => {
+    const u = req.authUser as AuthedUser;
+    const participantId = String(req.params.participantId || "");
+    const testType = String(req.params.testType || "").toUpperCase();
+    const sessionNumber = Number(req.params.sessionNumber);
+
+    if (!participantId || !Number.isFinite(sessionNumber) || sessionNumber <= 0) {
+      res.status(400).json({ error: "Parâmetros inválidos." });
+      return;
+    }
+
+    try {
+      const allowed = await canReadCollectionRaw(u, { participantId, testType, sessionNumber });
+      if (!allowed.ok) {
+        res.status(allowed.status).json({ error: allowed.error });
+        return;
+      }
+
+      const ext = String(allowed.key.split(".").pop() ?? "csv").toLowerCase();
+      const contentType = ext === "json" ? "application/json" : "text/csv";
+      const filename = `${testType}-S${sessionNumber}-${participantId}.${ext}`;
+
+      const cmd = new GetObjectCommand({
+        Bucket: allowed.bucket,
+        Key: allowed.key,
+        ResponseContentType: contentType,
+        ResponseContentDisposition: `attachment; filename="${filename}"`,
+      });
+      const url = await getSignedUrl(s3, cmd, { expiresIn: 120 });
+      res.json({ url });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Erro ao preparar download." });
+    }
+  });
 
   r.get("/next-session/:participantId/:testType", async (req, res) => {
     const u = req.authUser as AuthedUser;

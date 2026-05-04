@@ -8,12 +8,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path, Line, Circle, Text as SvgText } from "react-native-svg";
+import { useTranslation } from "react-i18next";
 
 import { T } from "../../components/Themed";
 import { ThemedButton } from "../../components/ThemedButton";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
 import type { Participant } from "../../models/types";
+import { QuestionnaireParticipantCard } from "../../components/questionnaires/QuestionnaireParticipantCard";
 import {
   getNextSessionNumber,
   uploadIvcf20ResultToCollection,
@@ -39,17 +41,17 @@ const badgeColor = (key: ClsKey) => {
   return "#E74C3C";
 };
 
-const DOMAIN_META = [
-  { key: "idade", label: "Idade", max: 3 },
-  { key: "percepcao", label: "Saúde", max: 1 },
-  { key: "avd_i", label: "AVD-I", max: 4 },
-  { key: "avd_b", label: "AVD-B", max: 6 },
-  { key: "cognicao", label: "Cognição", max: 4 },
-  { key: "humor", label: "Humor", max: 4 },
-  { key: "mobilidade", label: "Mobilidade", max: 8 },
-  { key: "continencia", label: "Continência", max: 2 },
-  { key: "comunicacao", label: "Comunicação", max: 4 },
-  { key: "comorbidades", label: "Comorb.", max: 4 },
+const IVCF_DOMAIN_ROWS = [
+  { key: "idade", max: 3 },
+  { key: "percepcao", max: 1 },
+  { key: "avd_i", max: 4 },
+  { key: "avd_b", max: 6 },
+  { key: "cognicao", max: 4 },
+  { key: "humor", max: 4 },
+  { key: "mobilidade", max: 8 },
+  { key: "continencia", max: 2 },
+  { key: "comunicacao", max: 4 },
+  { key: "comorbidades", max: 4 },
 ] as const;
 
 function clamp01(x: number) {
@@ -74,13 +76,6 @@ function riskColor(v01: number) {
   if (v < 0.34) return "#2ECC71";
   if (v < 0.67) return "#F39C12";
   return "#E74C3C";
-}
-
-function riskLabel(v01: number) {
-  const v = clamp01(v01);
-  if (v < 0.34) return "Bom/Excelente";
-  if (v < 0.67) return "Intermediário";
-  return "Ruim/Péssimo";
 }
 
 function polar(cx: number, cy: number, r: number, a: number) {
@@ -210,6 +205,7 @@ function PizzaDomainsChart({
 
 export function IVCF20ResultScreen({ route, navigation }: any) {
   const { theme } = useTheme();
+  const { t } = useTranslation(["questionnaires", "common"]);
   const { isGuest } = useAuth();
   const { width } = useWindowDimensions();
   const [uploading, setUploading] = useState(false);
@@ -225,8 +221,21 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
     meta,
   } = (route?.params ?? {}) as RouteParams;
 
-  const cls = classification ?? { label: "—", key: "robusto" as ClsKey };
-  const clsColor = useMemo(() => badgeColor(cls.key), [cls.key]);
+  const clsKey = (classification?.key ?? "robusto") as ClsKey;
+  const clsDisplayLabel = t(`questionnaires:ivcf20.classification.${clsKey}`);
+  const clsColor = useMemo(() => badgeColor(clsKey), [clsKey]);
+
+  const dash = t("questionnaires:ivcf20.result.unknown");
+
+  const riskLabelT = useMemo(
+    () => (v01: number) => {
+      const v = clamp01(v01);
+      if (v < 0.34) return t("questionnaires:ivcf20.result.riskGood");
+      if (v < 0.67) return t("questionnaires:ivcf20.result.riskMid");
+      return t("questionnaires:ivcf20.result.riskBad");
+    },
+    [t]
+  );
 
   useEffect(() => {
     navigation?.setOptions?.({
@@ -234,9 +243,9 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
       headerTintColor: "#fff",
       headerTitleStyle: { color: "#fff", fontWeight: "900" },
       headerShadowVisible: false,
-      title: "Resultado IVCF-20",
+      title: t("questionnaires:ivcf20.result.title"),
     });
-  }, [navigation, theme.colors.primary]);
+  }, [navigation, theme.colors.primary, t]);
 
   useEffect(() => {
     let alive = true;
@@ -261,16 +270,18 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
   const blocksArr = useMemo(() => {
     const arr = Array.isArray(blockScores) ? blockScores : [];
 
-    return DOMAIN_META.map((metaItem) => {
+    return IVCF_DOMAIN_ROWS.map((metaItem) => {
       const found = arr.find((b: any) => String(b?.key) === metaItem.key);
       return {
         key: metaItem.key,
-        label: String(found?.label ?? metaItem.label),
+        label: String(
+          found?.label ?? t(`questionnaires:ivcf20.chartDomains.${metaItem.key}`)
+        ),
         score: Number(found?.score ?? 0),
         max_score: Number(found?.max_score ?? metaItem.max),
       };
     });
-  }, [blockScores]);
+  }, [blockScores, t]);
 
   const chart = useMemo(() => {
     const labels = blocksArr.map((d) => d.label);
@@ -289,8 +300,8 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
 
       if (!participant?.id) {
         Alert.alert(
-          "Erro no upload",
-          "O participante não foi enviado para a tela de resultado. Passe o objeto participant na navegação."
+          t("questionnaires:ivcf20.result.uploadErrorTitle"),
+          t("questionnaires:ivcf20.result.uploadMissingParticipant")
         );
         return;
       }
@@ -304,7 +315,7 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
         participant,
         sessionNumber: sessionNumberToUse,
         scoreTotal: Number(scoreTotal ?? 0),
-        classification: cls,
+        classification: { key: clsKey, label: clsDisplayLabel },
         blockScores: blocksArr,
         answers,
         meta,
@@ -313,13 +324,18 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
       setNextSessionNumber(sent.sessionNumber + 1);
 
       Alert.alert(
-        "Upload concluído",
-        `☁️ Questionário enviado com sucesso.\nParticipante: ${
-          participant?.name ?? participantName ?? "—"
-        }\nSessão: S${sent.sessionNumber}\nCaminho: ${sent.path}`
+        t("questionnaires:ivcf20.result.uploadOkTitle"),
+        t("questionnaires:ivcf20.result.uploadOkBody", {
+          name: participant?.name ?? participantName ?? dash,
+          session: sent.sessionNumber,
+          path: sent.path,
+        })
       );
     } catch (e: any) {
-      Alert.alert("Erro no upload", e?.message ?? "Falha ao enviar questionário para a nuvem.");
+      Alert.alert(
+        t("questionnaires:ivcf20.result.uploadErrorTitle"),
+        e?.message ?? t("questionnaires:ivcf20.result.uploadFailBody")
+      );
     } finally {
       setUploading(false);
     }
@@ -343,7 +359,7 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
             <View style={styles.heroDiag} />
           </View>
 
-          <T style={styles.heroTitle}>Resultado IVCF-20</T>
+          <T style={styles.heroTitle}>{t("questionnaires:ivcf20.result.title")}</T>
           <T style={styles.heroSub}>{participant?.name ?? participantName ?? ""}</T>
         </View>
 
@@ -351,8 +367,18 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 24 }}
         >
-          <View style={[styles.card, { marginTop: -18 }]}>
-            <T style={{ color: theme.colors.muted }}>Score total</T>
+          <View style={{ marginHorizontal: 18, marginTop: 14 }}>
+            <QuestionnaireParticipantCard
+              name={participant?.name ?? participantName ?? dash}
+              subtitle={t("questionnaires:ivcf20.result.title")}
+              dob={participant?.dob ?? null}
+              sex={participant?.biologicalSex}
+              id={participant?.id ?? null}
+            />
+          </View>
+
+          <View style={[styles.card, { marginTop: 14 }]}>
+            <T style={{ color: theme.colors.muted }}>{t("questionnaires:ivcf20.result.totalScore")}</T>
 
             <View
               style={{
@@ -365,52 +391,52 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
               <T style={{ fontSize: 46, fontWeight: "900" }}>{Number(scoreTotal ?? 0)}</T>
 
               <View style={[styles.badge, { backgroundColor: clsColor }]}>
-                <T style={{ color: "#111", fontWeight: "900" }}>{cls.label}</T>
+                <T style={{ color: "#111", fontWeight: "900" }}>{clsDisplayLabel}</T>
               </View>
             </View>
 
-            <T style={styles.smallHint}>
-              Quanto maior o score, maior a vulnerabilidade clínico-funcional.
-            </T>
+            <T style={styles.smallHint}>{t("questionnaires:ivcf20.result.scoreHint")}</T>
 
             <View style={styles.metaRow}>
               <T style={styles.metaPill}>
-                Participante: {participant?.name ?? participantName ?? "—"}
+                {t("questionnaires:ivcf20.result.participantPill", {
+                  name: participant?.name ?? participantName ?? dash,
+                })}
               </T>
 
               <T style={styles.metaPill}>
-                Sessão: {nextSessionNumber ? `S${nextSessionNumber}` : "—"}
+                {t("questionnaires:ivcf20.result.sessionPill", {
+                  session: nextSessionNumber != null ? `S${nextSessionNumber}` : dash,
+                })}
               </T>
             </View>
           </View>
 
-          <T style={styles.sectionTitle}>Mapa de domínios (pizza)</T>
+          <T style={styles.sectionTitle}>{t("questionnaires:ivcf20.result.pizzaTitle")}</T>
 
           <View style={styles.card}>
-            <T style={styles.hintText}>
-              Cada fatia enche do centro para fora conforme (score ÷ máximo do domínio).
-            </T>
+            <T style={styles.hintText}>{t("questionnaires:ivcf20.result.pizzaHint")}</T>
 
             <View style={styles.legendRow}>
               <View
                 style={[styles.legendPill, { borderColor: hexToRgba("#2ECC71", 0.6) }]}
               >
                 <View style={[styles.legendDot, { backgroundColor: "#2ECC71" }]} />
-                <T style={styles.legendText}>Bom/Excelente</T>
+                <T style={styles.legendText}>{t("questionnaires:ivcf20.result.riskGood")}</T>
               </View>
 
               <View
                 style={[styles.legendPill, { borderColor: hexToRgba("#F39C12", 0.6) }]}
               >
                 <View style={[styles.legendDot, { backgroundColor: "#F39C12" }]} />
-                <T style={styles.legendText}>Intermediário</T>
+                <T style={styles.legendText}>{t("questionnaires:ivcf20.result.riskMid")}</T>
               </View>
 
               <View
                 style={[styles.legendPill, { borderColor: hexToRgba("#E74C3C", 0.6) }]}
               >
                 <View style={[styles.legendDot, { backgroundColor: "#E74C3C" }]} />
-                <T style={styles.legendText}>Ruim/Péssimo</T>
+                <T style={styles.legendText}>{t("questionnaires:ivcf20.result.riskBad")}</T>
               </View>
             </View>
 
@@ -433,14 +459,14 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
                   <View key={d.key} style={[styles.topRow, idx === 0 && { borderTopWidth: 0 }]}>
                     <T style={{ fontWeight: "900" }}>{d.label}</T>
                     <T style={{ color: riskColor(d.v01), fontWeight: "900" }}>
-                      {riskLabel(d.v01)} ({Math.round(d.v01 * 100)}%)
+                      {riskLabelT(d.v01)} ({Math.round(d.v01 * 100)}%)
                     </T>
                   </View>
                 ))}
             </View>
           </View>
 
-          <T style={styles.sectionTitle}>Score por domínio</T>
+          <T style={styles.sectionTitle}>{t("questionnaires:ivcf20.result.domainScores")}</T>
 
           <View style={styles.card}>
             {blocksArr.map((b, i) => (
@@ -465,7 +491,11 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
           {!isGuest && (
             <View style={styles.card}>
               <ThemedButton
-                title={uploading ? "☁️ Enviando..." : "☁️ Enviar JSON para nuvem"}
+                title={
+                  uploading
+                    ? t("questionnaires:ivcf20.result.uploading")
+                    : t("questionnaires:ivcf20.result.upload")
+                }
                 onPress={handleUploadCloud}
               />
             </View>

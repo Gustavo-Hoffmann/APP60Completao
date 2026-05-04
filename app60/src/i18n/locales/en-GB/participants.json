@@ -14,6 +14,7 @@
     "addressNumber": "House number",
     "fields": {
       "nationality": "Nationality",
+      "institution": "Institution",
       "identity": "Identity",
       "identityPlaceholderBr": "000.000.000-00",
       "identityPlaceholderIntl": "Identity document",
@@ -31,6 +32,11 @@
       "city": "City",
       "uf": "State"
     },
+    "institutionHint": "Choose the institution to register this participant.",
+    "institutionModalTitle": "Select institution",
+    "institutionClose": "Close",
+    "institutionEmpty": "No institutions available.",
+    "institutionPlaceholder": "Select an institution",
     "sex": {
       "male": "Male",
       "female": "Female"
@@ -42,7 +48,13 @@
       "identityInvalid": "Enter the identity document.",
       "cpfInvalid": "Invalid CPF.",
       "sexRequired": "Select biological sex.",
-      "houseNumberRequired": "House number is required."
+      "houseNumberRequired": "House number is required.",
+      "institutionRequired": "Select an institution."
+    },
+    "conflict": {
+      "message": "Participant already registered in \"{{institution}}\". Do you want to pull the participant data?",
+      "pull": "Pull data",
+      "otherInstitution": "another institution"
     },
     "alerts": {
       "cepTitle": "Postcode",

@@ -15,6 +15,7 @@ import { usersRouter } from "./routes/users.js";
 const cfg = loadConfig();
 const pool = createPool(cfg);
 const auth = createOptionalAudienceAuthMiddleware(cfg, pool);
+const BUILD_ID = "institutions-participants-chart-2026-04-24c";
 
 const app = express();
 app.use(
@@ -26,7 +27,8 @@ app.use(
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, service: "app60-api" });
+  res.setHeader("x-app60-build-id", BUILD_ID);
+  res.json({ ok: true, service: "app60-api", build: BUILD_ID });
 });
 
 app.use("/bootstrap", bootstrapRouter(pool));

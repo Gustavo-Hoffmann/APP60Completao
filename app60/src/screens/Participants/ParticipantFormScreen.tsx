@@ -19,11 +19,14 @@ import { ThemedInput } from "../../components/ThemedInput";
 import { ThemedButton } from "../../components/ThemedButton";
 import { DateField } from "../../components/DateField";
 
+import type { AuthUser } from "../../models/auth";
 import type { BiologicalSex, Participant } from "../../models/types";
 import { normalizeDigits } from "../../models/utils";
 import { isValidCPF } from "../../models/validators";
 import { fetchViaCep } from "../../services/viacep";
 import { upsertParticipant } from "../../services/participants";
+import { getCurrentResearcher } from "../../services/authLocal";
+import { listInstitutions, type InstitutionLite } from "../../services/institutions";
 import { useTheme } from "../../contexts/ThemeContext";
 import { getCountryOptions, countryLabel, type CountryOption } from "../../lib/isoCountries";
 
@@ -132,8 +135,20 @@ export function ParticipantFormScreen() {
   const [saving, setSaving] = useState(false);
   const [nationalityModalOpen, setNationalityModalOpen] = useState(false);
 
+  const [me, setMe] = useState<AuthUser | null>(null);
+  const [institutions, setInstitutions] = useState<InstitutionLite[]>([]);
+  const [institutionModalOpen, setInstitutionModalOpen] = useState(false);
+  const [selectedInstitutionId, setSelectedInstitutionId] = useState<string | null>(null);
+  const [confirmLinkExisting, setConfirmLinkExisting] = useState(false);
+
   const nat = nationality.trim().toUpperCase();
   const isBr = nat === "BR";
+
+  const isSuperAdmin = me?.role === "SUPER_ADMIN";
+  const selectedInstitution = institutions.find((x) => x.id === selectedInstitutionId) ?? null;
+  const selectedInstitutionLabel = selectedInstitution
+    ? `${selectedInstitution.name}${selectedInstitution.unit ? ` — ${selectedInstitution.unit}` : ""}`
+    : t("participants:form.institutionPlaceholder", "Selecione a instituição");
 
   const countryOptions = React.useMemo((): CountryOption[] => {
     const lang = i18n.language ?? "pt-BR";
@@ -167,6 +182,36 @@ export function ParticipantFormScreen() {
     setCity(participant.address?.city ?? "");
     setUf(participant.address?.uf ?? "");
   }, [participant]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const u = await getCurrentResearcher();
+      if (!active) return;
+      setMe(u);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSuperAdmin || isEdit) return;
+    let active = true;
+    (async () => {
+      try {
+        const list = await listInstitutions();
+        if (!active) return;
+        setInstitutions(list);
+        if (!selectedInstitutionId && list.length) setSelectedInstitutionId(list[0].id);
+      } catch {
+        // Silencioso: se falhar, o usuário ainda pode salvar se não for obrigatório (mas para superadmin é).
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [isSuperAdmin, isEdit, selectedInstitutionId]);
 
   const onFetchCep = async () => {
     if (!isBr) return;
@@ -223,6 +268,14 @@ export function ParticipantFormScreen() {
         return;
       }
 
+      if (isSuperAdmin && !isEdit && !selectedInstitutionId) {
+        Alert.alert(
+          t("participants:form.alerts.saveTitle"),
+          t("participants:form.validation.institutionRequired", "Selecione a instituição.")
+        );
+        return;
+      }
+
       setSaving(true);
 
       const payload: Participant = {
@@ -245,11 +298,71 @@ export function ParticipantFormScreen() {
         updatedAt: new Date().toISOString(),
       };
 
-      await upsertParticipant(payload);
+      // Campos extras usados pelo backend (sem mudar o type global)
+      const extra = payload as Participant & {
+        institutionId?: string;
+        confirmLinkExisting?: boolean;
+      };
+      if (isSuperAdmin && !isEdit && selectedInstitutionId) extra.institutionId = selectedInstitutionId;
+      if (confirmLinkExisting) extra.confirmLinkExisting = true;
+
+      await upsertParticipant(extra);
 
       Alert.alert(t("participants:form.alerts.savedTitle"), t("participants:form.alerts.savedMessage"));
       nav.goBack();
     } catch (e: any) {
+      // Conflito: CPF/identidade já existe em outra instituição.
+      if (e?.code === "PARTICIPANT_EXISTS_OTHER_INSTITUTION" && e?.details) {
+        const details = e.details as any;
+        const inst = details.existingInstitution;
+        const instLabel =
+          inst?.name
+            ? `${inst.name}${inst.unit ? ` — ${inst.unit}` : ""}`
+            : t("participants:form.conflict.otherInstitution", "outra instituição");
+
+        Alert.alert(
+          t("participants:form.alerts.saveTitle"),
+          t(
+            "participants:form.conflict.message",
+            `Participante já cadastrado em "${instLabel}". Deseja puxar os dados do participante?`
+          ),
+          [
+            { text: t("common:actions.cancel", "Cancelar"), style: "cancel" },
+            {
+              text: t("participants:form.conflict.pull", "Puxar dados"),
+              style: "default",
+              onPress: () => {
+                const p = details.participant;
+                if (p) {
+                  setName(p.full_name ?? "");
+                  const pNat = String(p.nationality ?? "BR").trim().toUpperCase();
+                  setNationality(pNat);
+                  setIdentity(pNat === "BR" ? formatCPF(p.cpf_normalized ?? "") : String(p.cpf_normalized ?? ""));
+                  setDob(new Date(p.birth_date ?? "2000-01-01"));
+                  setBiologicalSex(
+                    p.sex === "M" || p.sex === "Masculino"
+                      ? "Masculino"
+                      : p.sex === "F" || p.sex === "Feminino"
+                        ? "Feminino"
+                        : undefined
+                  );
+                  setCep(pNat === "BR" ? formatCEP(p.cep ?? "") : String(p.cep ?? ""));
+                  setStreet(p.street ?? "");
+                  setNumber(p.number ?? "");
+                  setComplement(p.complement ?? "");
+                  setNeighborhood(p.neighborhood ?? "");
+                  setCity(p.city ?? "");
+                  setUf(p.state ?? "");
+                }
+                // Após confirmar, o próximo "Salvar" vai vincular este participante à instituição escolhida/atual.
+                setConfirmLinkExisting(true);
+              },
+            },
+          ]
+        );
+        return;
+      }
+
       Alert.alert(
         t("participants:form.alerts.saveTitle"),
         e?.message ?? t("participants:form.alerts.saveError")
@@ -275,6 +388,31 @@ export function ParticipantFormScreen() {
           </T>
 
           <View style={{ height: 14 }} />
+
+          {isSuperAdmin && !isEdit ? (
+            <View style={{ marginBottom: 12 }}>
+              <T style={{ fontWeight: "800", marginBottom: 8, color: theme.colors.text }}>
+                {t("participants:form.fields.institution", "Instituição")}
+              </T>
+              <Pressable
+                onPress={() => setInstitutionModalOpen(true)}
+                style={({ pressed }) => ({
+                  borderWidth: 1,
+                  borderColor: theme.colors.border,
+                  backgroundColor: theme.colors.card,
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  paddingHorizontal: 12,
+                  opacity: pressed ? 0.88 : 1,
+                })}
+              >
+                <T style={{ fontWeight: "700", color: theme.colors.text }}>{selectedInstitutionLabel}</T>
+                <T style={{ marginTop: 6, fontSize: 12, color: theme.colors.muted }}>
+                  {t("participants:form.institutionHint", "Escolha a instituição para cadastrar o participante.")}
+                </T>
+              </Pressable>
+            </View>
+          ) : null}
 
           <ThemedInput
             label={t("common:labels.name")}
@@ -510,6 +648,75 @@ export function ParticipantFormScreen() {
                 <T style={{ fontWeight: "700", color: theme.colors.text }}>{item.label}</T>
               </Pressable>
             )}
+          />
+        </View>
+      </Modal>
+
+      <Modal
+        visible={institutionModalOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setInstitutionModalOpen(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.border,
+            }}
+          >
+            <T style={{ fontSize: 18, fontWeight: "900", color: theme.colors.text }}>
+              {t("participants:form.institutionModalTitle", "Selecionar instituição")}
+            </T>
+            <Pressable onPress={() => setInstitutionModalOpen(false)} hitSlop={12}>
+              <T style={{ fontWeight: "800", color: theme.colors.primary }}>
+                {t("participants:form.institutionClose", "Fechar")}
+              </T>
+            </Pressable>
+          </View>
+
+          <FlatList
+            data={institutions}
+            keyExtractor={(item) => item.id}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 24 }}
+            renderItem={({ item }) => {
+              const label = `${item.name}${item.unit ? ` — ${item.unit}` : ""}`;
+              const selected = item.id === selectedInstitutionId;
+              return (
+                <Pressable
+                  onPress={() => {
+                    setSelectedInstitutionId(item.id);
+                    setInstitutionModalOpen(false);
+                  }}
+                  style={({ pressed }) => ({
+                    paddingVertical: 14,
+                    paddingHorizontal: 16,
+                    borderBottomWidth: 1,
+                    borderBottomColor: theme.colors.border,
+                    backgroundColor: selected
+                      ? theme.colors.card
+                      : pressed
+                        ? theme.colors.card
+                        : theme.colors.bg,
+                  })}
+                >
+                  <T style={{ fontWeight: "700", color: theme.colors.text }}>{label}</T>
+                </Pressable>
+              );
+            }}
+            ListEmptyComponent={
+              <View style={{ padding: 16 }}>
+                <T style={{ color: theme.colors.muted }}>
+                  {t("participants:form.institutionEmpty", "Nenhuma instituição disponível.")}
+                </T>
+              </View>
+            }
           />
         </View>
       </Modal>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -27,6 +27,7 @@ import {
 
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { Card } from "../../../components/ui/Card";
+import { TestExportActions } from "../../../components/exports/TestExportActions";
 import { useAuth } from "../../../contexts/AuthContext";
 import { apiJson } from "../../../lib/api/client";
 import { routes } from "../../../navigation/routes";
@@ -35,6 +36,7 @@ import type { IvcfSession, Participant, Sl30sSession, TwoMstSession } from "../.
 import { getParticipantById } from "../services/participants";
 
 type OpenedTest = "2MST" | "SL30S" | "IVCF20" | null;
+type MetricsFilterMode = "session" | "date";
 
 /** Mesmo conjunto de papéis que acessam a lista de participantes no router. */
 const PARTICIPANT_AREA_ROLES: Role[] = ["SUPER_ADMIN", "ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"];
@@ -696,8 +698,12 @@ export function ParticipantDetailPage() {
     from: null,
     to: null,
   });
+  const [twoMstMetricFilterMode, setTwoMstMetricFilterMode] = useState<MetricsFilterMode>("session");
+  const [sl30sMetricFilterMode, setSl30sMetricFilterMode] = useState<MetricsFilterMode>("session");
   const [twoMstFilterOpen, setTwoMstFilterOpen] = useState(false);
   const [sl30sFilterOpen, setSl30sFilterOpen] = useState(false);
+
+  const mainExportRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -813,23 +819,50 @@ export function ParticipantDetailPage() {
     });
   }, [sl30sSessionIds]);
 
-  function normalizeRange(range: { from: number; to: number }) {
-    return range.from <= range.to ? range : { from: range.to, to: range.from };
+  function resolveOrderedSessionsForMetricFilter(
+    sessions: Array<{ sessao: number; date?: string | null }>,
+    mode: MetricsFilterMode
+  ) {
+    if (mode === "session") return [...sessions].sort((a, b) => a.sessao - b.sessao);
+
+    return [...sessions].sort((a, b) => {
+      const ta = a.date ? new Date(a.date).getTime() : Number.POSITIVE_INFINITY;
+      const tb = b.date ? new Date(b.date).getTime() : Number.POSITIVE_INFINITY;
+      const da = Number.isNaN(ta) ? Number.POSITIVE_INFINITY : ta;
+      const db = Number.isNaN(tb) ? Number.POSITIVE_INFINITY : tb;
+      if (da !== db) return da - db;
+      return a.sessao - b.sessao;
+    });
+  }
+
+  function filterSessionsByOrderedEndpoints<T extends { sessao: number }>(
+    sessions: T[],
+    ordered: Array<{ sessao: number }>,
+    range: { from: number | null; to: number | null }
+  ) {
+    const { from, to } = range;
+    if (from === null || to === null) return sessions;
+    if (!ordered.length) return sessions;
+
+    const idxFrom = ordered.findIndex((s) => s.sessao === from);
+    const idxTo = ordered.findIndex((s) => s.sessao === to);
+    if (idxFrom < 0 || idxTo < 0) return sessions;
+
+    const start = Math.min(idxFrom, idxTo);
+    const end = Math.max(idxFrom, idxTo);
+    const allowed = new Set(ordered.slice(start, end + 1).map((s) => s.sessao));
+    return sessions.filter((s) => allowed.has(s.sessao));
   }
 
   const filteredTwoMstSessionsForMetrics = useMemo(() => {
-    const { from, to } = twoMstMetricRange;
-    if (from === null || to === null) return twoMstSessions;
-    const r = normalizeRange({ from, to });
-    return twoMstSessions.filter((s) => s.sessao >= r.from && s.sessao <= r.to);
-  }, [twoMstSessions, twoMstMetricRange]);
+    const ordered = resolveOrderedSessionsForMetricFilter(twoMstSessions, twoMstMetricFilterMode);
+    return filterSessionsByOrderedEndpoints(twoMstSessions, ordered, twoMstMetricRange);
+  }, [twoMstSessions, twoMstMetricFilterMode, twoMstMetricRange]);
 
   const filteredSl30sSessionsForMetrics = useMemo(() => {
-    const { from, to } = sl30sMetricRange;
-    if (from === null || to === null) return sl30sSessions;
-    const r = normalizeRange({ from, to });
-    return sl30sSessions.filter((s) => s.sessao >= r.from && s.sessao <= r.to);
-  }, [sl30sSessions, sl30sMetricRange]);
+    const ordered = resolveOrderedSessionsForMetricFilter(sl30sSessions, sl30sMetricFilterMode);
+    return filterSessionsByOrderedEndpoints(sl30sSessions, ordered, sl30sMetricRange);
+  }, [sl30sSessions, sl30sMetricFilterMode, sl30sMetricRange]);
 
   function clearMetricRange(test: "2mst" | "sl30s") {
     if (test === "2mst") setTwoMstMetricRange({ from: null, to: null });
@@ -840,24 +873,45 @@ export function ParticipantDetailPage() {
     test,
     sessions,
     range,
+    mode,
+    onChangeMode,
     isOpen,
     onToggleOpen,
   }: {
     test: "2mst" | "sl30s";
-    sessions: number[];
+    sessions: Array<{ sessao: number; date?: string | null }>;
     range: { from: number | null; to: number | null };
+    mode: MetricsFilterMode;
+    onChangeMode: (mode: MetricsFilterMode) => void;
     isOpen: boolean;
     onToggleOpen: (next: boolean) => void;
   }) {
-    const ordered = [...sessions].sort((a, b) => a - b);
+    const orderedSessions = resolveOrderedSessionsForMetricFilter(sessions, mode);
+    const ordered = orderedSessions.map((s) => s.sessao);
     const hasRange = range.from !== null && range.to !== null;
     if (!ordered.length) return null;
 
+    const activeLocale = i18n.resolvedLanguage ?? i18n.language ?? "pt-BR";
+    const formatTickLabel = (sessionId: number) => {
+      if (mode !== "date") return t("participantDetail.sessionLabel", { session: sessionId });
+      const meta = orderedSessions.find((s) => s.sessao === sessionId);
+      const label = formatShortDate(meta?.date ?? null, activeLocale);
+      return label === "—" ? t("participantDetail.sessionLabel", { session: sessionId }) : label;
+    };
+
     const rangeLabel = hasRange
-      ? t("participantDetail.metricsFilter.rangeLabel", {
-          from: range.from,
-          to: range.to,
-        })
+      ? mode === "date"
+        ? (() => {
+            const fromMeta = sessions.find((s) => s.sessao === range.from);
+            const toMeta = sessions.find((s) => s.sessao === range.to);
+            const fromLabel = formatShortDate(fromMeta?.date ?? null, activeLocale);
+            const toLabel = formatShortDate(toMeta?.date ?? null, activeLocale);
+            return `${fromLabel} → ${toLabel}`;
+          })()
+        : t("participantDetail.metricsFilter.rangeLabel", {
+            from: range.from,
+            to: range.to,
+          })
       : t("participantDetail.metricsFilter.allSessions");
 
     const fromValue = hasRange ? range.from! : ordered[0];
@@ -888,6 +942,33 @@ export function ParticipantDetailPage() {
                     {t("participantDetail.metricsFilter.title")}
                   </div>
                   <div className="mt-1 text-xs text-slate-500">{t("participantDetail.metricsFilter.hint")}</div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onChangeMode("session")}
+                    className={[
+                      "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                      mode === "session"
+                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                    ].join(" ")}
+                  >
+                    {t("participantDetail.metricsFilter.bySession")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChangeMode("date")}
+                    className={[
+                      "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                      mode === "date"
+                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                    ].join(" ")}
+                  >
+                    {t("participantDetail.metricsFilter.byDate")}
+                  </button>
                 </div>
 
                 <button
@@ -935,8 +1016,8 @@ export function ParticipantDetailPage() {
                 </div>
 
                 <div className="mt-2 flex justify-between text-xs font-semibold text-slate-600">
-                  <span>{t("participantDetail.sessionLabel", { session: ordered[Math.min(fromIdx, toIdx)] })}</span>
-                  <span>{t("participantDetail.sessionLabel", { session: ordered[Math.max(fromIdx, toIdx)] })}</span>
+                  <span>{formatTickLabel(ordered[Math.min(fromIdx, toIdx)])}</span>
+                  <span>{formatTickLabel(ordered[Math.max(fromIdx, toIdx)])}</span>
                 </div>
               </div>
             </Card>
@@ -1082,11 +1163,12 @@ export function ParticipantDetailPage() {
         }
       />
 
-      <main className="space-y-6 px-6 py-8">
+      <main ref={mainExportRef} className="space-y-6 px-6 py-8">
         <section>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Link
               to={routes.participants}
+              data-export="exclude"
               className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-900"
             >
               <ArrowLeft size={16} />
@@ -1178,7 +1260,7 @@ export function ParticipantDetailPage() {
               />
 
               <TestCard
-                title="SL-30s"
+                title={t("participantDetail.tests.sl30s.shortTitle")}
                 description={
                   hasSl30s
                     ? t("participantDetail.tests.sl30s.description")
@@ -1201,28 +1283,29 @@ export function ParticipantDetailPage() {
 
         {show2MstDetails ? (
           <>
-            <section className="flex items-center gap-2">
-              <Footprints size={18} className="text-blue-700" />
-              <h2 className="text-xl font-black text-slate-900">{t("participantDetail.tests.2mst.sectionTitle")}</h2>
-            </section>
+            <div>
+              <section className="flex items-center gap-2">
+                <Footprints size={18} className="text-blue-700" />
+                <h2 className="text-xl font-black text-slate-900">{t("participantDetail.tests.2mst.sectionTitle")}</h2>
+              </section>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <Card className="p-5 shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                      {t("participantDetail.lastSession")}
-                    </p>
-                    <div className="mt-2 text-3xl font-black text-slate-900">
-                      {lastTwoMstSession?.sessao ?? "—"}
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <Card className="p-5 shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                        {t("participantDetail.lastSession")}
+                      </p>
+                      <div className="mt-2 text-3xl font-black text-slate-900">
+                        {lastTwoMstSession?.sessao ?? "—"}
+                      </div>
+                      <p className="mt-2 text-sm text-slate-500">{lastTwoMstSession?.date ?? "—"}</p>
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">{lastTwoMstSession?.date ?? "—"}</p>
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-700">
+                      <CalendarDays size={20} />
+                    </div>
                   </div>
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-700">
-                    <CalendarDays size={20} />
-                  </div>
-                </div>
-              </Card>
+                </Card>
 
               <Card className="p-5 shadow-sm">
                 <div className="flex items-start justify-between">
@@ -1275,21 +1358,23 @@ export function ParticipantDetailPage() {
                 </div>
               </Card>
 
-              <StrategyCard strategy={lastTwoMstSession?.strategy} />
-            </section>
+                <StrategyCard strategy={lastTwoMstSession?.strategy} />
+              </section>
 
-            <section>
-              <SessionsMetricFilter
-                test="2mst"
-                sessions={twoMstSessionIds}
-                range={twoMstMetricRange}
-                isOpen={twoMstFilterOpen}
-                onToggleOpen={setTwoMstFilterOpen}
-              />
-            </section>
+              <section>
+                <SessionsMetricFilter
+                  test="2mst"
+                  sessions={twoMstSessions}
+                  range={twoMstMetricRange}
+                  mode={twoMstMetricFilterMode}
+                  onChangeMode={setTwoMstMetricFilterMode}
+                  isOpen={twoMstFilterOpen}
+                  onToggleOpen={setTwoMstFilterOpen}
+                />
+              </section>
 
-            <section>
-              <Card className="p-6 shadow-sm">
+              <section className="mt-4">
+                <Card className="p-6 shadow-sm">
                 <div className="mb-5 flex items-center gap-2">
                   <Activity size={18} className="text-emerald-600" />
                   <h2 className="text-lg font-black text-slate-900">
@@ -1335,10 +1420,10 @@ export function ParticipantDetailPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-              </Card>
-            </section>
+                </Card>
+              </section>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <section className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <TinyMetricChart
                 title={t("participantDetail.cadence")}
                 data={filteredTwoMstSessionsForMetrics}
@@ -1390,8 +1475,8 @@ export function ParticipantDetailPage() {
               />
             </section>
 
-            <section>
-              <Card className="p-6 shadow-sm">
+              <section className="mt-4">
+                <Card className="p-6 shadow-sm">
                 <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="flex items-center gap-2">
                     <Activity size={18} className="text-rose-600" />
@@ -1425,12 +1510,13 @@ export function ParticipantDetailPage() {
                 <div className="rounded-3xl border border-blue-100 bg-blue-50/40 p-3">
                   <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={selectedTwoMstSignal}>
+                      <LineChart data={selectedTwoMstSignal} margin={{ top: 8, right: 12, left: 8, bottom: 8 }}>
                         <CartesianGrid stroke="#dbeafe" strokeDasharray="2 2" />
 
                         <XAxis
                           dataKey="time"
                           type="number"
+                          scale="linear"
                           domain={["dataMin", "dataMax"]}
                           tick={{ fill: "#64748b", fontSize: 10 }}
                           axisLine={false}
@@ -1439,10 +1525,12 @@ export function ParticipantDetailPage() {
                         />
 
                         <YAxis
+                          type="number"
+                          domain={["auto", "auto"]}
                           tick={{ fill: "#64748b", fontSize: 10 }}
                           axisLine={false}
                           tickLine={false}
-                          width={48}
+                          width={52}
                         />
 
                         <Tooltip
@@ -1461,7 +1549,7 @@ export function ParticipantDetailPage() {
                         />
 
                         <Line
-                          type="monotone"
+                          type="linear"
                           dataKey="value"
                           stroke="#ff4d8d"
                           strokeWidth={2.8}
@@ -1508,35 +1596,48 @@ export function ParticipantDetailPage() {
                   <span>{t("participantDetail.timeSeconds")}</span>
                   <span>{twoMstSignalEnd}s</span>
                 </div>
-              </Card>
-            </section>
+                </Card>
+              </section>
+            </div>
+
+            <TestExportActions
+              participantId={participant.id}
+              participantName={participant.name}
+              testLabelForFile="2MST"
+              rawTestType="MARCHA"
+              sessions={twoMstSessions}
+              defaultSessionNumber={selectedTwoMstSession}
+              metricRange={twoMstMetricRange}
+              exportRef={mainExportRef}
+            />
           </>
         ) : null}
 
         {showSl30sDetails ? (
           <>
-            <section className="flex items-center gap-2">
-              <Activity size={18} className="text-blue-700" />
-              <h2 className="text-xl font-black text-slate-900">{t("participantDetail.tests.sl30s.sectionTitle")}</h2>
-            </section>
+            <div>
+              <section className="flex items-center gap-2">
+                <Activity size={18} className="text-blue-700" />
+                <h2 className="text-xl font-black text-slate-900">{t("participantDetail.tests.sl30s.sectionTitle")}</h2>
+              </section>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <Card className="p-5 shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                      {t("participantDetail.lastSession")}
-                    </p>
-                    <div className="mt-2 text-3xl font-black text-slate-900">
-                      {lastSl30sSession?.sessao ?? "—"}
+              <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <Card className="p-5 shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                        {t("participantDetail.lastSession")}
+                      </p>
+                      <div className="mt-2 text-3xl font-black text-slate-900">
+                        {lastSl30sSession?.sessao ?? "—"}
+                      </div>
+                      <p className="mt-2 text-sm text-slate-500">{lastSl30sSession?.date ?? "—"}</p>
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">{lastSl30sSession?.date ?? "—"}</p>
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-700">
+                      <CalendarDays size={20} />
+                    </div>
                   </div>
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-700">
-                    <CalendarDays size={20} />
-                  </div>
-                </div>
-              </Card>
+                </Card>
 
               <Card className="p-5 shadow-sm">
                 <div className="flex items-start justify-between">
@@ -1579,21 +1680,23 @@ export function ParticipantDetailPage() {
                 ageBin={lastSl30sSession?.ageBin}
               />
 
-              <GodaCard value={lastSl30sSession?.goda} />
-            </section>
+                <GodaCard value={lastSl30sSession?.goda} />
+              </section>
 
-            <section>
-              <SessionsMetricFilter
-                test="sl30s"
-                sessions={sl30sSessionIds}
-                range={sl30sMetricRange}
-                isOpen={sl30sFilterOpen}
-                onToggleOpen={setSl30sFilterOpen}
-              />
-            </section>
+              <section>
+                <SessionsMetricFilter
+                  test="sl30s"
+                  sessions={sl30sSessions}
+                  range={sl30sMetricRange}
+                  mode={sl30sMetricFilterMode}
+                  onChangeMode={setSl30sMetricFilterMode}
+                  isOpen={sl30sFilterOpen}
+                  onToggleOpen={setSl30sFilterOpen}
+                />
+              </section>
 
-            <section>
-              <Card className="p-6 shadow-sm">
+              <section className="mt-4">
+                <Card className="p-6 shadow-sm">
                 <div className="mb-5 flex items-center gap-2">
                   <Activity size={18} className="text-emerald-600" />
                   <h2 className="text-lg font-black text-slate-900">
@@ -1639,10 +1742,10 @@ export function ParticipantDetailPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-              </Card>
-            </section>
+                </Card>
+              </section>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <section className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <TinyMetricChart
                 title={t("participantDetail.tests.sl30s.metrics.meanPower")}
                 data={filteredSl30sSessionsForMetrics}
@@ -1736,8 +1839,8 @@ export function ParticipantDetailPage() {
               />
             </section>
 
-            <section>
-              <Card className="p-6 shadow-sm">
+              <section className="mt-4">
+                <Card className="p-6 shadow-sm">
                 <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="flex items-center gap-2">
                     <Activity size={18} className="text-emerald-700" />
@@ -1854,8 +1957,20 @@ export function ParticipantDetailPage() {
                   <span>{t("participantDetail.timeSeconds")}</span>
                   <span>{sl30sSignalEnd}s</span>
                 </div>
-              </Card>
-            </section>
+                </Card>
+              </section>
+            </div>
+
+            <TestExportActions
+              participantId={participant.id}
+              participantName={participant.name}
+              testLabelForFile="SL30S"
+              rawTestType="SL30S"
+              sessions={sl30sSessions}
+              defaultSessionNumber={selectedSl30sSession}
+              metricRange={sl30sMetricRange}
+              exportRef={mainExportRef}
+            />
           </>
         ) : null}
       </main>

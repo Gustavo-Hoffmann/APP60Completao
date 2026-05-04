@@ -460,6 +460,8 @@ function mapTwoMstSignalPoints(row: TestSessionResultRow): TwoMstSignalPoint[] {
     });
   }
 
+  points.sort((a, b) => a.time - b.time);
+
   const times = points.map((p) => p.time);
 
   const tPhone = asNumberArray(plot.t_phone_peaks_s);

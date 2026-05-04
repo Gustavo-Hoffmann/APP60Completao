@@ -1,6 +1,513 @@
 {
+  "resultParticipantCard": {
+    "overline": "Participant",
+    "pills": {
+      "age": "Age",
+      "sex": "Sex",
+      "id": "ID"
+    },
+    "ageYears": "{{n}} years"
+  },
   "hub": {
     "title": "Questionnaires",
-    "openIvcf20": "IVCF-20"
+    "openIvcf20": "IVCF-20",
+    "openFesI": "FES-I (fear of falling)",
+    "openActivitySedentary": "Physical activity and sedentary behaviour"
+  },
+  "activitySedentary": {
+    "heroTitle": "Physical activity",
+    "participantFallback": "Participant",
+    "actions": {
+      "next": "Next",
+      "finish": "View result"
+    },
+    "errors": {
+      "fillAll": "Please fill in all fields before continuing."
+    },
+    "fields": {
+      "days": "Days",
+      "hours": "Hours",
+      "minutes": "Minutes"
+    },
+    "questions": {
+      "weekdaysTitle": "Monday to Friday",
+      "weekendTitle": "Weekend"
+    },
+    "moderate": {
+      "title": "MODERATE PHYSICAL ACTIVITY",
+      "body": "Activity you can do while talking, with some difficulty while moving, but without being able to sing. (Answers based on the last 7 days.)",
+      "qPrefix": {
+        "weekdays": "On how many weekdays did you perform moderate physical activity? (Mon–Fri) And for how long? (hours:minutes)",
+        "weekend": "On how many weekend days did you perform moderate physical activity? And for how long? (hours:minutes)"
+      }
+    },
+    "vigorous": {
+      "title": "VIGOROUS PHYSICAL ACTIVITY",
+      "body": "Activity where you cannot even talk while doing it. Breathing becomes faster than normal and heart rate increases a lot. (Answers based on the last 7 days.)",
+      "qPrefix": {
+        "weekdays": "On how many weekdays did you perform vigorous physical activity? (Mon–Fri) And for how long? (hours:minutes)",
+        "weekend": "On how many weekend days did you perform vigorous physical activity? And for how long? (hours:minutes)"
+      }
+    },
+    "sedentary": {
+      "title": "SEDENTARY BEHAVIOUR",
+      "body": "Activities such as: watching TV, using the phone, using the computer, doing crafts/manual work, driving, reading, staying seated, lying down or reclined. (Answers based on the last 7 days.)",
+      "qPrefix": {
+        "weekdays": "On how many weekdays did you engage in sedentary behaviour? (Mon–Fri) And for how long? (hours:minutes)",
+        "weekend": "On how many weekend days did you engage in sedentary behaviour? And for how long? (hours:minutes)"
+      }
+    },
+    "levels": {
+      "sedentary": "Sedentary",
+      "irregular_b": "Irregularly active B",
+      "irregular_a": "Irregularly active A",
+      "active": "Active",
+      "very_active": "Very active"
+    },
+    "result": {
+      "title": "Result",
+      "subtitle": "Sleep, physical activity and sedentary behaviour",
+      "levelLabel": "Physical activity level",
+      "participant": {
+        "overline": "Participant",
+        "pills": {
+          "age": "Age",
+          "sex": "Sex"
+        },
+        "ageYears": "{{n}} years"
+      },
+      "units": {
+        "hourShort": "h",
+        "minShort": "min",
+        "perDay": "{{value}}/day",
+        "perWeek": "{{value}}/week",
+        "perNightAtLeast": "≥ {{hours}} h/night",
+        "perNightRange": "{{min}}–{{max}} h/night"
+      },
+      "sleepRef": {
+        "headers": {
+          "age": "Age",
+          "recommendedSleep": "Recommended sleep",
+          "source": "Ref."
+        },
+        "ranges": {
+          "adults": {
+            "label": "Adults",
+            "ageText": "18–60 years",
+            "source": "CDC"
+          },
+          "olderAdults": {
+            "label": "Older adults",
+            "ageText": "61–64 years",
+            "source": "CDC/NSF"
+          },
+          "olderPeople": {
+            "label": "Older people",
+            "ageText": "65+ years",
+            "source": "CDC/NSF"
+          }
+        }
+      },
+      "classifiers": {
+        "sleep": {
+          "noData": {
+            "label": "No data provided",
+            "description": "Enter the usual sleep time to generate the interpretation."
+          },
+          "below": {
+            "label": "Below recommended",
+            "description": "Daily average below {{minH}} h. In older adults, this deserves attention because short sleep may worsen recovery, mood, cognition and physical performance."
+          },
+          "above": {
+            "label": "Above the recommended range",
+            "description": "Daily average above {{maxH}} h. This is not a diagnosis; it may reflect individual needs, naps, illness, low activity, or recall error."
+          },
+          "within": {
+            "label": "Within recommendation",
+            "description": "Daily average compatible with the reference range for {{ageText}}."
+          }
+        },
+        "activity": {
+          "upper": {
+            "label": "Meets WHO upper range",
+            "description": "Reaches 300 min/week or more in moderate-equivalent minutes, a range associated with additional benefits when there is no contraindication."
+          },
+          "minimum": {
+            "label": "Meets WHO minimum recommendation",
+            "description": "Reaches at least 150 min/week of moderate activity, or equivalent with vigorous activity."
+          },
+          "below": {
+            "label": "Below WHO recommendation",
+            "description": "There is some activity, but still below the weekly minimum recommended for substantial health benefits."
+          },
+          "none": {
+            "label": "No moderate/vigorous activity reported",
+            "description": "The questionnaire did not record moderate or vigorous physical activity in the week."
+          }
+        },
+        "sedentary": {
+          "noData": {
+            "label": "No data provided",
+            "description": "Enter sedentary time to generate the interpretation."
+          },
+          "low": {
+            "label": "Low/moderate",
+            "description": "Below thresholds where risk starts to appear more consistently in sitting-time studies."
+          },
+          "attention": {
+            "label": "Attention",
+            "description": "Intermediate range. A practical recommendation is to replace part of this time with active breaks and light activity."
+          },
+          "high": {
+            "label": "High",
+            "description": "Above roughly 9 h/day, meta-analyses in older adults already observe a relevant increase in risk."
+          },
+          "veryHigh": {
+            "label": "Very high",
+            "description": "Above 10 h/day. Mortality and sedentary behaviour studies point to a worse risk profile in this range."
+          }
+        }
+      },
+      "meta": {
+        "totalDays": "Active days",
+        "totalMinutes": "Active minutes"
+      },
+      "disclaimer": "Criteria based on frequency, duration and an estimated MET-min/week (moderate=4 METs, vigorous=8 METs).",
+      "summaryTitle": "Summary (last 7 days)",
+      "actions": {
+        "shareResult": "Share result",
+        "sendToCloud": "Send data to cloud",
+        "sendingCloud": "Sending...",
+        "sharingPdf": "Generating PDF...",
+        "showReference": "Show reference",
+        "hideReference": "Hide reference"
+      },
+      "alerts": {
+        "errorTitle": "Error",
+        "shareTitle": "Share",
+        "shareUnavailable": "Sharing is not available on this device.",
+        "captureErrorBody": "Could not capture the screen.",
+        "shareErrorBody": "Failed to share the result.",
+        "invalidParticipant": "Invalid participant for upload.",
+        "uploadErrorBody": "Failed to send to cloud.",
+        "sentTitle": "Sent",
+        "sentBody": "Session S{{session}} sent to the cloud.\n\n{{path}}"
+      },
+      "cards": {
+        "weeklyTime": {
+          "title": "Weekly time",
+          "subtitle": "Weekly totals and daily average (168 h/week).",
+          "badgeLabel": "week",
+          "rows": {
+            "sleep": "Sleep",
+            "light": "Light activity",
+            "moderate": "Moderate activity",
+            "vigorous": "Vigorous activity",
+            "sedentary": "Sedentary time"
+          },
+          "overflowWarning": "Sum above 168 h/week by {{overflow}}. Light time was adjusted to 0."
+        },
+        "sleep": {
+          "title": "Sleep",
+          "subtitle": "Reference: {{ageText}} • {{range}}",
+          "statLabel": "Sleep"
+        },
+        "activity": {
+          "title": "Physical activity",
+          "subtitle": "Moderate-equivalent: moderate + 2 × vigorous.",
+          "stats": {
+            "moderate": "Moderate",
+            "vigorous": "Vigorous",
+            "equivalent": "Moderate-equivalent (min/week)"
+          }
+        },
+        "sedentary": {
+          "title": "Sedentary behaviour",
+          "subtitle": "Practical cut-offs: attention above 7 h/day; high above 9 h/day.",
+          "statLabel": "Sedentary"
+        }
+      },
+      "kv": {
+        "moderate": "Moderate",
+        "vigorous": "Vigorous",
+        "sedentary": "Sedentary"
+      }
+    },
+    "table": {
+      "title": "Physical Activity Level — Scoring criteria",
+      "rows": {
+        "sedentary": {
+          "title": "Sedentary",
+          "body": "Did not perform any physical activity for at least 10 continuous minutes or did not meet the criteria for the active levels."
+        },
+        "irregular_b": {
+          "title": "Irregularly active B",
+          "body": "Performs physical activities, but does not meet either the frequency (days) or duration (time) criteria of category “A” or “Active”."
+        },
+        "irregular_a": {
+          "title": "Irregularly active A",
+          "body": "Performs physical activities, but does not meet all the “Active” criteria (e.g., 5 days or 150 min/week)."
+        },
+        "active": {
+          "title": "Active",
+          "body": "a) Vigorous activity: ≥ 3 days/week + total volume ≥ 1500 MET-min/week; OR b) 7 days of (Walking + Moderate + Vigorous) ≥ 3000 MET-min/week."
+        },
+        "very_active": {
+          "title": "Very active",
+          "body": "a) Vigorous activity: ≥ 3 days/week + 1500 MET-min/week; OR b) 5 days of (Walking + Moderate + Vigorous) ≥ 3000 MET-min/week."
+        }
+      }
+    }
+  },
+  "fesi": {
+    "instrumentName": "FES-I",
+    "resultTitle": "FES-I result",
+    "subtitle": "Falls Efficacy Scale — International",
+    "participantFallback": "Participant",
+    "questionProgress": "Question {{n}}",
+    "concernPrompt": "How concerned are you about falling while doing this activity?",
+    "answered": "Answered: {{answered}}/{{total}}",
+    "partialScore": "Partial score: {{score}}",
+    "partialScoreEmpty": "Partial score: —",
+    "next": "Next",
+    "back": "Back",
+    "viewResult": "View result",
+    "selectAnswerError": "Select an answer before continuing.",
+    "points_one": "{{count}} point",
+    "points_other": "{{count}} points",
+    "classification": {
+      "baixa": {
+        "badge": "Low concern",
+        "row": "Low concern",
+        "range": "16–19"
+      },
+      "moderada": {
+        "badge": "Moderate concern",
+        "row": "Moderate concern",
+        "range": "20–27"
+      },
+      "alta": {
+        "badge": "High concern",
+        "row": "High concern (high fear of falling)",
+        "range": "28–64"
+      }
+    },
+    "result": {
+      "participant": "Participant",
+      "idLabel": "ID:",
+      "instrument": "Instrument:",
+      "totalScore": "Total score",
+      "scoreHint": "Possible range: 16 to 64 points. The higher the score, the greater the concern/fear of falling.",
+      "meanPerItem": "Mean per item: {{value}}",
+      "classificationTitle": "Score classification",
+      "thScore": "Score",
+      "thClassification": "Classification",
+      "thStatus": "Status",
+      "here": "Here",
+      "dash": "—",
+      "perItemTitle": "Score per item"
+    },
+    "scale": {
+      "1": "Not at all concerned",
+      "2": "Somewhat concerned",
+      "3": "Fairly concerned",
+      "4": "Completely concerned"
+    },
+    "items": {
+      "q1": "Cleaning the house (e.g. dusting, vacuuming, or sweeping).",
+      "q2": "Getting dressed or undressed.",
+      "q3": "Preparing simple meals.",
+      "q4": "Taking a bath or shower.",
+      "q5": "Going shopping.",
+      "q6": "Sitting down and standing up from a chair.",
+      "q7": "Going up or down stairs.",
+      "q8": "Walking around the neighbourhood.",
+      "q9": "Reaching for something above your head or on the ground.",
+      "q10": "Answering the telephone before it stops ringing.",
+      "q11": "Walking on a slippery surface (e.g. wet floor).",
+      "q12": "Visiting a friend or relative.",
+      "q13": "Walking in a place with lots of people.",
+      "q14": "Walking on an uneven surface (e.g. rocky ground, potholed).",
+      "q15": "Walking up or down a slope.",
+      "q16": "Going to a social event (e.g. religious service, family gathering, or club meeting)."
+    }
+  },
+  "ivcf20": {
+    "shortTitle": "IVCF-20",
+    "pickTitle": "IVCF-20",
+    "participantFallback": "Participant",
+    "nav": {
+      "back": "Back",
+      "nextBlock": "Next section",
+      "finish": "Finish"
+    },
+    "classification": {
+      "robusto": "Robust",
+      "prefragil": "Pre-frail",
+      "fragil": "Frail"
+    },
+    "domains": {
+      "idade": "Age",
+      "percepcao": "Health perception",
+      "avd_i": "Instrumental ADL",
+      "avd_b": "Basic ADL",
+      "cognicao": "Cognition",
+      "humor": "Mood",
+      "mobilidade": "Mobility",
+      "continencia": "Continence",
+      "comunicacao": "Communication",
+      "comorbidades": "Multiple comorbidity"
+    },
+    "chartDomains": {
+      "idade": "Age",
+      "percepcao": "Health",
+      "avd_i": "IADL",
+      "avd_b": "BADL",
+      "cognicao": "Cognition",
+      "humor": "Mood",
+      "mobilidade": "Mobility",
+      "continencia": "Continence",
+      "comunicacao": "Communication",
+      "comorbidades": "Comorb."
+    },
+    "blockTitles": {
+      "idade": "Age (Q1)",
+      "percepcao": "Health perception (Q2)",
+      "avd_i": "Instrumental ADL (Q3–Q5)",
+      "avd_b": "Basic ADL (Q6)",
+      "cognicao": "Cognition (Q7–Q9)",
+      "humor": "Mood (Q10–Q11)",
+      "mobilidade": "Mobility (Q12–Q16)",
+      "continencia": "Continence (Q17)",
+      "comunicacao": "Communication (Q18–Q19)",
+      "comorbidades": "Multiple comorbidity (Q20)"
+    },
+    "errors": {
+      "idadeNoDob": "No date of birth on file. Select an age bracket.",
+      "percepcao": "Answer the health perception question.",
+      "avd_i": "Answer all 3 instrumental ADL questions.",
+      "avd_b": "Answer the basic ADL question.",
+      "cognicao": "Answer all 3 cognition questions.",
+      "humor": "Answer both mood questions.",
+      "mobilidadeReach": "Answer reach/grasp/pinch (Q12–Q13).",
+      "mobilidadeWeight": "Q14: indicate whether there was weight loss (Yes/No).",
+      "mobilidadeBmi": "Q14: enter weight and height (to calculate BMI).",
+      "mobilidadeCalf": "Q14: enter calf circumference (cm).",
+      "mobilidadeWalk": "Q14: perform the 4 m walk test (stopwatch required).",
+      "mobilidadeGait": "Answer gait and falls (Q15–Q16).",
+      "continencia": "Answer the continence question.",
+      "comunicacao": "Answer vision and hearing.",
+      "comorbidades": "Select “None of the options below” or at least one condition.",
+      "comorbidadesPick": "Q20: select at least one option (or “None”).",
+      "comorbidadesExclusive": "Q20: “None” cannot be selected together with other options."
+    },
+    "idade": {
+      "qTitle": "Q1. Age",
+      "birth": "Birth:",
+      "ageCalc": "Calculated age:",
+      "ageYears": "{{n}} years",
+      "autoBand": "Automatic bracket: {{bracket}} • Points: {{score}}",
+      "noValidDob": "No valid date of birth on file. Select:",
+      "bracket6074": "60 to 74 years (0)",
+      "bracket7584": "75 to 84 years (1)",
+      "bracket85": "≥ 85 years (3)"
+    },
+    "percepcao": {
+      "blockTitle": "Q2. Health perception",
+      "intro": "In general, compared with other people your age, would you say your health is:",
+      "good": "Excellent, very good or good (0)",
+      "bad": "Fair or poor (1)"
+    },
+    "avd_i": {
+      "blockTitle": "Instrumental ADL (Q3–Q5)",
+      "hint": "Note: this section has a maximum score of 4 points.",
+      "q3": "Q3. Because of your health or physical condition, have you stopped doing shopping?",
+      "q4": "Q4. Because of your health or physical condition, have you stopped managing your money, spending or paying household bills?",
+      "q5": "Q5. Because of your health or physical condition, have you stopped doing light housework (washing dishes, tidying or light cleaning)?"
+    },
+    "avd_b": {
+      "blockTitle": "Basic ADL (Q6)",
+      "q6": "Q6. Because of your health or physical condition, have you stopped bathing alone?"
+    },
+    "cognicao": {
+      "blockTitle": "Cognition (Q7–Q9)",
+      "q7": "Q7. Has any relative or friend said you are becoming forgetful?",
+      "q8": "Q8. Is this forgetfulness getting worse in recent months?",
+      "q9": "Q9. Is this forgetfulness preventing you from doing any daily activity?"
+    },
+    "humor": {
+      "blockTitle": "Mood (Q10–Q11)",
+      "q10": "Q10. In the last month, have you felt down, sad or hopeless?",
+      "q11": "Q11. In the last month, have you lost interest or pleasure in activities you used to enjoy?"
+    },
+    "mobilidade": {
+      "blockTitle": "Mobility (Q12–Q16)",
+      "hint": "Note: Q14 scores at most 2 points (even if several criteria are positive).",
+      "q12": "Q12. Are you unable to raise your arms above shoulder level?",
+      "q13": "Q13. Are you unable to handle or hold small objects?",
+      "q14Title": "Q14. Aerobic and/or muscle capacity",
+      "weightLossQ": "Was there unintentional weight loss?",
+      "weightLossHint": "4.5 kg or 5% in the last year, or 6 kg in the last 6 months, or 3 kg in the last month.",
+      "bmiTitle": "BMI < 22 kg/m²",
+      "weightKg": "Weight (kg)",
+      "height": "Height (cm or m)",
+      "phWeight": "e.g. 70",
+      "phHeight": "e.g. 170 or 1.70",
+      "bmiLine": "BMI: {{bmi}} • BMI <22 criterion: {{flag}}",
+      "calfTitle": "Calf circumference (cm)",
+      "phCalf": "e.g. 30.5",
+      "calfCriterion": "< 31 cm criterion: {{flag}}",
+      "walkTitle": "4 m walk — stopwatch required",
+      "walkHint": "Positive criterion if time > 5 seconds.",
+      "walkCriterion": "> 5 s criterion: {{flag}}",
+      "start": "Start",
+      "stop": "Stop",
+      "reset": "Reset",
+      "q15": "Q15. Do you have walking difficulty that prevents you from doing any daily activity?",
+      "q16": "Q16. Have you had two or more falls in the last year?",
+      "yes": "YES",
+      "no": "NO",
+      "dash": "—"
+    },
+    "continencia": {
+      "blockTitle": "Continence (Q17)",
+      "q17": "Q17. Do you lose urine or faeces unintentionally at any time?"
+    },
+    "comunicacao": {
+      "blockTitle": "Communication (Q18–Q19)",
+      "q18": "Q18. Do you have vision problems that prevent you from doing any daily activity?",
+      "q18Hint": "Glasses or contact lenses are allowed.",
+      "q19": "Q19. Do you have hearing problems that prevent you from doing any daily activity?",
+      "q19Hint": "Hearing aids are allowed."
+    },
+    "comorbidades": {
+      "blockTitle": "Multiple comorbidity (Q20)",
+      "hint": "Maximum score for Q20: 4 points (if any condition is positive).",
+      "none": "None of the options below",
+      "chronic": "Five or more chronic diseases",
+      "meds": "Regular use of five or more different medicines every day",
+      "hosp": "Recent hospital admission in the last six months"
+    },
+    "result": {
+      "title": "IVCF-20 result",
+      "totalScore": "Total score",
+      "scoreHint": "The higher the score, the greater the clinical-functional vulnerability.",
+      "participantPill": "Participant: {{name}}",
+      "sessionPill": "Session: {{session}}",
+      "pizzaTitle": "Domain map (radar)",
+      "pizzaHint": "Each slice fills from the centre outward by (score ÷ domain maximum).",
+      "riskGood": "Good/Excellent",
+      "riskMid": "Intermediate",
+      "riskBad": "Poor",
+      "domainScores": "Score by domain",
+      "upload": "Send JSON to cloud",
+      "uploading": "Sending...",
+      "uploadErrorTitle": "Upload error",
+      "uploadMissingParticipant": "Participant was not passed to the result screen. Pass the participant object in navigation.",
+      "uploadOkTitle": "Upload complete",
+      "uploadOkBody": "Questionnaire sent successfully.\nParticipant: {{name}}\nSession: S{{session}}\nPath: {{path}}",
+      "uploadFailBody": "Failed to send questionnaire to the cloud.",
+      "unknown": "—"
+    }
   }
 }

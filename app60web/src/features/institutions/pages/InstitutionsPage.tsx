@@ -49,6 +49,13 @@ type CollectionsStatRow = {
   collections_count: number;
 };
 
+type ParticipantsStatRow = {
+  id: string;
+  acronym: string;
+  country: string;
+  participants_count: number;
+};
+
 function countryLabel(code: string, t: (key: string) => string) {
   const c = (code ?? "").toUpperCase();
   if (c === "BR") return "BR";
@@ -57,8 +64,8 @@ function countryLabel(code: string, t: (key: string) => string) {
   return c || "—";
 }
 
-function groupByCountry(rows: CollectionsStatRow[]) {
-  const m = new Map<string, CollectionsStatRow[]>();
+function groupByCountry<T extends { country: string }>(rows: T[]) {
+  const m = new Map<string, T[]>();
   for (const r of rows) {
     const key = (r.country ?? "").toUpperCase();
     m.set(key, [...(m.get(key) ?? []), r]);
@@ -72,6 +79,7 @@ export function InstitutionsPage() {
 
   const [institutions, setInstitutions] = useState<InstitutionRow[]>([]);
   const [stats, setStats] = useState<CollectionsStatRow[]>([]);
+  const [participantsStats, setParticipantsStats] = useState<ParticipantsStatRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -80,12 +88,14 @@ export function InstitutionsPage() {
     try {
       setLoading(true);
       setError(null);
-      const [inst, st] = await Promise.all([
+      const [inst, st, pst] = await Promise.all([
         apiJson<InstitutionRow[]>("/api/institutions"),
         apiJson<CollectionsStatRow[]>("/api/institutions/stats/collections-by-institution"),
+        apiJson<ParticipantsStatRow[]>("/api/institutions/stats/participants-by-institution"),
       ]);
       setInstitutions(inst ?? []);
       setStats(st ?? []);
+      setParticipantsStats(pst ?? []);
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : t("institutions.loadErrorTitle"));
@@ -113,6 +123,7 @@ export function InstitutionsPage() {
   }, [institutions, search, t]);
 
   const chartGroups = useMemo(() => groupByCountry(stats), [stats]);
+  const participantsChartGroups = useMemo(() => groupByCountry(participantsStats), [participantsStats]);
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -181,6 +192,52 @@ export function InstitutionsPage() {
                           labelFormatter={(label) => t("institutions.institutionLabel", { label })}
                         />
                         <Bar dataKey="collections_count" fill="var(--chart-primary)" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <BarChart3 size={16} className="chart-section-icon text-blue-600" />
+            {t("institutions.participantsChartTitle", { defaultValue: "Participantes cadastrados por instituição" })}
+          </div>
+
+          {loading ? (
+            <div className="flex items-center gap-3 text-slate-500">
+              <Loader2 size={18} className="animate-spin" />
+              {t("institutions.chartLoading")}
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : participantsStats.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-600">
+              {t("institutions.participantsChartEmpty", { defaultValue: "Nenhum participante vinculado ainda." })}
+            </div>
+          ) : (
+            <div className="grid gap-6 xl:grid-cols-3">
+              {participantsChartGroups.map(([country, rows]) => (
+                <div key={country} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">
+                    {countryLabel(country, t)}
+                  </div>
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={rows}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="acronym" tick={{ fontSize: 12 }} interval={0} />
+                        <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                        <Tooltip
+                          formatter={(value) => [`${value}`, t("institutions.participantsLabel", { defaultValue: "Participantes" })]}
+                          labelFormatter={(label) => t("institutions.institutionLabel", { label })}
+                        />
+                        <Bar dataKey="participants_count" fill="var(--chart-secondary)" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

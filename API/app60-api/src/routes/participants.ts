@@ -29,6 +29,9 @@ function collectionVisibilityClause(u: AuthedUser, alias = "c", baseIdx = 2) {
   if (isSuperAdmin(u)) {
     return { sql: "TRUE", params: [] as unknown[] };
   }
+  if (u.role === "ADMIN") {
+    return { sql: "TRUE", params: [] as unknown[] };
+  }
   const inst = u.primary_institution_id;
   if (!inst) {
     return { sql: "FALSE", params: [] };
@@ -83,7 +86,7 @@ export function participantsRouter(pool: Pool) {
     }
     try {
       let q;
-      if (isSuperAdmin(u)) {
+      if (isSuperAdmin(u) || u.role === "ADMIN") {
         q = await pool.query(
           `SELECT id, full_name FROM app_users WHERE id = ANY($1::uuid[])`,
           [idList]
@@ -110,7 +113,7 @@ export function participantsRouter(pool: Pool) {
     }
     try {
       let rows;
-      if (isSuperAdmin(u)) {
+      if (isSuperAdmin(u) || u.role === "ADMIN") {
         const q = await pool.query(
           `SELECT p.id, p.nationality, p.cpf_normalized AS cpf, p.full_name, p.birth_date, p.sex,
                   p.cep, p.street, p.number, p.neighborhood, p.city, p.state, p.complement,
@@ -146,7 +149,7 @@ export function participantsRouter(pool: Pool) {
            JOIN collections c ON c.id = cr.collection_id
            WHERE c.participant_id = ANY($1::uuid[])
              AND (${vis.sql})
-             AND c.test_type::text IN ('MARCHA','SL30S','IVCF20')
+            AND c.test_type::text IN ('MARCHA','SL30S','IVCF20','ACT_SEDENTARY')
            ORDER BY c.session_number ASC`,
           [ids, ...vis.params]
         );
@@ -175,10 +178,10 @@ export function participantsRouter(pool: Pool) {
         return;
       }
       let createdByUserId: string | null = null;
-      if (!isSuperAdmin(u)) {
+      if (!isSuperAdmin(u) && u.role !== "ADMIN") {
         const inst = institutionIdOrThrow(u);
         const link = await pool.query(
-          `SELECT requested_by_user_id
+          `SELECT COALESCE(requested_by_user_id, approved_by_user_id) AS requested_by_user_id
            FROM participant_institution_history
            WHERE participant_id = $1 AND institution_id = $2 AND valid_to IS NULL
            LIMIT 1`,
@@ -189,6 +192,16 @@ export function participantsRouter(pool: Pool) {
           return;
         }
         createdByUserId = link.rows[0].requested_by_user_id ?? null;
+      } else {
+        const link = await pool.query(
+          `SELECT COALESCE(requested_by_user_id, approved_by_user_id) AS requested_by_user_id
+           FROM participant_institution_history
+           WHERE participant_id = $1 AND valid_to IS NULL
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [id]
+        );
+        createdByUserId = link.rows[0]?.requested_by_user_id ?? null;
       }
 
       const vis = collectionVisibilityClause(u, "c", 2);
@@ -199,7 +212,7 @@ export function participantsRouter(pool: Pool) {
          JOIN collections c ON c.id = cr.collection_id
          WHERE c.participant_id = $1
            AND (${vis.sql})
-           AND c.test_type::text IN ('MARCHA','SL30S','IVCF20')
+          AND c.test_type::text IN ('MARCHA','SL30S','IVCF20','ACT_SEDENTARY')
          ORDER BY c.session_number ASC`,
         [id, ...vis.params]
       );
@@ -290,6 +303,20 @@ export function participantsRouter(pool: Pool) {
     confirmLinkExisting: z.boolean().optional(),
   });
 
+  async function getActiveInstitutionNamesForParticipant(participantId: string) {
+    const q = await pool.query<{ id: string; name: string; unit: string | null }>(
+      `SELECT i.id, i.name, i.unit
+       FROM participant_institution_history h
+       JOIN institutions i ON i.id = h.institution_id
+       WHERE h.participant_id = $1
+         AND h.valid_to IS NULL
+         AND i.is_active = true
+       ORDER BY i.name ASC`,
+      [participantId]
+    );
+    return q.rows;
+  }
+
   r.post("/", async (req, res) => {
     const u = req.authUser as AuthedUser;
     if (!canWriteParticipants(u)) {
@@ -370,15 +397,17 @@ export function participantsRouter(pool: Pool) {
           res.status(404).json({ error: "Participante não encontrado." });
           return;
         }
-        const activeLink = await client.query(
-          `SELECT 1 FROM participant_institution_history
-           WHERE participant_id = $1 AND institution_id = $2 AND valid_to IS NULL`,
-          [pid, inst]
-        );
-        if (!activeLink.rows[0]) {
-          await client.query("ROLLBACK");
-          res.status(403).json({ error: "Participante não encontrado ou sem vínculo com sua instituição." });
-          return;
+        if (!isSuperAdmin(u) && u.role !== "ADMIN") {
+          const activeLink = await client.query(
+            `SELECT 1 FROM participant_institution_history
+             WHERE participant_id = $1 AND institution_id = $2 AND valid_to IS NULL`,
+            [pid, inst]
+          );
+          if (!activeLink.rows[0]) {
+            await client.query("ROLLBACK");
+            res.status(403).json({ error: "Participante não encontrado ou sem vínculo com sua instituição." });
+            return;
+          }
         }
         const up = await client.query(
           `UPDATE participants SET
@@ -405,13 +434,11 @@ export function participantsRouter(pool: Pool) {
         row = up.rows[0];
       } else {
         let existingId: string | null = null;
-        if (nationality === "BR") {
-          const existing = await client.query(
-            `SELECT id FROM participants WHERE nationality = 'BR' AND cpf_normalized = $1`,
-            [identityStored]
-          );
-          existingId = existing.rows[0]?.id ?? null;
-        }
+        const existing = await client.query(
+          `SELECT id FROM participants WHERE nationality = $1 AND cpf_normalized = $2`,
+          [nationality, identityStored]
+        );
+        existingId = existing.rows[0]?.id ?? null;
         if (existingId) {
           const linkedHere = await client.query(
             `SELECT 1 FROM participant_institution_history
@@ -432,10 +459,19 @@ export function participantsRouter(pool: Pool) {
               res.status(500).json({ error: "Inconsistência ao carregar participante." });
               return;
             }
+
+            const insts = await getActiveInstitutionNamesForParticipant(existingId);
+            const instOther = insts.find((x) => x.id !== inst) ?? insts[0] ?? null;
+            const instLabel = instOther ? `${instOther.name}${instOther.unit ? ` — ${instOther.unit}` : ""}` : null;
+
             res.status(409).json({
               code: "PARTICIPANT_EXISTS_OTHER_INSTITUTION",
-              error:
-                "Este participante já está cadastrado em outra instituição. Deseja atualizar o cadastro e vinculá-lo a esta instituição?",
+              error: instLabel
+                ? `Participante já cadastrado em "${instLabel}". Deseja puxar os dados do participante?`
+                : "Participante já cadastrado em outra instituição. Deseja puxar os dados do participante?",
+              existingInstitution: instOther
+                ? { id: instOther.id, name: instOther.name, unit: instOther.unit ?? null }
+                : null,
               participant: {
                 id: pr.id,
                 full_name: pr.full_name,

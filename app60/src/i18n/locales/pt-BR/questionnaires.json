@@ -1,6 +1,513 @@
 {
+  "resultParticipantCard": {
+    "overline": "Participante",
+    "pills": {
+      "age": "Idade",
+      "sex": "Sexo",
+      "id": "ID"
+    },
+    "ageYears": "{{n}} anos"
+  },
   "hub": {
     "title": "Questionários",
-    "openIvcf20": "IVCF-20"
+    "openIvcf20": "IVCF-20",
+    "openFesI": "FES-I (medo de cair)",
+    "openActivitySedentary": "Atividade física e comportamento sedentário"
+  },
+  "activitySedentary": {
+    "heroTitle": "Atividade física",
+    "participantFallback": "Participante",
+    "actions": {
+      "next": "Próximo",
+      "finish": "Ver resultado"
+    },
+    "errors": {
+      "fillAll": "Preencha todos os campos antes de continuar."
+    },
+    "fields": {
+      "days": "Dias",
+      "hours": "Horas",
+      "minutes": "Minutos"
+    },
+    "questions": {
+      "weekdaysTitle": "Segunda a sexta",
+      "weekendTitle": "Final de semana"
+    },
+    "moderate": {
+      "title": "ATIVIDADE FÍSICA MODERADA",
+      "body": "Atividade a qual você consegue realizar conversando, com dificuldade enquanto se movimenta, mas sem conseguir cantar. (Respostas baseadas nos últimos 7 dias.)",
+      "qPrefix": {
+        "weekdays": "Quantos dias da semana você realizou atividade física moderada? (segunda a sexta-feira) E quanto tempo foi praticado? (horas:minutos)",
+        "weekend": "Quantos dias do final de semana você realizou atividade física moderada? E quanto tempo foi praticado? (horas:minutos)"
+      }
+    },
+    "vigorous": {
+      "title": "ATIVIDADE FÍSICA VIGOROSA",
+      "body": "É a atividade em que você não consegue nem conversar durante a execução. A respiração vai ser mais rápida que o normal e os batimentos do coração aumentam muito. (Respostas baseadas nos últimos 7 dias.)",
+      "qPrefix": {
+        "weekdays": "Quantos dias da semana você realizou atividade física vigorosa? (segunda a sexta-feira) E quanto tempo foi praticado? (horas:minutos)",
+        "weekend": "Quantos dias do final de semana você realizou atividade física vigorosa? E quanto tempo foi praticado? (horas:minutos)"
+      }
+    },
+    "sedentary": {
+      "title": "COMPORTAMENTO SEDENTÁRIO",
+      "body": "Atividades como: assistir televisão, ficar no celular, mexer no computador, realizar trabalhos manuais, dirigir, ler, ficar sentado, deitado ou reclinado. (Respostas baseadas nos últimos 7 dias.)",
+      "qPrefix": {
+        "weekdays": "Quantos dias da semana você realizou comportamento sedentário? (segunda a sexta-feira) E quanto tempo foi praticado? (horas:minutos)",
+        "weekend": "Quantos dias do final de semana você realizou comportamento sedentário? E quanto tempo foi praticado? (horas:minutos)"
+      }
+    },
+    "levels": {
+      "sedentary": "Sedentário",
+      "irregular_b": "Irregularmente Ativo B",
+      "irregular_a": "Irregularmente Ativo A",
+      "active": "Ativo",
+      "very_active": "Muito Ativo"
+    },
+    "result": {
+      "title": "Resultado",
+      "subtitle": "Sono, atividade física e comportamento sedentário",
+      "levelLabel": "Nível de atividade física",
+      "participant": {
+        "overline": "Participante",
+        "pills": {
+          "age": "Idade",
+          "sex": "Sexo"
+        },
+        "ageYears": "{{n}} anos"
+      },
+      "units": {
+        "hourShort": "h",
+        "minShort": "min",
+        "perDay": "{{value}}/dia",
+        "perWeek": "{{value}}/sem",
+        "perNightAtLeast": "≥ {{hours}} h/noite",
+        "perNightRange": "{{min}}–{{max}} h/noite"
+      },
+      "sleepRef": {
+        "headers": {
+          "age": "Idade",
+          "recommendedSleep": "Sono recomendado",
+          "source": "Ref."
+        },
+        "ranges": {
+          "adults": {
+            "label": "Adultos",
+            "ageText": "18–60 anos",
+            "source": "CDC"
+          },
+          "olderAdults": {
+            "label": "Adultos mais velhos",
+            "ageText": "61–64 anos",
+            "source": "CDC/NSF"
+          },
+          "olderPeople": {
+            "label": "Idosos",
+            "ageText": "65+ anos",
+            "source": "CDC/NSF"
+          }
+        }
+      },
+      "classifiers": {
+        "sleep": {
+          "noData": {
+            "label": "Sem dado informado",
+            "description": "Preencha o tempo habitual de sono para gerar a interpretação."
+          },
+          "below": {
+            "label": "Abaixo do recomendado",
+            "description": "Média diária abaixo de {{minH}} h. Em idosos, isso merece atenção porque sono curto pode piorar recuperação, humor, cognição e desempenho físico."
+          },
+          "above": {
+            "label": "Acima da faixa recomendada",
+            "description": "Média diária acima de {{maxH}} h. Não é diagnóstico; pode refletir necessidade individual, cochilos, doença, baixa atividade ou erro de recordatório."
+          },
+          "within": {
+            "label": "Dentro da recomendação",
+            "description": "Média diária compatível com a faixa de referência para {{ageText}}."
+          }
+        },
+        "activity": {
+          "upper": {
+            "label": "Atende faixa superior da OMS",
+            "description": "Atinge 300 min/sem ou mais em equivalente moderado, faixa associada a benefícios adicionais quando não houver contraindicação."
+          },
+          "minimum": {
+            "label": "Atende recomendação mínima da OMS",
+            "description": "Atinge pelo menos 150 min/sem de atividade moderada, ou equivalente com atividade vigorosa."
+          },
+          "below": {
+            "label": "Abaixo da recomendação da OMS",
+            "description": "Há alguma atividade, mas ainda abaixo do mínimo semanal recomendado para benefícios substanciais à saúde."
+          },
+          "none": {
+            "label": "Sem atividade moderada/vigorosa informada",
+            "description": "O questionário não registrou atividade física moderada ou vigorosa na semana."
+          }
+        },
+        "sedentary": {
+          "noData": {
+            "label": "Sem dado informado",
+            "description": "Preencha o tempo em comportamento sedentário para gerar a interpretação."
+          },
+          "low": {
+            "label": "Baixo/moderado",
+            "description": "Abaixo dos pontos em que o risco começa a aparecer com mais consistência em estudos de tempo sentado."
+          },
+          "attention": {
+            "label": "Atenção",
+            "description": "Faixa intermediária. A recomendação prática é trocar parte desse tempo por pausas ativas e atividade leve."
+          },
+          "high": {
+            "label": "Elevado",
+            "description": "Acima de aproximadamente 9 h/dia, meta-análises em idosos já observam aumento relevante de risco."
+          },
+          "veryHigh": {
+            "label": "Muito elevado",
+            "description": "Acima de 10 h/dia. Estudos de mortalidade e comportamento sedentário apontam pior perfil de risco nessa faixa."
+          }
+        }
+      },
+      "meta": {
+        "totalDays": "Dias ativos",
+        "totalMinutes": "Minutos ativos"
+      },
+      "disclaimer": "Critérios baseados em frequência, duração e estimativa de MET-min/semana (moderada=4 METs, vigorosa=8 METs).",
+      "summaryTitle": "Resumo (últimos 7 dias)",
+      "actions": {
+        "shareResult": "Compartilhar resultado",
+        "sendToCloud": "Enviar dados para a nuvem",
+        "sendingCloud": "Enviando...",
+        "sharingPdf": "Gerando PDF...",
+        "showReference": "Ver referência",
+        "hideReference": "Ocultar referência"
+      },
+      "alerts": {
+        "errorTitle": "Erro",
+        "shareTitle": "Compartilhar",
+        "shareUnavailable": "Compartilhamento não disponível neste dispositivo.",
+        "captureErrorBody": "Não foi possível capturar a tela.",
+        "shareErrorBody": "Falha ao compartilhar o resultado.",
+        "invalidParticipant": "Participante inválido para envio.",
+        "uploadErrorBody": "Falha ao enviar para a nuvem.",
+        "sentTitle": "Enviado",
+        "sentBody": "Sessão S{{session}} enviada para a nuvem.\n\n{{path}}"
+      },
+      "cards": {
+        "weeklyTime": {
+          "title": "Tempo semanal",
+          "subtitle": "Resumo por semana e média por dia (168 h/sem).",
+          "badgeLabel": "semana",
+          "rows": {
+            "sleep": "Sono",
+            "light": "Atividade leve",
+            "moderate": "Atividade moderada",
+            "vigorous": "Atividade vigorosa",
+            "sedentary": "Tempo de comportamento sedentário"
+          },
+          "overflowWarning": "Soma acima de 168 h/sem em {{overflow}}. O tempo leve foi ajustado para 0."
+        },
+        "sleep": {
+          "title": "Sono",
+          "subtitle": "Referência: {{ageText}} • {{range}}",
+          "statLabel": "Sono"
+        },
+        "activity": {
+          "title": "Atividade física",
+          "subtitle": "Equivalente moderado: moderada + 2 × vigorosa.",
+          "stats": {
+            "moderate": "Moderada",
+            "vigorous": "Vigorosa",
+            "equivalent": "Equivalente moderado (min/sem)"
+          }
+        },
+        "sedentary": {
+          "title": "Comportamento sedentário",
+          "subtitle": "Corte prático: atenção acima de 7 h/dia; elevado acima de 9 h/dia.",
+          "statLabel": "Tempo de comportamento sedentário"
+        }
+      },
+      "kv": {
+        "moderate": "Moderada",
+        "vigorous": "Vigorosa",
+        "sedentary": "Sedentário"
+      }
+    },
+    "table": {
+      "title": "Nível de Atividade Física — Critérios de Pontuação",
+      "rows": {
+        "sedentary": {
+          "title": "Sedentário",
+          "body": "Não realizou nenhuma atividade física por pelo menos 10 minutos contínuos ou não atingiu os critérios dos níveis ativamente (Baixo ou Moderado)."
+        },
+        "irregular_b": {
+          "title": "Irregularmente Ativo B",
+          "body": "Realiza atividades físicas, mas não atinge os critérios de frequência (dias) nem de duração (tempo) da categoria “A” ou “Ativo”."
+        },
+        "irregular_a": {
+          "title": "Irregularmente Ativo A",
+          "body": "Realiza atividades físicas, mas não atinge todos os critérios de “Ativo” (ex: 5 dias ou 150 min/sem)."
+        },
+        "active": {
+          "title": "Ativo",
+          "body": "a) Atividade vigorosa: ≥ 3 dias/sem + volume total ≥ 1500 METs-min/sem; OU b) 7 dias de (Caminhada + Moderada + Vigorosa) ≥ 3000 METs-min/sem."
+        },
+        "very_active": {
+          "title": "Muito Ativo",
+          "body": "a) Atividade vigorosa: ≥ 3 dias/sem + 1500 METs-min/sem; OU b) 5 dias de (Caminhada + Moderada + Vigorosa) ≥ 3000 METs-min/sem."
+        }
+      }
+    }
+  },
+  "fesi": {
+    "instrumentName": "FES-I",
+    "resultTitle": "Resultado FES-I",
+    "subtitle": "Escala de Eficácia de Quedas — Internacional",
+    "participantFallback": "Participante",
+    "questionProgress": "Pergunta {{n}}",
+    "concernPrompt": "Quão preocupado(a) você fica com a possibilidade de cair ao realizar essa atividade?",
+    "answered": "Respondidas: {{answered}}/{{total}}",
+    "partialScore": "Score parcial: {{score}}",
+    "partialScoreEmpty": "Score parcial: —",
+    "next": "Próximo",
+    "back": "Voltar",
+    "viewResult": "Ver resultado",
+    "selectAnswerError": "Selecione uma resposta antes de continuar.",
+    "points_one": "{{count}} ponto",
+    "points_other": "{{count}} pontos",
+    "classification": {
+      "baixa": {
+        "badge": "Baixa preocupação",
+        "row": "Baixa preocupação",
+        "range": "16–19"
+      },
+      "moderada": {
+        "badge": "Preocupação moderada",
+        "row": "Preocupação moderada",
+        "range": "20–27"
+      },
+      "alta": {
+        "badge": "Alta preocupação",
+        "row": "Alta preocupação (alto medo de cair)",
+        "range": "28–64"
+      }
+    },
+    "result": {
+      "participant": "Participante",
+      "idLabel": "ID:",
+      "instrument": "Instrumento:",
+      "totalScore": "Score total",
+      "scoreHint": "Faixa possível: 16 a 64 pontos. Quanto maior o score, maior a preocupação/medo de cair.",
+      "meanPerItem": "Média por item: {{value}}",
+      "classificationTitle": "Classificação do score",
+      "thScore": "Score",
+      "thClassification": "Classificação",
+      "thStatus": "Status",
+      "here": "Aqui",
+      "dash": "—",
+      "perItemTitle": "Score por item"
+    },
+    "scale": {
+      "1": "Nem um pouco preocupado",
+      "2": "Um pouco preocupado",
+      "3": "Muito preocupado",
+      "4": "Extremamente preocupado"
+    },
+    "items": {
+      "q1": "Limpando a casa (ex.: passar pano, aspirar ou tirar a poeira).",
+      "q2": "Vestindo ou tirando a roupa.",
+      "q3": "Preparando refeições simples.",
+      "q4": "Tomando banho.",
+      "q5": "Indo às compras.",
+      "q6": "Sentando ou levantando de uma cadeira.",
+      "q7": "Subindo ou descendo escadas.",
+      "q8": "Caminhando pela vizinhança.",
+      "q9": "Pegando algo acima de sua cabeça ou do chão.",
+      "q10": "Indo atender o telefone antes que pare de tocar.",
+      "q11": "Andando sobre superfície escorregadia (ex.: chão molhado).",
+      "q12": "Visitando um amigo ou parente.",
+      "q13": "Andando em lugares cheios de gente.",
+      "q14": "Caminhando sobre superfície irregular (com pedras, esburacada).",
+      "q15": "Subindo ou descendo uma ladeira.",
+      "q16": "Indo a uma atividade social (ex.: ato religioso, reunião de família ou encontro no clube)."
+    }
+  },
+  "ivcf20": {
+    "shortTitle": "IVCF-20",
+    "pickTitle": "IVCF-20",
+    "participantFallback": "Participante",
+    "nav": {
+      "back": "Voltar",
+      "nextBlock": "Próximo bloco",
+      "finish": "Finalizar"
+    },
+    "classification": {
+      "robusto": "Robusto",
+      "prefragil": "Pré-frágil",
+      "fragil": "Frágil"
+    },
+    "domains": {
+      "idade": "Idade",
+      "percepcao": "Percepção de saúde",
+      "avd_i": "AVD instrumental",
+      "avd_b": "AVD básica",
+      "cognicao": "Cognição",
+      "humor": "Humor",
+      "mobilidade": "Mobilidade",
+      "continencia": "Continência",
+      "comunicacao": "Comunicação",
+      "comorbidades": "Comorbidade múltipla"
+    },
+    "chartDomains": {
+      "idade": "Idade",
+      "percepcao": "Saúde",
+      "avd_i": "AVD-I",
+      "avd_b": "AVD-B",
+      "cognicao": "Cognição",
+      "humor": "Humor",
+      "mobilidade": "Mobilidade",
+      "continencia": "Continência",
+      "comunicacao": "Comunicação",
+      "comorbidades": "Comorb."
+    },
+    "blockTitles": {
+      "idade": "Idade (Q1)",
+      "percepcao": "Percepção da saúde (Q2)",
+      "avd_i": "AVD Instrumental (Q3–Q5)",
+      "avd_b": "AVD Básica (Q6)",
+      "cognicao": "Cognição (Q7–Q9)",
+      "humor": "Humor (Q10–Q11)",
+      "mobilidade": "Mobilidade (Q12–Q16)",
+      "continencia": "Continência (Q17)",
+      "comunicacao": "Comunicação (Q18–Q19)",
+      "comorbidades": "Comorbidade múltipla (Q20)"
+    },
+    "errors": {
+      "idadeNoDob": "Sem data de nascimento no cadastro. Selecione a faixa etária.",
+      "percepcao": "Responda a percepção de saúde.",
+      "avd_i": "Responda as 3 questões de AVD instrumental.",
+      "avd_b": "Responda a questão da AVD básica.",
+      "cognicao": "Responda as 3 questões de cognição.",
+      "humor": "Responda as 2 questões de humor.",
+      "mobilidadeReach": "Responda alcance/preensão/pinça (Q12–Q13).",
+      "mobilidadeWeight": "Q14: marque se houve perda de peso (Sim/Não).",
+      "mobilidadeBmi": "Q14: informe peso e altura (para calcular o IMC).",
+      "mobilidadeCalf": "Q14: informe a circunferência da panturrilha (cm).",
+      "mobilidadeWalk": "Q14: faça o teste de marcha 4m (cronômetro obrigatório).",
+      "mobilidadeGait": "Responda marcha e quedas (Q15–Q16).",
+      "continencia": "Responda a questão de continência.",
+      "comunicacao": "Responda visão e audição.",
+      "comorbidades": "Marque “Nenhuma das opções abaixo” ou ao menos uma condição.",
+      "comorbidadesPick": "Q20: marque ao menos uma opção (ou \"Nenhuma\").",
+      "comorbidadesExclusive": "Q20: \"Nenhuma\" não pode coexistir com outras opções."
+    },
+    "idade": {
+      "qTitle": "Q1. Idade",
+      "birth": "Nascimento:",
+      "ageCalc": "Idade calculada:",
+      "ageYears": "{{n}} anos",
+      "autoBand": "Faixa automática: {{bracket}} • Pontos: {{score}}",
+      "noValidDob": "Sem data de nascimento válida no cadastro. Selecione:",
+      "bracket6074": "60 a 74 anos (0)",
+      "bracket7584": "75 a 84 anos (1)",
+      "bracket85": "≥ 85 anos (3)"
+    },
+    "percepcao": {
+      "blockTitle": "Q2. Percepção da saúde",
+      "intro": "Em geral, comparando com outras pessoas de sua idade, você diria que sua saúde é:",
+      "good": "Excelente, muito boa ou boa (0)",
+      "bad": "Regular ou ruim (1)"
+    },
+    "avd_i": {
+      "blockTitle": "AVD Instrumental (Q3–Q5)",
+      "hint": "Observação: este bloco tem pontuação máxima de 4 pontos.",
+      "q3": "Q3. Por causa de sua saúde ou condição física, você deixou de fazer compras?",
+      "q4": "Q4. Por causa de sua saúde ou condição física, você deixou de controlar seu dinheiro, gasto ou pagar as contas de sua casa?",
+      "q5": "Q5. Por causa de sua saúde ou condição física, você deixou de realizar pequenos trabalhos domésticos (lavar louça, arrumar a casa ou limpeza leve)?"
+    },
+    "avd_b": {
+      "blockTitle": "AVD Básica (Q6)",
+      "q6": "Q6. Por causa de sua saúde ou condição física, você deixou de tomar banho sozinho?"
+    },
+    "cognicao": {
+      "blockTitle": "Cognição (Q7–Q9)",
+      "q7": "Q7. Algum familiar ou amigo falou que você está ficando esquecido?",
+      "q8": "Q8. Este esquecimento está piorando nos últimos meses?",
+      "q9": "Q9. Este esquecimento está impedindo a realização de alguma atividade do cotidiano?"
+    },
+    "humor": {
+      "blockTitle": "Humor (Q10–Q11)",
+      "q10": "Q10. No último mês, você ficou com desânimo, tristeza ou desesperança?",
+      "q11": "Q11. No último mês, você perdeu o interesse ou prazer em atividades anteriormente prazerosas?"
+    },
+    "mobilidade": {
+      "blockTitle": "Mobilidade (Q12–Q16)",
+      "hint": "Observação: a Q14 pontua no máximo 2 pontos (mesmo com vários critérios positivos).",
+      "q12": "Q12. Você é incapaz de elevar os braços acima do nível do ombro?",
+      "q13": "Q13. Você é incapaz de manusear ou segurar pequenos objetos?",
+      "q14Title": "Q14. Capacidade aeróbica e/ou muscular",
+      "weightLossQ": "Houve perda de peso não intencional?",
+      "weightLossHint": "4,5kg ou 5% no último ano, ou 6kg nos últimos 6 meses, ou 3kg no último mês.",
+      "bmiTitle": "IMC < 22 kg/m²",
+      "weightKg": "Peso (kg)",
+      "height": "Altura (cm ou m)",
+      "phWeight": "ex: 70",
+      "phHeight": "ex: 170 ou 1,70",
+      "bmiLine": "IMC: {{bmi}} • Critério IMC <22: {{flag}}",
+      "calfTitle": "Circunferência da panturrilha (cm)",
+      "phCalf": "ex: 30,5",
+      "calfCriterion": "Critério < 31 cm: {{flag}}",
+      "walkTitle": "Marcha (4m) — cronômetro obrigatório",
+      "walkHint": "Critério positivo se tempo > 5 segundos.",
+      "walkCriterion": "Critério > 5s: {{flag}}",
+      "start": "Iniciar",
+      "stop": "Parar",
+      "reset": "Refazer",
+      "q15": "Q15. Você tem dificuldade para caminhar capaz de impedir a realização de alguma atividade do cotidiano?",
+      "q16": "Q16. Você teve duas ou mais quedas no último ano?",
+      "yes": "SIM",
+      "no": "NÃO",
+      "dash": "—"
+    },
+    "continencia": {
+      "blockTitle": "Continência (Q17)",
+      "q17": "Q17. Você perde urina ou fezes, sem querer, em algum momento?"
+    },
+    "comunicacao": {
+      "blockTitle": "Comunicação (Q18–Q19)",
+      "q18": "Q18. Você tem problemas de visão capazes de impedir a realização de alguma atividade do cotidiano?",
+      "q18Hint": "É permitido o uso de óculos ou lentes de contato.",
+      "q19": "Q19. Você tem problemas de audição capazes de impedir a realização de alguma atividade do cotidiano?",
+      "q19Hint": "É permitido o uso de aparelhos de audição."
+    },
+    "comorbidades": {
+      "blockTitle": "Comorbidade múltipla (Q20)",
+      "hint": "Pontuação máxima da Q20: 4 pontos (se qualquer condição for positiva).",
+      "none": "Nenhuma das opções abaixo",
+      "chronic": "Cinco ou mais doenças crônicas",
+      "meds": "Uso regular de cinco ou mais medicamentos diferentes, todo dia",
+      "hosp": "Internação recente, nos últimos seis meses"
+    },
+    "result": {
+      "title": "Resultado IVCF-20",
+      "totalScore": "Score total",
+      "scoreHint": "Quanto maior o score, maior a vulnerabilidade clínico-funcional.",
+      "participantPill": "Participante: {{name}}",
+      "sessionPill": "Sessão: {{session}}",
+      "pizzaTitle": "Mapa de domínios (pizza)",
+      "pizzaHint": "Cada fatia enche do centro para fora conforme (score ÷ máximo do domínio).",
+      "riskGood": "Bom/Excelente",
+      "riskMid": "Intermediário",
+      "riskBad": "Ruim/Péssimo",
+      "domainScores": "Score por domínio",
+      "upload": "Enviar JSON para nuvem",
+      "uploading": "Enviando...",
+      "uploadErrorTitle": "Erro no upload",
+      "uploadMissingParticipant": "O participante não foi enviado para a tela de resultado. Passe o objeto participant na navegação.",
+      "uploadOkTitle": "Upload concluído",
+      "uploadOkBody": "Questionário enviado com sucesso.\nParticipante: {{name}}\nSessão: S{{session}}\nCaminho: {{path}}",
+      "uploadFailBody": "Falha ao enviar questionário para a nuvem.",
+      "unknown": "—"
+    }
   }
 }

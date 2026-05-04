@@ -1,9 +1,35 @@
+# Env / secrets
 .env
 .env.local
 .env.*.local
 .env.deploy.staging
 app60web/.env
 API/supabase-backend/.env
+API/app60-api/.env
+app60/.env
+app60web/.env.local
+
+# iOS generated / ignored backups
+app60/_ios_ignored/
+**/Pods/
+**/*.xcworkspace/xcuserdata/
+**/*.xcodeproj/xcuserdata/
+**/DerivedData/
+**/build/
+
+# Expo / React Native
+.expo/
+.expo-shared/
+.eas/
+expo-env.d.ts
+metro-health-check*
+.metro-health-check*
+
+# Build outputs
+dist/
+build/
+web-build/
+coverage/
 
 # Dependencies
 node_modules/
@@ -19,5 +45,27 @@ __pycache__/
 *.pyo
 *.pyd
 
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
 # OS / editor noise
 .DS_Store
+.vscode/
+.idea/
+
+# Certs / keys
+*.pem
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Duplicated/temp files
+*package-lock 2.json
