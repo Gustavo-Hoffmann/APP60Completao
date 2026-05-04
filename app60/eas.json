@@ -1,8 +1,12 @@
 {
+  "cli": {
+    "appVersionSource": "remote"
+  },
   "build": {
     "staging": {
-      "distribution": "internal",
+      "distribution": "store",
       "channel": "staging",
+      "autoIncrement": true,
       "env": {
         "APP_VARIANT": "staging",
         "EXPO_PUBLIC_APP_VARIANT": "staging",
@@ -14,4 +18,3 @@
     }
   }
 }
-

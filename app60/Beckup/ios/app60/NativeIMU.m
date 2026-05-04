@@ -111,7 +111,7 @@ static const NSInteger kBaselineWarmupCount = 15;
 
 @implementation NativeIMU
 
-RCT_EXPORT_MODULE();
+RCT_EXPORT_MODULE(NativeIMU);
 
 + (BOOL)requiresMainQueueSetup
 {

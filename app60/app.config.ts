@@ -3,7 +3,12 @@ import type { ExpoConfig, ConfigContext } from "expo/config";
 type AppVariant = "development" | "staging";
 
 function getVariant(): AppVariant {
-  const v = (process.env.APP_VARIANT || process.env.EXPO_PUBLIC_APP_VARIANT || "development").trim();
+  const v = (
+    process.env.APP_VARIANT ||
+    process.env.EXPO_PUBLIC_APP_VARIANT ||
+    "development"
+  ).trim();
+
   return v === "staging" ? "staging" : "development";
 }
 
@@ -21,38 +26,44 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   const apiBaseUrl =
     process.env.EXPO_PUBLIC_API_BASE_URL ??
-    // fallback para não quebrar quem ainda usa app.json durante a transição
     (config.extra?.apiBaseUrl as string | undefined);
 
   const cognitoRegion =
     process.env.EXPO_PUBLIC_COGNITO_REGION ??
     (config.extra?.cognitoRegion as string | undefined);
+
   const cognitoUserPoolId =
     process.env.EXPO_PUBLIC_COGNITO_USER_POOL_ID ??
     (config.extra?.cognitoUserPoolId as string | undefined);
+
   const cognitoClientId =
     process.env.EXPO_PUBLIC_COGNITO_CLIENT_ID ??
     (config.extra?.cognitoClientId as string | undefined);
 
   return {
     ...config,
+
+    newArchEnabled: false,
+
     name: variant === "staging" ? "SeniorSense+ Staging" : config.name ?? "app60",
+
     scheme: variant === "staging" ? "app60-staging" : config.scheme ?? "app60",
+
     ios: {
       ...config.ios,
       bundleIdentifier: withSuffix(baseBundleIdentifier, variant),
     },
+
     android: {
       ...config.android,
       package: withSuffix(baseAndroidPackage, variant),
     },
+
     extra: {
       ...(config.extra ?? {}),
       eas: {
-        ...(((config.extra as unknown as { eas?: Record<string, unknown> } | undefined)?.eas ?? {}) as Record<
-          string,
-          unknown
-        >),
+        ...(((config.extra as unknown as { eas?: Record<string, unknown> } | undefined)
+          ?.eas ?? {}) as Record<string, unknown>),
         projectId: "49ee0437-ef3f-4e5b-9149-640c5ad0ba43",
       },
       appVariant: variant,
@@ -63,4 +74,3 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
   };
 };
-

@@ -2,6 +2,10 @@ import { NativeEventEmitter, NativeModules, Platform, EmitterSubscription } from
 
 const { NativeIMU } = NativeModules as any;
 
+console.log("[NativeIMU DEBUG] Platform =", Platform.OS);
+console.log("[NativeIMU DEBUG] NativeIMU =", NativeIMU);
+console.log("[NativeIMU DEBUG] methods =", NativeIMU ? Object.keys(NativeIMU) : "undefined");
+
 export type NativeImuSampleRow = [
   number, // wall_t_ms
   number, // row_t_ms

@@ -68,4 +68,4 @@ yarn-error.*
 *.mobileprovision
 
 # Duplicated/temp files
-*package-lock 2.json
+*package-lock 2.jsonapp60/node_modules_old/

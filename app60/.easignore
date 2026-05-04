@@ -1,13 +1,10 @@
+.venv
 node_modules
 node_modules_old
-.expo
-dist
-build
 _ios_ignored
-*.log
-.DS_Store
-coverage
-.vscode
+API
+Worker
+app60web
 *.csv
 *.xlsx
 *.xls
@@ -16,3 +13,9 @@ coverage
 *.pkl
 *.mp4
 *.mov
+.DS_Store
+.expo
+dist
+build
+coverage
+.vscode
