@@ -20,6 +20,37 @@
       "fragile": "Frágeis",
       "preFragile": "Pré-frágeis"
     },
+    "instruments": {
+      "ivcf20": {
+        "shortTitle": "IVCF-20",
+        "statsSubtitle": "Participantes com IVCF-20 processado"
+      },
+      "fesi": {
+        "shortTitle": "FES-I",
+        "statsSubtitle": "Participantes com FES-I processado",
+        "stats": {
+          "highConcern": "Alta preocupação",
+          "moderateConcern": "Preocupação moderada"
+        },
+        "table": {
+          "score": "Score total",
+          "mean": "Média por item"
+        }
+      },
+      "actSedentary": {
+        "shortTitle": "Atividade e sedentarismo",
+        "statsSubtitle": "Participantes com questionário processado",
+        "stats": {
+          "sedentaryProfile": "Perfil sedentário",
+          "withProfile": "Com perfil de atividade"
+        },
+        "table": {
+          "profile": "Perfil de atividade",
+          "moderate": "Atividade moderada/dia",
+          "sedentary": "Sedentário/dia"
+        }
+      }
+    },
     "table": {
       "participant": "Participante",
       "score": "Pontuação",
@@ -248,7 +279,26 @@
     "inFocus": "Em foco",
     "statusClinical": "Status clínico",
     "lastIvcf20": "Último IVCF-20",
+    "questionnairesTitle": "Questionários aplicados",
     "noProcessedCollection": "Sem coleta processada",
+    "fesi": {
+      "subtitle": "Histórico e score por item da sessão selecionada.",
+      "meanScore": "Média por item",
+      "itemsTitle": "Score por item",
+      "itemLabel": "Item {{number}}",
+      "noItems": "Nenhum item detalhado foi encontrado nesta sessão."
+    },
+    "actSedentary": {
+      "subtitle": "Resumo semanal de sono, atividade física e comportamento sedentário.",
+      "activityProfile": "Perfil de atividade",
+      "perWeek": "{{value}} por semana",
+      "metrics": {
+        "sleep": "Sono",
+        "moderate": "Atividade moderada",
+        "vigorous": "Atividade vigorosa",
+        "sedentary": "Comportamento sedentário"
+      }
+    },
     "ivcf20": {
       "subtitle": "Histórico e classificação por blocos da sessão selecionada.",
       "selectedSession": "Sessão selecionada",

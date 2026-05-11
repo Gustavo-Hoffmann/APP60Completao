@@ -1,6 +1,11 @@
 import { apiFetch, apiJson } from "../../../lib/api/client";
 import { messageFromApiErrorBody } from "../../../lib/api/errorMessage";
 import type {
+  ActSedentarySession,
+  ActSedentarySummary,
+  FesiClassification,
+  FesiItemScore,
+  FesiSession,
   IvcfClassification,
   IvcfSession,
   Participant,
@@ -104,11 +109,30 @@ type IvcfMetricsJson = {
   blocks_map?: Record<string, unknown> | null;
 };
 
+type FesiMetricsJson = {
+  score_total?: number | null;
+  mean_score?: number | null;
+  classification_label?: string | null;
+  classification_key?: string | null;
+  item_scores?: Array<Record<string, unknown>> | null;
+};
+
+type ActSedentaryMetricsJson = {
+  summary?: Record<string, unknown> | null;
+};
+
 type TestSessionResultRow = {
   participant_id: string;
   test_type: string;
   session_number: number | null;
-  metrics_json: MarchaMetricsJson | Sl30sMetricsJson | IvcfMetricsJson | string | null;
+  metrics_json:
+    | MarchaMetricsJson
+    | Sl30sMetricsJson
+    | IvcfMetricsJson
+    | FesiMetricsJson
+    | ActSedentaryMetricsJson
+    | string
+    | null;
   plot_json: MarchaPlotJson | Sl30sPlotJson | string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -204,6 +228,21 @@ function normalizeOptionalSex(value?: string | null): Participant["sex"] | undef
   if (["f", "feminino", "female", "fem"].includes(normalized)) {
     return "Feminino";
   }
+
+  return undefined;
+}
+
+function normalizeFesiClass(label?: unknown, key?: unknown): FesiClassification | undefined {
+  const normalizedLabel = String(label ?? "").trim().toLowerCase();
+
+  if (normalizedLabel.includes("baixa")) return "Baixa";
+  if (normalizedLabel.includes("moderada")) return "Moderada";
+  if (normalizedLabel.includes("alta")) return "Alta";
+
+  const normalizedKey = String(key ?? "").trim().toLowerCase();
+  if (normalizedKey === "baixa") return "Baixa";
+  if (normalizedKey === "moderada") return "Moderada";
+  if (normalizedKey === "alta") return "Alta";
 
   return undefined;
 }
@@ -391,6 +430,89 @@ function mapIvcfBlocks(metrics: Record<string, unknown>): ParticipantBlockScores
   }
 
   return blocks;
+}
+
+function mapFesiItems(metrics: Record<string, unknown>): FesiItemScore[] {
+  const rawItems = metrics["item_scores"];
+  if (!Array.isArray(rawItems)) return [];
+
+  const items: FesiItemScore[] = [];
+
+  for (const item of rawItems) {
+    const row = asRecord(item);
+    if (!row) continue;
+
+    const key = String(row["key"] ?? "").trim();
+    const number = asNumber(row["number"], Number.NaN);
+    const score = asNumber(row["score"], Number.NaN);
+
+    if (!key || !Number.isFinite(number) || !Number.isFinite(score)) continue;
+
+    items.push({
+      key,
+      number: Math.round(number),
+      score: Math.round(score),
+    });
+  }
+
+  return items.sort((a, b) => a.number - b.number);
+}
+
+function mapActSedentarySummary(metrics: Record<string, unknown>): ActSedentarySummary {
+  const summary = asRecord(metrics["summary"]) ?? metrics;
+
+  return {
+    sleepMinWeek: asNullableNumber(summary["sleepMinWeek"]) ?? undefined,
+    modMinWeek: asNullableNumber(summary["modMinWeek"]) ?? undefined,
+    vigMinWeek: asNullableNumber(summary["vigMinWeek"]) ?? undefined,
+    sedentaryMinWeek: asNullableNumber(summary["sedentaryMinWeek"]) ?? undefined,
+    activityLabel: String(summary["label"] ?? "").trim() || undefined,
+    activityKey: String(summary["key"] ?? "").trim() || undefined,
+  };
+}
+
+function mapFesiSession(row: TestSessionResultRow): FesiSession | null {
+  const sessionNumber = asNumber(row.session_number, Number.NaN);
+  if (!Number.isFinite(sessionNumber)) return null;
+
+  const metrics = asRecord(row.metrics_json) ?? {};
+  const classification = normalizeFesiClass(
+    metrics["classification_label"],
+    metrics["classification_key"],
+  );
+  const scoreTotal = asNumber(metrics["score_total"], Number.NaN);
+  const meanScore = asNullableNumber(metrics["mean_score"]);
+  const items = mapFesiItems(metrics);
+
+  if (!Number.isFinite(scoreTotal) && !classification && !items.length) {
+    return null;
+  }
+
+  return {
+    sessao: sessionNumber,
+    date: formatDateLocale(row.updated_at ?? row.created_at),
+    scoreTotal: Number.isFinite(scoreTotal) ? Math.round(scoreTotal) : 0,
+    meanScore: meanScore ?? undefined,
+    classification,
+    items,
+  };
+}
+
+function mapActSedentarySession(row: TestSessionResultRow): ActSedentarySession | null {
+  const sessionNumber = asNumber(row.session_number, Number.NaN);
+  if (!Number.isFinite(sessionNumber)) return null;
+
+  const metrics = asRecord(row.metrics_json) ?? {};
+  const summary = mapActSedentarySummary(metrics);
+  const hasSummaryData = Object.values(summary).some((value) => value !== undefined && value !== "");
+
+  if (!hasSummaryData) return null;
+
+  return {
+    sessao: sessionNumber,
+    date: formatDateLocale(row.updated_at ?? row.created_at),
+    summary,
+  };
 }
 
 function mapIvcfSession(row: TestSessionResultRow): IvcfSession | null {
@@ -582,6 +704,8 @@ function buildParticipantTests(rows: TestSessionResultRow[]): Participant["tests
   const sl30sSessions: Sl30sSession[] = [];
   const sl30sSignals: Record<number, Sl30sSignalPoint[]> = {};
   const ivcfSessions: IvcfSession[] = [];
+  const fesiSessions: FesiSession[] = [];
+  const actSedentarySessions: ActSedentarySession[] = [];
 
   for (const row of orderedRows) {
     const testType = String(row.test_type ?? "").toUpperCase();
@@ -618,10 +742,32 @@ function buildParticipantTests(rows: TestSessionResultRow[]): Participant["tests
       const session = mapIvcfSession(row);
       if (!session) continue;
       ivcfSessions.push(session);
+      continue;
+    }
+
+    if (testType === "FESI") {
+      const session = mapFesiSession(row);
+      if (!session) continue;
+      fesiSessions.push(session);
+      continue;
+    }
+
+    if (testType === "ACT_SEDENTARY") {
+      const session = mapActSedentarySession(row);
+      if (!session) continue;
+      actSedentarySessions.push(session);
     }
   }
 
-  if (!twoMstSessions.length && !sl30sSessions.length && !ivcfSessions.length) return undefined;
+  if (
+    !twoMstSessions.length &&
+    !sl30sSessions.length &&
+    !ivcfSessions.length &&
+    !fesiSessions.length &&
+    !actSedentarySessions.length
+  ) {
+    return undefined;
+  }
 
   return {
     has2MST: twoMstSessions.length > 0,
@@ -632,20 +778,38 @@ function buildParticipantTests(rows: TestSessionResultRow[]): Participant["tests
     sl30sSignals,
     hasIVCF20: ivcfSessions.length > 0,
     ivcfSessions,
+    hasFESI: fesiSessions.length > 0,
+    fesiSessions,
+    hasActSedentary: actSedentarySessions.length > 0,
+    actSedentarySessions,
   };
 }
 
-function applyLatestIvcf(participant: Participant, tests?: Participant["tests"]): Participant {
+function applyLatestQuestionnaires(
+  participant: Participant,
+  tests?: Participant["tests"],
+): Participant {
   const latestIvcf = tests?.ivcfSessions?.[tests.ivcfSessions.length - 1];
+  const latestFesi = tests?.fesiSessions?.[tests.fesiSessions.length - 1];
+  const latestActSedentary =
+    tests?.actSedentarySessions?.[tests.actSedentarySessions.length - 1];
 
-  if (!latestIvcf) return tests ? { ...participant, tests } : participant;
+  if (!tests && !latestIvcf && !latestFesi && !latestActSedentary) {
+    return participant;
+  }
 
   return {
     ...participant,
-    ivcfScore: latestIvcf.scoreTotal,
-    ivcfClass: latestIvcf.classification,
-    blocks: latestIvcf.blocks,
     tests,
+    ivcfScore: latestIvcf?.scoreTotal,
+    ivcfClass: latestIvcf?.classification,
+    blocks: latestIvcf?.blocks,
+    fesiScore: latestFesi?.scoreTotal,
+    fesiClass: latestFesi?.classification,
+    fesiMeanScore: latestFesi?.meanScore,
+    actSedentaryLabel:
+      latestActSedentary?.summary.activityLabel ??
+      latestActSedentary?.summary.activityKey,
   };
 }
 
@@ -655,7 +819,7 @@ function buildParticipantWithResults(
 ): Participant {
   const base = mapParticipant(row);
   const tests = buildParticipantTests(resultRows);
-  return applyLatestIvcf(base, tests);
+  return applyLatestQuestionnaires(base, tests);
 }
 
 export async function listParticipants(): Promise<Participant[]> {

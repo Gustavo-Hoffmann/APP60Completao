@@ -34,8 +34,15 @@ import { routes } from "../../../navigation/routes";
 import type { Role } from "../../../types/auth";
 import type { IvcfSession, Participant, Sl30sSession, TwoMstSession } from "../../../types/participant";
 import { getParticipantById } from "../services/participants";
+import { ActSedentarySection } from "../../questionnaires/components/ActSedentarySection";
+import { FesiSection } from "../../questionnaires/components/FesiSection";
+import {
+  fesiTone,
+  ivcfTone,
+  QuestionnaireStatusCard,
+} from "../../questionnaires/components/QuestionnaireStatusCard";
 
-type OpenedTest = "2MST" | "SL30S" | "IVCF20" | null;
+type OpenedTest = "2MST" | "SL30S" | "IVCF20" | "FESI" | "ACT_SEDENTARY" | null;
 type MetricsFilterMode = "session" | "date";
 
 /** Mesmo conjunto de papéis que acessam a lista de participantes no router. */
@@ -390,82 +397,6 @@ function Ivcf20Section({
   );
 }
 
-function IvcfCard({
-  score,
-  ivcfClass,
-  date,
-  onClick,
-}: {
-  score?: number;
-  ivcfClass?: Participant["ivcfClass"];
-  date?: string;
-  onClick?: () => void;
-}) {
-  const { t } = useTranslation("modules");
-  const tone =
-    ivcfClass === "Frágil"
-      ? {
-          wrap: "border-red-200 bg-red-50/70",
-          title: "text-red-700",
-          value: "text-red-700",
-        }
-      : ivcfClass === "Pré-Frágil"
-        ? {
-            wrap: "border-amber-200 bg-amber-50/70",
-            title: "text-amber-700",
-            value: "text-amber-700",
-          }
-        : ivcfClass === "Robusto"
-          ? {
-              wrap: "border-emerald-200 bg-emerald-50/70",
-              title: "text-emerald-700",
-              value: "text-emerald-700",
-            }
-          : {
-              wrap: "border-slate-200 bg-slate-50",
-              title: "text-slate-500",
-              value: "text-slate-700",
-            };
-
-  const content = (
-    <>
-      <div className={`text-xs font-bold uppercase tracking-[0.18em] ${tone.title}`}>
-        {t("participantDetail.statusClinical")}
-      </div>
-      <div className="mt-3 flex items-center justify-between gap-4">
-        <div>
-          <div className="text-sm text-slate-500">{t("participantDetail.lastIvcf20")}</div>
-          <div className={`mt-2 text-3xl font-black ${tone.value}`}>{score ?? "—"}</div>
-          <div className="mt-2 text-sm text-slate-500">
-            {date ?? t("participantDetail.noProcessedCollection")}
-          </div>
-        </div>
-        <IvcfBadge value={ivcfClass} emptyLabel={t("participantDetail.unclassified")} />
-      </div>
-    </>
-  );
-
-  if (onClick) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className="block h-full w-full text-left"
-      >
-        <Card
-          className={`h-full w-full min-w-0 p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${tone.wrap}`}
-        >
-          {content}
-        </Card>
-      </button>
-    );
-  }
-
-  return (
-    <Card className={`h-full w-full min-w-0 p-5 shadow-sm ${tone.wrap}`}>{content}</Card>
-  );
-}
-
 type StatusTone = {
   wrap: string;
   icon: string;
@@ -690,6 +621,8 @@ export function ParticipantDetailPage() {
   const [selectedTwoMstSession, setSelectedTwoMstSession] = useState<number>(1);
   const [selectedSl30sSession, setSelectedSl30sSession] = useState<number>(1);
   const [selectedIvcfSession, setSelectedIvcfSession] = useState<number>(1);
+  const [selectedFesiSession, setSelectedFesiSession] = useState<number>(1);
+  const [selectedActSedentarySession, setSelectedActSedentarySession] = useState<number>(1);
   const [twoMstMetricRange, setTwoMstMetricRange] = useState<{ from: number | null; to: number | null }>({
     from: null,
     to: null,
@@ -787,6 +720,11 @@ export function ParticipantDetailPage() {
   const twoMstSessions = useMemo(() => participant?.tests?.twoMstSessions ?? [], [participant]);
   const sl30sSessions = useMemo(() => participant?.tests?.sl30sSessions ?? [], [participant]);
   const ivcfSessions = useMemo(() => participant?.tests?.ivcfSessions ?? [], [participant]);
+  const fesiSessions = useMemo(() => participant?.tests?.fesiSessions ?? [], [participant]);
+  const actSedentarySessions = useMemo(
+    () => participant?.tests?.actSedentarySessions ?? [],
+    [participant],
+  );
 
   const twoMstSessionIds = useMemo(() => twoMstSessions.map((s) => s.sessao), [twoMstSessions]);
   const sl30sSessionIds = useMemo(() => sl30sSessions.map((s) => s.sessao), [sl30sSessions]);
@@ -1035,6 +973,8 @@ export function ParticipantDetailPage() {
   const lastTwoMstSession = twoMstSessions[twoMstSessions.length - 1];
   const lastSl30sSession = sl30sSessions[sl30sSessions.length - 1];
   const lastIvcfSession = ivcfSessions[ivcfSessions.length - 1];
+  const lastFesiSession = fesiSessions[fesiSessions.length - 1];
+  const lastActSedentarySession = actSedentarySessions[actSedentarySessions.length - 1];
 
   const isDemoParticipant = participant?.id === "example-maria-silva";
 
@@ -1055,6 +995,18 @@ export function ParticipantDetailPage() {
       setSelectedIvcfSession(lastIvcfSession.sessao);
     }
   }, [lastIvcfSession?.sessao]);
+
+  useEffect(() => {
+    if (lastFesiSession?.sessao) {
+      setSelectedFesiSession(lastFesiSession.sessao);
+    }
+  }, [lastFesiSession?.sessao]);
+
+  useEffect(() => {
+    if (lastActSedentarySession?.sessao) {
+      setSelectedActSedentarySession(lastActSedentarySession.sessao);
+    }
+  }, [lastActSedentarySession?.sessao]);
 
   if (isLoading) {
     return (
@@ -1104,24 +1056,38 @@ export function ParticipantDetailPage() {
   const has2Mst = Boolean(participant.tests?.has2MST && twoMstSessions.length);
   const hasSl30s = Boolean(participant.tests?.hasSL30S && sl30sSessions.length);
   const hasIvcf = Boolean(participant.tests?.hasIVCF20 && ivcfSessions.length);
+  const hasFesi = Boolean(participant.tests?.hasFESI && fesiSessions.length);
+  const hasActSedentary = Boolean(
+    participant.tests?.hasActSedentary && actSedentarySessions.length,
+  );
 
   const showIvcfDetails = openedTest === "IVCF20" && hasIvcf;
+  const showFesiDetails = openedTest === "FESI" && hasFesi;
+  const showActSedentaryDetails = openedTest === "ACT_SEDENTARY" && hasActSedentary;
   const show2MstDetails = openedTest === "2MST" && has2Mst;
   const showSl30sDetails = openedTest === "SL30S" && hasSl30s;
 
-  function handleIvcfCardClick() {
-    if (!hasIvcf) return;
+  function scrollToQuestionnaireSection(sectionId: string) {
+    window.setTimeout(() => {
+      document.getElementById(sectionId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 80);
+  }
 
-    const isOpening = openedTest !== "IVCF20";
-    setOpenedTest(isOpening ? "IVCF20" : null);
+  function handleQuestionnaireCardClick(
+    testKey: Extract<OpenedTest, "IVCF20" | "FESI" | "ACT_SEDENTARY">,
+    sectionId: string,
+    enabled: boolean,
+  ) {
+    if (!enabled) return;
+
+    const isOpening = openedTest !== testKey;
+    setOpenedTest(isOpening ? testKey : null);
 
     if (isOpening) {
-      window.setTimeout(() => {
-        document.getElementById("ivcf20-section")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }, 80);
+      scrollToQuestionnaireSection(sectionId);
     }
   }
 
@@ -1157,7 +1123,7 @@ export function ParticipantDetailPage() {
         subtitle={
           isDemoParticipant
             ? t("participantDetail.demoSubtitle")
-            : has2Mst || hasSl30s || hasIvcf
+            : has2Mst || hasSl30s || hasIvcf || hasFesi || hasActSedentary
               ? t("participantDetail.subtitleWithTests")
               : t("participantDetail.subtitle")
         }
@@ -1197,7 +1163,7 @@ export function ParticipantDetailPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,320px)] lg:items-stretch">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,420px)] lg:items-stretch">
           <div className="grid grid-cols-2 gap-4">
             <DetailItem label={t("participantDetail.fields.nationality")} value={nat} />
             <DetailItem label={identityLabel} value={participant.cpf} />
@@ -1214,15 +1180,57 @@ export function ParticipantDetailPage() {
             <DetailItem label={t("participantDetail.fields.createdBy")} value={createdByName} />
           </div>
 
-          <div className="flex h-full min-h-0 items-stretch lg:justify-end">
-            <div className="flex h-full w-full max-w-sm lg:max-w-none">
-              <IvcfCard
-                score={participant.ivcfScore}
-                ivcfClass={participant.ivcfClass}
-                date={lastIvcfSession?.date}
-                onClick={hasIvcf ? handleIvcfCardClick : undefined}
-              />
-            </div>
+          <div className="grid gap-3 content-start">
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              {t("participantDetail.questionnairesTitle")}
+            </p>
+
+            <QuestionnaireStatusCard
+              title={t("questionnaires.instruments.ivcf20.shortTitle")}
+              score={participant.ivcfScore}
+              badge={participant.ivcfClass ?? null}
+              date={lastIvcfSession?.date}
+              emptyLabel={t("participantDetail.noProcessedCollection")}
+              tone={ivcfTone(participant.ivcfClass)}
+              onClick={
+                hasIvcf
+                  ? () => handleQuestionnaireCardClick("IVCF20", "ivcf20-section", hasIvcf)
+                  : undefined
+              }
+            />
+
+            <QuestionnaireStatusCard
+              title={t("questionnaires.instruments.fesi.shortTitle")}
+              score={participant.fesiScore}
+              badge={participant.fesiClass ?? null}
+              date={lastFesiSession?.date}
+              emptyLabel={t("participantDetail.noProcessedCollection")}
+              tone={fesiTone(participant.fesiClass)}
+              onClick={
+                hasFesi
+                  ? () => handleQuestionnaireCardClick("FESI", "fesi-section", hasFesi)
+                  : undefined
+              }
+            />
+
+            <QuestionnaireStatusCard
+              title={t("questionnaires.instruments.actSedentary.shortTitle")}
+              score={participant.actSedentaryLabel ?? "—"}
+              badge={lastActSedentarySession?.summary.activityKey ?? null}
+              date={lastActSedentarySession?.date}
+              emptyLabel={t("participantDetail.noProcessedCollection")}
+              tone="info"
+              onClick={
+                hasActSedentary
+                  ? () =>
+                      handleQuestionnaireCardClick(
+                        "ACT_SEDENTARY",
+                        "act-sedentary-section",
+                        hasActSedentary,
+                      )
+                  : undefined
+              }
+            />
           </div>
         </section>
 
@@ -1231,6 +1239,22 @@ export function ParticipantDetailPage() {
             sessions={ivcfSessions}
             selectedSession={selectedIvcfSession}
             onSelectSession={setSelectedIvcfSession}
+          />
+        ) : null}
+
+        {showFesiDetails ? (
+          <FesiSection
+            sessions={fesiSessions}
+            selectedSession={selectedFesiSession}
+            onSelectSession={setSelectedFesiSession}
+          />
+        ) : null}
+
+        {showActSedentaryDetails ? (
+          <ActSedentarySection
+            sessions={actSedentarySessions}
+            selectedSession={selectedActSedentarySession}
+            onSelectSession={setSelectedActSedentarySession}
           />
         ) : null}
 

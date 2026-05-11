@@ -10,6 +10,38 @@ export type IvcfSession = {
   blocks: ParticipantBlockScores;
 };
 
+export type FesiClassification = "Baixa" | "Moderada" | "Alta";
+
+export type FesiItemScore = {
+  key: string;
+  number: number;
+  score: number;
+};
+
+export type FesiSession = {
+  sessao: number;
+  date: string;
+  scoreTotal: number;
+  meanScore?: number;
+  classification?: FesiClassification;
+  items: FesiItemScore[];
+};
+
+export type ActSedentarySummary = {
+  sleepMinWeek?: number;
+  modMinWeek?: number;
+  vigMinWeek?: number;
+  sedentaryMinWeek?: number;
+  activityLabel?: string;
+  activityKey?: string;
+};
+
+export type ActSedentarySession = {
+  sessao: number;
+  date: string;
+  summary: ActSedentarySummary;
+};
+
 export type TwoMstStrategyLabel =
   | "Ascendente"
   | "Descendente"
@@ -100,6 +132,10 @@ export type ParticipantTestSummary = {
   sl30sSignals?: Record<number, Sl30sSignalPoint[]>;
   hasIVCF20?: boolean;
   ivcfSessions?: IvcfSession[];
+  hasFESI?: boolean;
+  fesiSessions?: FesiSession[];
+  hasActSedentary?: boolean;
+  actSedentarySessions?: ActSedentarySession[];
 };
 
 export type Participant = {
@@ -129,5 +165,9 @@ export type Participant = {
   ivcfScore?: number;
   ivcfClass?: IvcfClassification;
   blocks?: ParticipantBlockScores;
+  fesiScore?: number;
+  fesiClass?: FesiClassification;
+  fesiMeanScore?: number;
+  actSedentaryLabel?: string;
   tests?: ParticipantTestSummary;
 };

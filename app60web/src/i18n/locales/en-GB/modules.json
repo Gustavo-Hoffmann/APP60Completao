@@ -20,6 +20,37 @@
       "fragile": "Frail",
       "preFragile": "Pre-frail"
     },
+    "instruments": {
+      "ivcf20": {
+        "shortTitle": "IVCF-20",
+        "statsSubtitle": "Participants with processed IVCF-20"
+      },
+      "fesi": {
+        "shortTitle": "FES-I",
+        "statsSubtitle": "Participants with processed FES-I",
+        "stats": {
+          "highConcern": "High concern",
+          "moderateConcern": "Moderate concern"
+        },
+        "table": {
+          "score": "Total score",
+          "mean": "Mean per item"
+        }
+      },
+      "actSedentary": {
+        "shortTitle": "Activity and sedentary",
+        "statsSubtitle": "Participants with processed questionnaire",
+        "stats": {
+          "sedentaryProfile": "Sedentary profile",
+          "withProfile": "With activity profile"
+        },
+        "table": {
+          "profile": "Activity profile",
+          "moderate": "Moderate activity/day",
+          "sedentary": "Sedentary/day"
+        }
+      }
+    },
     "table": {
       "participant": "Participant",
       "score": "Score",
@@ -248,7 +279,26 @@
     "inFocus": "In focus",
     "statusClinical": "Clinical status",
     "lastIvcf20": "Latest IVCF-20",
+    "questionnairesTitle": "Applied questionnaires",
     "noProcessedCollection": "No processed collection",
+    "fesi": {
+      "subtitle": "History and per-item scores for the selected session.",
+      "meanScore": "Mean per item",
+      "itemsTitle": "Score per item",
+      "itemLabel": "Item {{number}}",
+      "noItems": "No detailed items were found for this session."
+    },
+    "actSedentary": {
+      "subtitle": "Weekly summary of sleep, physical activity, and sedentary behaviour.",
+      "activityProfile": "Activity profile",
+      "perWeek": "{{value}} per week",
+      "metrics": {
+        "sleep": "Sleep",
+        "moderate": "Moderate activity",
+        "vigorous": "Vigorous activity",
+        "sedentary": "Sedentary behaviour"
+      }
+    },
     "ivcf20": {
       "subtitle": "History and block-level classification for the selected session.",
       "selectedSession": "Selected session",
