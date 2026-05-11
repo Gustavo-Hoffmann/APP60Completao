@@ -22,17 +22,15 @@ type RouteParams = {
 
 function ParticipantCard({
   p,
-  pinned,
   t,
   onPress,
 }: {
   p: Participant;
-  pinned?: boolean;
   t: (key: string, options?: any) => string;
   onPress: () => void;
 }) {
   const { theme } = useTheme();
-  const age = p.id === TEST_PARTICIPANT_ID ? null : calcAge(p.dob);
+  const age = calcAge(p.dob);
 
   return (
     <Pressable
@@ -46,38 +44,15 @@ function ParticipantCard({
         opacity: pressed ? 0.85 : 1,
       })}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <T style={{ fontSize: 16, fontWeight: "900" }}>{p.name}</T>
-
-        {pinned ? (
-          <View
-            style={{
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-              borderRadius: 999,
-              backgroundColor: theme.colors.primary,
-            }}
-          >
-            <T style={{ color: "#fff", fontWeight: "900", fontSize: 12 }}>
-              {t("participants:pick.testTag")}
-            </T>
-          </View>
-        ) : null}
-      </View>
+      <T style={{ fontSize: 16, fontWeight: "900" }}>{p.name}</T>
 
       <View style={{ height: 6 }} />
 
-      {p.id === TEST_PARTICIPANT_ID ? (
-        <T style={{ color: theme.colors.muted }}>
-          {t("participants:pick.exampleDescription")}
-        </T>
-      ) : (
-        <T style={{ color: theme.colors.muted }}>
-          {age != null ? `${age} anos` : ""}
-          {age != null ? " • " : ""}
-          {getParticipantSubtitle(p)}
-        </T>
-      )}
+      <T style={{ color: theme.colors.muted }}>
+        {age != null ? `${age} anos` : ""}
+        {age != null ? " • " : ""}
+        {getParticipantSubtitle(p)}
+      </T>
     </Pressable>
   );
 }
@@ -103,7 +78,7 @@ export default function ParticipantPickScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -111,11 +86,10 @@ export default function ParticipantPickScreen() {
     }, [load])
   );
 
-  const { testP, others } = useMemo(() => {
-    const testP = all.find((p) => p.id === TEST_PARTICIPANT_ID) ?? null;
-    const others = all.filter((p) => p.id !== TEST_PARTICIPANT_ID);
-    return { testP, others };
-  }, [all]);
+  const participants = useMemo(
+    () => all.filter((participant) => participant.id !== TEST_PARTICIPANT_ID),
+    [all]
+  );
 
   const go = (p: Participant) => {
     if (!nextRoute) return;
@@ -145,16 +119,12 @@ export default function ParticipantPickScreen() {
 
       <View style={{ height: 14 }} />
 
-      {testP ? <ParticipantCard p={testP} t={t} pinned onPress={() => go(testP)} /> : null}
-
-      <View style={{ height: 14 }} />
-
       <T style={{ fontWeight: "900", marginBottom: 8 }}>
         {loading ? t("common:actions.loading") : t("participants:pick.registered")}
       </T>
 
       <FlatList
-        data={others}
+        data={participants}
         keyExtractor={(item) => String(item.id)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 24 }}

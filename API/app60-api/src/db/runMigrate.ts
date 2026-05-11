@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadMigrateConfig } from "../config.js";
-import { Pool } from "pg";
+import { Pool, type DatabaseError } from "pg";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -70,13 +70,40 @@ async function shouldBaselineInitialMigration(pool: Pool) {
   );
 }
 
+function describeDatabaseUrl(databaseUrl: string) {
+  const parsed = new URL(databaseUrl);
+  const user = parsed.username || "sem-usuario";
+  const host = parsed.hostname || "sem-host";
+  const port = parsed.port || "5432";
+  const db = parsed.pathname || "";
+  return `${user}@${host}:${port}${db}`;
+}
+
+function isOwnerPermissionError(error: unknown) {
+  const dbError = error as DatabaseError;
+  return dbError?.code === "42501" && String(dbError?.message ?? "").includes("owner of type");
+}
+
+function printOwnerMigrationHint() {
+  console.error(
+    [
+      "",
+      "Migração bloqueada: o usuário atual não é dono de tipos/enums do schema.",
+      "No staging, a API usa app_user; ALTER TYPE exige o usuário dono (ex.: postgres).",
+      "Defina MIGRATE_DATABASE_URL no API/app60-api/.env e rode: npm run db:migrate:owner",
+      "",
+    ].join("\n")
+  );
+}
+
 async function main() {
-  const cfg = loadMigrateConfig();
-  console.log("Conectando no Postgres via DATABASE_URL...");
-  const ssl = sslFromDatabaseUrl(cfg.DATABASE_URL);
-  const connectionString = cfg.DATABASE_URL.includes("sslmode=")
-    ? stripSslParams(cfg.DATABASE_URL)
-    : cfg.DATABASE_URL;
+  const requireOwnerUrl = process.argv.includes("--owner");
+  const cfg = loadMigrateConfig({ requireOwnerUrl });
+  console.log(`Conectando no Postgres via ${cfg.source} (${describeDatabaseUrl(cfg.databaseUrl)})...`);
+  const ssl = sslFromDatabaseUrl(cfg.databaseUrl);
+  const connectionString = cfg.databaseUrl.includes("sslmode=")
+    ? stripSslParams(cfg.databaseUrl)
+    : cfg.databaseUrl;
   const pool = new Pool({
     connectionString,
     ssl,
@@ -128,6 +155,9 @@ async function main() {
         console.log("Migration aplicada:", sqlPath);
       } catch (e) {
         await client.query("ROLLBACK");
+        if (isOwnerPermissionError(e)) {
+          printOwnerMigrationHint();
+        }
         throw e;
       } finally {
         client.release();

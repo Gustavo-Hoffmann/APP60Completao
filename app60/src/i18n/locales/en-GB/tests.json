@@ -13,6 +13,7 @@
     "failedToStart": "Failed to start",
     "failedToFinish": "Failed to finish",
     "startTest": "Start test",
+    "restartTest": "Restart test",
     "finishTest": "Finish test",
     "stopTest": "Stop test",
     "goToResults": "Go to results",
@@ -31,6 +32,9 @@
     "cadence": "Cadence",
     "classification": "Classification",
     "participantLabel": "Participant",
+    "nameLabel": "Name",
+    "cpfLabel": "CPF",
+    "notInformed": "Not informed",
     "ageLabel": "Age",
     "sexLabel": "Sex",
     "sexMale": "Male",
@@ -44,6 +48,15 @@
     "normativeReferenceSubtitle": "Normative reference by age range and biological sex, highlighting the participant's range.",
     "normativeReferenceSubtitleExact": "Normative reference by age range and biological sex, highlighting the participant's exact range.",
     "percentDone": "{{value}}% completed",
+    "lockOverlay": {
+      "title": "Test in progress",
+      "subtitle": "Tap the padlock 3 times to unlock stopping.",
+      "counter": "Taps: {{current}}/{{total}}",
+      "unlockedTitle": "Stopping temporarily unlocked.",
+      "unlockedSubtitle": "Use the stop button to finish.",
+      "a11yLocked": "Padlock locked. Tap 3 times to unlock stopping the test.",
+      "a11yUnlocked": "Padlock open. Stopping unlocked."
+    },
     "speech": {
       "prepare": "Get ready",
       "one": "1",
@@ -71,6 +84,10 @@
       "doneBody": "☁️ Data uploaded successfully.\nSession: S{{session}}\nPath: {{path}}",
       "errorTitle": "Upload error",
       "errorBody": "Failed to upload data to cloud."
+    },
+    "sync": {
+      "warningTitle": "Sync pending",
+      "warningBody": "Test saved locally. It could not be uploaded to the cloud right now. Try again later."
     }
   },
   "elevacaoCalcanhares": {

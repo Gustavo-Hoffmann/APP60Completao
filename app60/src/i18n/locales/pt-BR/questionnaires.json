@@ -305,7 +305,8 @@
       "thStatus": "Status",
       "here": "Aqui",
       "dash": "—",
-      "perItemTitle": "Score por item"
+      "perItemTitle": "Score por item",
+      "missingParticipant": "O participante não foi enviado para a tela de resultado. Passe o objeto participant na navegação."
     },
     "scale": {
       "1": "Nem um pouco preocupado",

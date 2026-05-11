@@ -70,7 +70,7 @@
     "registered": "Registered",
     "testTag": "EXAMPLE",
     "exampleDescription": "Maria Silva • fixed sample subject for flow/export checks.",
-    "empty": "No real participants have been registered yet. Only the fixed Maria Silva sample is shown.",
+    "empty": "No participants have been registered yet.",
     "loadError": "Failed to load participants.",
     "listTitle": "Participants"
   }

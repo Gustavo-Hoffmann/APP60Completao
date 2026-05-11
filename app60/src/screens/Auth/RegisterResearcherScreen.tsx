@@ -14,7 +14,7 @@ export function RegisterResearcherScreen({ navigation }: any) {
   const { theme } = useTheme();
 
   const [name, setName] = useState("");
-  const [dob, setDob] = useState(new Date(1990, 0, 1));
+  const [dob, setDob] = useState<Date | null>(null);
   const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -27,6 +27,8 @@ export function RegisterResearcherScreen({ navigation }: any) {
       if (!isValidCPF(cpf)) throw new Error("CPF inválido.");
       if (pw.length < 6) throw new Error("Senha muito curta (mínimo 6).");
       if (pw !== pw2) throw new Error("As senhas não conferem.");
+
+      if (!dob) throw new Error("Informe a data de nascimento.");
 
       await register(
         { name: name.trim(), dob: dob.toISOString(), cpf, email: email.trim() },

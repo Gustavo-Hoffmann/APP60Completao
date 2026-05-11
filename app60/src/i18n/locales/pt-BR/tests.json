@@ -13,6 +13,7 @@
     "failedToStart": "Falha ao iniciar",
     "failedToFinish": "Falha ao finalizar",
     "startTest": "Iniciar teste",
+    "restartTest": "Reiniciar teste",
     "finishTest": "Finalizar teste",
     "stopTest": "Interromper teste",
     "goToResults": "Ir para resultados",
@@ -31,6 +32,9 @@
     "cadence": "Cadência",
     "classification": "Classificação",
     "participantLabel": "Participante",
+    "nameLabel": "Nome",
+    "cpfLabel": "CPF",
+    "notInformed": "Não informado",
     "ageLabel": "Idade",
     "sexLabel": "Sexo",
     "sexMale": "Masculino",
@@ -44,6 +48,15 @@
     "normativeReferenceSubtitle": "Referência normativa por faixa etária e sexo biológico, com destaque da faixa do participante.",
     "normativeReferenceSubtitleExact": "Referência por faixa etária e sexo biológico, com destaque exato da faixa do participante.",
     "percentDone": "{{value}}% concluído",
+    "lockOverlay": {
+      "title": "Teste em andamento",
+      "subtitle": "Toque 3 vezes no cadeado para liberar a parada.",
+      "counter": "Toques: {{current}}/{{total}}",
+      "unlockedTitle": "Parada liberada temporariamente.",
+      "unlockedSubtitle": "Use o botão de parar para finalizar.",
+      "a11yLocked": "Cadeado fechado. Toque 3 vezes para liberar a parada do teste.",
+      "a11yUnlocked": "Cadeado aberto. Parada liberada."
+    },
     "speech": {
       "prepare": "Prepare-se",
       "one": "1",
@@ -71,6 +84,10 @@
       "doneBody": "☁️ Dados enviados com sucesso.\nSessão: S{{session}}\nCaminho: {{path}}",
       "errorTitle": "Erro no upload",
       "errorBody": "Falha ao enviar dados para a nuvem."
+    },
+    "sync": {
+      "warningTitle": "Sincronização pendente",
+      "warningBody": "Teste salvo localmente. Não foi possível enviar para a nuvem agora. Tente novamente depois."
     }
   },
   "elevacaoCalcanhares": {

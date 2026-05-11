@@ -1,12 +1,21 @@
-import React, { useEffect, useMemo } from "react";
-import { ScrollView, View, StyleSheet } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import * as Sharing from "expo-sharing";
 
 import { T } from "../../components/Themed";
+import { ThemedButton } from "../../components/ThemedButton";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useAuth } from "../../contexts/AuthContext";
 import type { Participant } from "../../models/types";
 import { QuestionnaireParticipantCard } from "../../components/questionnaires/QuestionnaireParticipantCard";
+import { showCloudUploadFailure } from "../../services/tests/uploadSyncErrors";
+import {
+  getNextSessionNumber,
+  saveFesiJsonToCache,
+  uploadFesiResultToCollection,
+} from "../../services/tests/uploadTestJson";
 
 type FesiClassificationKey = "baixa" | "moderada" | "alta";
 
@@ -41,9 +50,19 @@ function badgeColor(key: FesiClassificationKey) {
   return "#E74C3C";
 }
 
+function answerScoreColor(score: number) {
+  if (score <= 1) return "#16A34A";
+  if (score === 2) return "#1456D9";
+  if (score === 3) return "#F59E0B";
+  return "#DC2626";
+}
+
 export function FESIResultScreen({ route, navigation }: any) {
   const { theme } = useTheme();
-  const { t } = useTranslation(["questionnaires", "common"]);
+  const { t } = useTranslation(["questionnaires", "common", "tests", "errors"]);
+  const { isGuest } = useAuth();
+  const [uploading, setUploading] = useState(false);
+  const [nextSessionNumber, setNextSessionNumber] = useState<number | null>(null);
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const {
@@ -53,6 +72,8 @@ export function FESIResultScreen({ route, navigation }: any) {
     meanScore,
     classification,
     itemScores,
+    answers,
+    meta,
   } = (route?.params ?? {}) as RouteParams;
 
   const total = Number(scoreTotal ?? 0);
@@ -71,7 +92,113 @@ export function FESIResultScreen({ route, navigation }: any) {
     });
   }, [navigation, theme.colors.primary, t]);
 
+  useEffect(() => {
+    let alive = true;
+
+    async function loadNextSession() {
+      try {
+        if (!participant?.id) return;
+        const session = await getNextSessionNumber(String(participant.id), "FESI");
+        if (alive) setNextSessionNumber(session);
+      } catch {
+        if (alive) setNextSessionNumber(null);
+      }
+    }
+
+    loadNextSession();
+
+    return () => {
+      alive = false;
+    };
+  }, [participant?.id]);
+
   const dash = t("questionnaires:fesi.result.dash");
+  const resolvedMeanScore = Number(meanScore ?? (total ? total / 16 : 0));
+  const resolvedItemScores = itemScores ?? [];
+
+  const handleShareJson = async () => {
+    try {
+      if (!participant?.id) {
+        Alert.alert(
+          t("tests:common.upload.errorTitle"),
+          t("questionnaires:fesi.result.missingParticipant")
+        );
+        return;
+      }
+
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert(t("tests:common.share.title"), t("tests:common.share.unavailable"));
+        return;
+      }
+
+      const sessionNumberToUse =
+        nextSessionNumber ?? (await getNextSessionNumber(String(participant.id), "FESI"));
+
+      const saved = await saveFesiJsonToCache({
+        participant,
+        sessionNumber: sessionNumberToUse,
+        scoreTotal: total,
+        meanScore: resolvedMeanScore,
+        classification: { key: clsKey, label: clsLabel },
+        itemScores: resolvedItemScores,
+        answers,
+        meta,
+      });
+
+      await Sharing.shareAsync(saved.uri, {
+        mimeType: "application/json",
+        dialogTitle: t("tests:common.share.jsonDialog"),
+        UTI: Platform.OS === "ios" ? "public.json" : undefined,
+      });
+    } catch (e: any) {
+      Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.share.error"));
+    }
+  };
+
+  const handleUploadCloud = async () => {
+    try {
+      if (uploading) return;
+
+      if (!participant?.id) {
+        Alert.alert(
+          t("tests:common.upload.errorTitle"),
+          t("questionnaires:fesi.result.missingParticipant")
+        );
+        return;
+      }
+
+      setUploading(true);
+
+      const sessionNumberToUse =
+        nextSessionNumber ?? (await getNextSessionNumber(String(participant.id), "FESI"));
+
+      const sent = await uploadFesiResultToCollection({
+        participant,
+        sessionNumber: sessionNumberToUse,
+        scoreTotal: total,
+        meanScore: resolvedMeanScore,
+        classification: { key: clsKey, label: clsLabel },
+        itemScores: resolvedItemScores,
+        answers,
+        meta,
+      });
+
+      setNextSessionNumber(sent.sessionNumber + 1);
+
+      Alert.alert(
+        t("tests:common.upload.doneTitle"),
+        t("tests:common.upload.doneBody", {
+          session: sent.sessionNumber,
+          path: sent.path,
+        })
+      );
+    } catch (e: unknown) {
+      showCloudUploadFailure(t, e);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.card }} edges={["bottom"]}>
@@ -94,7 +221,6 @@ export function FESIResultScreen({ route, navigation }: any) {
               subtitle={t("questionnaires:fesi.subtitle")}
               dob={participant?.dob ?? null}
               sex={participant?.biologicalSex}
-              id={participant?.id ?? null}
             />
           </View>
 
@@ -111,7 +237,7 @@ export function FESIResultScreen({ route, navigation }: any) {
             <T style={styles.smallHint}>{t("questionnaires:fesi.result.scoreHint")}</T>
             <T style={styles.smallHint}>
               {t("questionnaires:fesi.result.meanPerItem", {
-                value: Number(meanScore ?? (total ? total / 16 : 0)).toFixed(2),
+                value: resolvedMeanScore.toFixed(2),
               })}
             </T>
           </View>
@@ -142,15 +268,18 @@ export function FESIResultScreen({ route, navigation }: any) {
             })}
           </View>
 
-          {!!itemScores?.length && (
+          {!!resolvedItemScores.length && (
             <>
               <T style={styles.sectionTitle}>{t("questionnaires:fesi.result.perItemTitle")}</T>
 
               <View style={styles.card}>
-                {itemScores.map((item, i) => (
+                {resolvedItemScores.map((item, i) => (
                   <View
                     key={item.key}
-                    style={[styles.itemRow, i === itemScores.length - 1 && { borderBottomWidth: 0 }]}
+                    style={[
+                      styles.itemRow,
+                      i === resolvedItemScores.length - 1 && { borderBottomWidth: 0 },
+                    ]}
                   >
                     <View style={{ flex: 1 }}>
                       <T style={styles.itemTitle}>
@@ -158,11 +287,29 @@ export function FESIResultScreen({ route, navigation }: any) {
                       </T>
                     </View>
 
-                    <T style={styles.itemScore}>{item.score}</T>
+                    <T style={[styles.itemScore, { color: answerScoreColor(item.score) }]}>
+                      {item.score}
+                    </T>
                   </View>
                 ))}
               </View>
             </>
+          )}
+
+          <View style={styles.card}>
+            <ThemedButton
+              title={`${t("tests:common.share.jsonButton")}${nextSessionNumber ? ` • S${nextSessionNumber}` : ""}`}
+              onPress={handleShareJson}
+            />
+          </View>
+
+          {!isGuest && (
+            <View style={styles.card}>
+              <ThemedButton
+                title={uploading ? t("tests:common.upload.sending") : t("tests:common.upload.button")}
+                onPress={handleUploadCloud}
+              />
+            </View>
           )}
         </ScrollView>
       </View>

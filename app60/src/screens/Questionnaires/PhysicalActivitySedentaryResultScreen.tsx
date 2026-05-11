@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,16 +9,17 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import * as FileSystem from "expo-file-system/legacy";
-import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
-import { captureRef } from "react-native-view-shot";
 
 import { T } from "../../components/Themed";
 import { ThemedButton } from "../../components/ThemedButton";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
+import type { Participant } from "../../models/types";
+import { showCloudUploadFailure } from "../../services/tests/uploadSyncErrors";
 import {
+  getNextSessionNumber,
+  saveActivitySedentaryJsonToCache,
   uploadActivitySedentaryResultToCollection,
 } from "../../services/tests/uploadTestJson";
 
@@ -334,14 +336,28 @@ function getToneStyle(styles: ReturnType<typeof makeStyles>, tone: "good" | "war
 export function PhysicalActivitySedentaryResultScreen({ route, navigation }: any) {
   const { theme } = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const { t } = useTranslation(["questionnaires", "common", "tests"]);
+  const { t } = useTranslation(["questionnaires", "common", "tests", "errors"]);
   const [showSleepRef, setShowSleepRef] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [nextSessionNumber, setNextSessionNumber] = useState<number | null>(null);
   const { isGuest } = useAuth();
-  const scrollRef = useRef<ScrollView | null>(null);
 
   const { participant, participantId, participantName, summary, answers } = (route?.params ?? {}) as RouteParams;
+  const effectiveParticipant = useMemo(() => {
+    if (participant?.id) return participant as Participant;
+    if (participantId) {
+      return {
+        ...(participant ?? {}),
+        id: String(participantId),
+        name:
+          participantName ||
+          getFirstValue(participant, ["name", "nome", "fullName", "full_name"]) ||
+          "",
+      } as Participant;
+    }
+    return participant as Participant | undefined;
+  }, [participant, participantId, participantName]);
 
   const sleepMinWeek = asNumber(summary?.sleepMinWeek);
   const modMinWeek = asNumber(summary?.modMinWeek);
@@ -367,17 +383,35 @@ export function PhysicalActivitySedentaryResultScreen({ route, navigation }: any
     participantName ||
     getFirstValue(participant, ["name", "nome", "fullName", "full_name"]) ||
     t("questionnaires:activitySedentary.participantFallback");
-  const displayId = participantId || getFirstValue(participant, ["id", "participant_id", "participantId"]);
-
   const sleepRange = getSleepRangeForAge(age);
   const sleepClass = classifySleep(t, sleepMinWeek / 7, sleepRange);
   const activityClass = classifyPhysicalActivity(t, modMinWeek, vigMinWeek);
   const sedentaryClass = classifySedentary(t, sedentaryMinWeek);
 
+  useEffect(() => {
+    let alive = true;
+
+    async function loadNextSession() {
+      try {
+        if (!effectiveParticipant?.id) return;
+        const session = await getNextSessionNumber(String(effectiveParticipant.id), "ACT_SEDENTARY");
+        if (alive) setNextSessionNumber(session);
+      } catch {
+        if (alive) setNextSessionNumber(null);
+      }
+    }
+
+    loadNextSession();
+
+    return () => {
+      alive = false;
+    };
+  }, [effectiveParticipant?.id]);
+
   const handleUploadCloud = async () => {
     try {
       if (uploading) return;
-      if (!participant?.id) {
+      if (!effectiveParticipant?.id) {
         Alert.alert(
           t("questionnaires:activitySedentary.result.alerts.errorTitle"),
           t("questionnaires:activitySedentary.result.alerts.invalidParticipant")
@@ -386,8 +420,13 @@ export function PhysicalActivitySedentaryResultScreen({ route, navigation }: any
       }
 
       setUploading(true);
+      const sessionNumberToUse =
+        nextSessionNumber ??
+        (await getNextSessionNumber(String(effectiveParticipant.id), "ACT_SEDENTARY"));
+
       const sent = await uploadActivitySedentaryResultToCollection({
-        participant,
+        participant: effectiveParticipant,
+        sessionNumber: sessionNumberToUse,
         summary: (summary ?? {}) as Record<string, unknown>,
         answers: (answers ?? {}) as Record<string, unknown>,
         meta: {
@@ -395,94 +434,62 @@ export function PhysicalActivitySedentaryResultScreen({ route, navigation }: any
         },
       });
 
+      setNextSessionNumber(sent.sessionNumber + 1);
+
       Alert.alert(
-        t("questionnaires:activitySedentary.result.alerts.sentTitle"),
-        t("questionnaires:activitySedentary.result.alerts.sentBody", {
+        t("tests:common.upload.doneTitle"),
+        t("tests:common.upload.doneBody", {
           session: sent.sessionNumber,
           path: sent.path,
         })
       );
-    } catch (e: any) {
-      Alert.alert(
-        t("questionnaires:activitySedentary.result.alerts.errorTitle"),
-        e?.message ?? t("questionnaires:activitySedentary.result.alerts.uploadErrorBody")
-      );
+    } catch (e: unknown) {
+      showCloudUploadFailure(t, e);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleShareResultPdf = async () => {
+  const handleShareJson = async () => {
     try {
       if (sharing) return;
+      if (!effectiveParticipant?.id) {
+        Alert.alert(
+          t("questionnaires:activitySedentary.result.alerts.errorTitle"),
+          t("questionnaires:activitySedentary.result.alerts.invalidParticipant")
+        );
+        return;
+      }
+
       setSharing(true);
 
       const available = await Sharing.isAvailableAsync();
       if (!available) {
-        Alert.alert(
-          t("questionnaires:activitySedentary.result.alerts.shareTitle"),
-          t("questionnaires:activitySedentary.result.alerts.shareUnavailable")
-        );
+        Alert.alert(t("tests:common.share.title"), t("tests:common.share.unavailable"));
         return;
       }
 
-      if (!scrollRef.current) {
-        Alert.alert(
-          t("questionnaires:activitySedentary.result.alerts.errorTitle"),
-          t("questionnaires:activitySedentary.result.alerts.captureErrorBody")
-        );
-        return;
-      }
+      const sessionNumberToUse =
+        nextSessionNumber ??
+        (await getNextSessionNumber(String(effectiveParticipant.id), "ACT_SEDENTARY"));
 
-      const imageUri = await captureRef(scrollRef, {
-        format: "png",
-        quality: 1,
-        result: "tmpfile",
-        snapshotContentContainer: true,
+      const saved = await saveActivitySedentaryJsonToCache({
+        participant: effectiveParticipant,
+        sessionNumber: sessionNumberToUse,
+        summary: (summary ?? {}) as Record<string, unknown>,
+        answers: (answers ?? {}) as Record<string, unknown>,
+        meta: {
+          screen: "PhysicalActivitySedentaryResult",
+        },
       });
 
-      const base64 = await FileSystem.readAsStringAsync(imageUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      const title = t("questionnaires:activitySedentary.result.title", {
-        defaultValue: "Resultado",
-      });
-
-      const html = `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <style>
-      html, body { margin: 0; padding: 0; background: #ffffff; }
-      .wrap { padding: 16px; }
-      .title { font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial; font-weight: 800; font-size: 16px; color: #111827; margin: 0 0 10px 0; }
-      img { width: 100%; height: auto; }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <p class="title">${title}</p>
-      <img src="data:image/png;base64,${base64}" />
-    </div>
-  </body>
-</html>`;
-
-      const pdf = await Print.printToFileAsync({
-        html,
-      });
-
-      await Sharing.shareAsync(pdf.uri, {
-        mimeType: "application/pdf",
-        dialogTitle: t("questionnaires:activitySedentary.result.actions.shareResult"),
-        UTI: "com.adobe.pdf",
+      await Sharing.shareAsync(saved.uri, {
+        mimeType: "application/json",
+        dialogTitle: t("tests:common.share.jsonDialog"),
+        UTI: Platform.OS === "ios" ? "public.json" : undefined,
       });
     } catch (e: any) {
-      Alert.alert(
-        t("questionnaires:activitySedentary.result.alerts.errorTitle"),
-        e?.message ?? t("questionnaires:activitySedentary.result.alerts.shareErrorBody")
-      );
+      Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.share.error"));
     } finally {
       setSharing(false);
     }
@@ -526,9 +533,6 @@ export function PhysicalActivitySedentaryResultScreen({ route, navigation }: any
       <SafeAreaView style={{ flex: 1, backgroundColor: "#F3F5F8" }} edges={["bottom"]}>
         <ScrollView
           style={styles.scroll}
-          ref={(r) => {
-            scrollRef.current = r;
-          }}
           contentContainerStyle={[styles.content, { flexGrow: 1 }]}
           showsVerticalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
@@ -701,23 +705,15 @@ export function PhysicalActivitySedentaryResultScreen({ route, navigation }: any
           <View style={styles.buttonSection}>
             <View style={styles.buttonWrap}>
               <ThemedButton
-                title={
-                  sharing
-                    ? t("questionnaires:activitySedentary.result.actions.sharingPdf")
-                    : t("questionnaires:activitySedentary.result.actions.shareResult")
-                }
-                onPress={handleShareResultPdf}
+                title={`${t("tests:common.share.jsonButton")}${nextSessionNumber ? ` • S${nextSessionNumber}` : ""}`}
+                onPress={handleShareJson}
               />
             </View>
 
             {!isGuest && (
               <View style={styles.buttonWrap}>
                 <ThemedButton
-                  title={
-                    uploading
-                      ? t("questionnaires:activitySedentary.result.actions.sendingCloud")
-                      : t("questionnaires:activitySedentary.result.actions.sendToCloud")
-                  }
+                  title={uploading ? t("tests:common.upload.sending") : t("tests:common.upload.button")}
                   onPress={handleUploadCloud}
                 />
               </View>

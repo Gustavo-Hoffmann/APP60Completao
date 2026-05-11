@@ -18,19 +18,17 @@ import { Screen, T } from "../../../components/Themed";
 import { Accelerometer, DeviceMotion } from "expo-sensors";
 
 import { ThemedButton } from "../../../components/ThemedButton";
-import {
-  TestCollectionGoToResultsRow,
-  TestCollectionHeader,
-  TestCollectionHeroImage,
-} from "../components/TestCollectionChrome";
+import { TestCollectionAttemptActions } from "../components/TestCollectionAttemptActions";
+import { TestCollectionHeader, TestCollectionHeroImage } from "../components/TestCollectionChrome";
+import { TestCollectionRunProgress } from "../components/TestCollectionRunProgress";
+import { saveImuResultToCache } from "../helpers/finalizeImuCapture";
+import { TestRunLockOverlay } from "../components/TestRunLockOverlay";
+import { useProtectedTestRun } from "../hooks/useProtectedTestRun";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import type { Participant } from "../../../models/types";
 import { Routes } from "../../../navigation/routes";
 import { speakText, stopSpeech } from "../../../services/speech";
-import {
-  getNextSessionNumber,
-  saveLosJsonToCache,
-} from "../../../services/tests/uploadTestJson";
+import { saveLosJsonToCache } from "../../../services/tests/uploadTestJson";
 
 import { losMotionIsAvailable, startLosMotionStream } from "./losExpoMotion";
 import { LosTestEngine, type LosCollectorPhase, type LosFinishReason, type LosSpeakKey } from "./losTestEngine";
@@ -186,6 +184,8 @@ export default function LimiteEstabilidade() {
   const engineRef = useRef<LosTestEngine | null>(null);
   const motionStopRef = useRef<(() => void) | null>(null);
   const sessionRunStartedRef = useRef(false);
+  const startingRef = useRef(false);
+  const stoppingRef = useRef(false);
 
   const parsedHeightCm = parseHeightCm(heightInput);
   const parsedPhoneHeightCm = parsePhoneHeightCm(phoneHeightInput);
@@ -392,12 +392,17 @@ export default function LimiteEstabilidade() {
         throw new Error(t("errors:titles.error"));
       }
 
-      const nextSession = await getNextSessionNumber(String(pForTest.id), "LOS");
-      const saved = await saveLosJsonToCache(r, pForTest, nextSession);
+      const savedCapture = await saveImuResultToCache({
+        participant: pForTest,
+        testType: "LOS",
+        result: r,
+        saveToCache: saveLosJsonToCache,
+        emptySamplesMessage: t("tests:common.failedToFinish"),
+      });
 
-      setResult(r);
-      setJsonUri(saved.uri);
-      setJsonSessionNumber(nextSession);
+      setResult(savedCapture.result);
+      setJsonUri(savedCapture.uri);
+      setJsonSessionNumber(savedCapture.sessionNumber);
       setPhase("finished");
       setCountdownText("");
 
@@ -417,9 +422,14 @@ export default function LimiteEstabilidade() {
 
   const startTest = useCallback(async () => {
     if (phase !== "idle" && phase !== "finished") return;
+    if (startingRef.current) return;
+    startingRef.current = true;
 
     try {
-      if (!ensureLosParamsReady()) return;
+      if (!ensureLosParamsReady()) {
+        startingRef.current = false;
+        return;
+      }
 
       const motionOk = await losMotionIsAvailable();
       if (!motionOk) {
@@ -499,46 +509,72 @@ export default function LimiteEstabilidade() {
       setStatusText(t("tests:common.failedToStart"));
       setCountdownText("");
       Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToStart"));
+    } finally {
+      startingRef.current = false;
     }
   }, [ensureLosParamsReady, persistLosResult, phase, speakLosKey, t]);
 
   const stopTest = useCallback(async () => {
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+
     cancelledRef.current = true;
     stopSpeech();
 
-    if (phase === "waitingStillness" || phase === "ready") {
-      engineRef.current?.abort();
-      engineRef.current = null;
-      motionStopRef.current?.();
-      motionStopRef.current = null;
-      stopRunTimer();
-      sessionRunStartedRef.current = false;
-      setPhase("idle");
-      setCountdownText("");
-      setStatusText(t("tests:common.cancelled"));
-      return;
-    }
-
-    if (phase === "countdown" || phase === "recording") {
-      const ok = engineRef.current?.finishManual() ?? false;
-      if (!ok) {
-        if (phase === "countdown") {
-          engineRef.current?.abort();
-          engineRef.current = null;
-          motionStopRef.current?.();
-          motionStopRef.current = null;
-          stopRunTimer();
-          sessionRunStartedRef.current = false;
-          setPhase("idle");
-          setCountdownText("");
-          setStatusText(t("tests:common.cancelled"));
-          return;
-        }
-        Alert.alert(t("errors:titles.error"), t("tests:limiteEstabilidade.engine.manualTooFew"));
+    try {
+      if (phase === "waitingStillness" || phase === "ready") {
+        engineRef.current?.abort();
+        engineRef.current = null;
+        motionStopRef.current?.();
+        motionStopRef.current = null;
+        stopRunTimer();
+        sessionRunStartedRef.current = false;
+        setPhase("idle");
+        setCountdownText("");
+        setStatusText(t("tests:common.cancelled"));
+        return;
       }
-      return;
+
+      if (phase === "countdown" || phase === "recording") {
+        const ok = engineRef.current?.finishManual() ?? false;
+        if (!ok) {
+          if (phase === "countdown") {
+            engineRef.current?.abort();
+            engineRef.current = null;
+            motionStopRef.current?.();
+            motionStopRef.current = null;
+            stopRunTimer();
+            sessionRunStartedRef.current = false;
+            setPhase("idle");
+            setCountdownText("");
+            setStatusText(t("tests:common.cancelled"));
+            return;
+          }
+          Alert.alert(t("errors:titles.error"), t("tests:limiteEstabilidade.engine.manualTooFew"));
+        }
+        return;
+      }
+    } finally {
+      stoppingRef.current = false;
     }
   }, [phase, t]);
+
+  const protection = useProtectedTestRun({
+    isRunning: phase === "recording",
+    testName: "limite-estabilidade",
+    navigation: nav,
+    onBeforeExitBlocked: () => {
+      console.log("[limite-estabilidade] saída bloqueada durante o teste");
+    },
+  });
+
+  const handleStopPress = useCallback(async () => {
+    if (phase === "recording") {
+      await protection.guardedStop(stopTest);
+      return;
+    }
+    await stopTest();
+  }, [phase, protection, stopTest]);
 
   useEffect(() => {
     return () => {
@@ -564,10 +600,11 @@ export default function LimiteEstabilidade() {
     });
   };
 
-  const showStartBlock = phase === "idle" || phase === "finished";
   const showSessionCancel = phase === "waitingStillness" || phase === "ready";
   const showFinishButton = phase === "countdown" || phase === "recording";
-  const showGoToResults = phase === "finished" && !!result && !!jsonUri;
+  const hasLocalAttempt = phase === "finished" && !!result && !!jsonUri;
+  const showIdleOrFinishedActions = phase === "idle" || phase === "finished";
+  const interrupted = statusText === t("tests:common.stopped");
 
   return (
     <Screen style={{ justifyContent: "space-between" }}>
@@ -580,52 +617,71 @@ export default function LimiteEstabilidade() {
 
         <T style={{ fontSize: 18, opacity: 0.8, marginBottom: 12, textAlign: "center" }}>{statusText}</T>
 
-        {(phase === "recording" || phase === "finished") && (
-          <View style={{ width: "100%", marginBottom: 16 }}>
-            <T style={{ textAlign: "center", fontSize: 28, fontWeight: "900", marginBottom: 10 }}>
-              {fmtElapsedMs(elapsedMs)}
-            </T>
-          </View>
-        )}
+        <TestCollectionRunProgress
+          visible={phase === "recording" || phase === "finished"}
+          finished={phase === "finished"}
+          interrupted={interrupted}
+          interruptedTitle={t("tests:common.stopped")}
+          timerText={fmtElapsedMs(elapsedMs)}
+          showProgressBar={false}
+        />
 
         <TestCollectionHeroImage testKey="limite_estabilidade" style={{ marginBottom: 20 }} />
 
-        {showStartBlock && (
-          <View style={{ alignItems: "center", gap: 12, width: "100%" }}>
-            <ThemedButton title={t("tests:common.startTest")} onPress={startTest} style={{ minWidth: 220 }} />
-            <Pressable style={styles.secondaryButton} onPress={() => setLosParamsModalVisible(true)}>
-              <T style={styles.secondaryButtonText}>
-                {losParamsConfirmed
-                  ? t("tests:limiteEstabilidade.params.editForm")
-                  : t("tests:limiteEstabilidade.params.openForm")}
-              </T>
-            </Pressable>
-          </View>
-        )}
-
-        {showSessionCancel && (
+        {showSessionCancel ? (
           <ThemedButton
             title={t("tests:common.stopTest")}
             variant="danger"
-            onPress={stopTest}
+            onPress={handleStopPress}
             style={{ minWidth: 220 }}
           />
-        )}
+        ) : null}
 
-        {showFinishButton && (
-          <ThemedButton
-            title={t("tests:common.finishTest")}
-            variant="danger"
-            onPress={stopTest}
-            style={{ minWidth: 220 }}
+        {showIdleOrFinishedActions ? (
+          <TestCollectionAttemptActions
+            hasLocalAttempt={hasLocalAttempt}
+            showActiveControl={false}
+            activeControlTitle={t("tests:common.finishTest")}
+            onActiveControlPress={handleStopPress}
+            onStart={startTest}
+            onRestart={startTest}
+            onGoToResults={goToResults}
+            goToResultsLabel={t("tests:common.goToResults")}
+            showGoToResults={hasLocalAttempt}
+            extraIdleContent={
+              <Pressable style={styles.secondaryButton} onPress={() => setLosParamsModalVisible(true)}>
+                <T style={styles.secondaryButtonText}>
+                  {losParamsConfirmed
+                    ? t("tests:limiteEstabilidade.params.editForm")
+                    : t("tests:limiteEstabilidade.params.openForm")}
+                </T>
+              </Pressable>
+            }
           />
-        )}
+        ) : null}
+
+        {showFinishButton ? (
+          <TestCollectionAttemptActions
+            hasLocalAttempt={false}
+            showActiveControl
+            activeControlTitle={t("tests:common.finishTest")}
+            onActiveControlPress={handleStopPress}
+            activeControlDisabled={phase === "recording" && !protection.canStopManually}
+            onStart={startTest}
+            onRestart={startTest}
+            onGoToResults={goToResults}
+            goToResultsLabel={t("tests:common.goToResults")}
+            showGoToResults={false}
+          />
+        ) : null}
       </View>
 
-      <TestCollectionGoToResultsRow
-        visible={showGoToResults}
-        title={t("tests:common.goToResults")}
-        onPress={goToResults}
+      <TestRunLockOverlay
+        visible={phase === "recording"}
+        locked={protection.locked}
+        tapCount={protection.tapCount}
+        onLockTap={protection.handleLockTap}
+        canStopManually={protection.canStopManually}
       />
 
       <Modal

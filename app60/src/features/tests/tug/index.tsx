@@ -4,14 +4,15 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 
 import { Screen, T } from "../../../components/Themed";
-import { ThemedButton } from "../../../components/ThemedButton";
-import {
-  TestCollectionGoToResultsRow,
-  TestCollectionHeader,
-  TestCollectionHeroImage,
-} from "../components/TestCollectionChrome";
+import { TestCollectionAttemptActions } from "../components/TestCollectionAttemptActions";
+import { TestCollectionHeader, TestCollectionHeroImage } from "../components/TestCollectionChrome";
+import { TestCollectionRunProgress } from "../components/TestCollectionRunProgress";
+import { saveImuResultToCache } from "../helpers/finalizeImuCapture";
+import { TestRunLockOverlay } from "../components/TestRunLockOverlay";
+import { useProtectedTestRun } from "../hooks/useProtectedTestRun";
 import {
   imuAddAutoStopListener,
+  imuClear,
   imuStart,
   imuStop,
   NativeImuStopResult,
@@ -19,10 +20,7 @@ import {
 import type { Participant } from "../../../models/types";
 import { Routes } from "../../../navigation/routes";
 import { speakText, speakTextMinDuration, stopSpeech } from "../../../services/speech";
-import {
-  getNextSessionNumber,
-  saveTugJsonToCache,
-} from "../../../services/tests/uploadTestJson";
+import { saveTugJsonToCache } from "../../../services/tests/uploadTestJson";
 
 type Phase = "idle" | "countdown" | "running" | "finished";
 
@@ -53,6 +51,8 @@ export default function TugTestScreen() {
   const runStartRef = useRef<number | null>(null);
   const autoStopHandledRef = useRef(false);
   const finalizingRef = useRef(false);
+  const stoppingRef = useRef(false);
+  const startingRef = useRef(false);
 
   useEffect(() => {
     if (!participant) {
@@ -136,12 +136,17 @@ export default function TugTestScreen() {
           throw new Error(t("errors:titles.error"));
         }
 
-        const nextSession = await getNextSessionNumber(String(participant.id), "TUG");
-        const saved = await saveTugJsonToCache(nativeResult, participant, nextSession);
+        const savedCapture = await saveImuResultToCache({
+          participant,
+          testType: "TUG",
+          result: nativeResult,
+          saveToCache: saveTugJsonToCache,
+          emptySamplesMessage: t("tests:common.failedToFinish"),
+        });
 
-        setResult(nativeResult);
-        setJsonUri(saved.uri);
-        setJsonSessionNumber(nextSession);
+        setResult(savedCapture.result);
+        setJsonUri(savedCapture.uri);
+        setJsonSessionNumber(savedCapture.sessionNumber);
         setPhase("finished");
         setRecordingStarted(false);
         setCountdownText("");
@@ -204,10 +209,15 @@ export default function TugTestScreen() {
   }, [finalizeWithResult, recordingStarted, t]);
 
   const startTest = useCallback(async () => {
+    if (startingRef.current) return;
+    if (phase === "countdown" || phase === "running") return;
+    startingRef.current = true;
+
     try {
       cancelledRef.current = false;
       autoStopHandledRef.current = false;
       finalizingRef.current = false;
+      stoppingRef.current = false;
 
       clearTimerInterval();
       runStartRef.current = null;
@@ -238,6 +248,11 @@ export default function TugTestScreen() {
       setCountdownText("2");
       const twoSpeechPromise = speakTextMinDuration(t("tests:common.speech.two"), 1000);
 
+      try {
+        imuClear();
+      } catch {
+        /* native clear not available */
+      }
       await imuStart({ hz: SAMPLE_HZ, mode: "tug" });
       setRecordingStarted(true);
       setPhase("running");
@@ -264,23 +279,45 @@ export default function TugTestScreen() {
       setStatusText(t("tests:common.failedToStart"));
       setCountdownText("");
       Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToStart"));
+    } finally {
+      startingRef.current = false;
     }
-  }, [t]);
+  }, [phase, t]);
 
   const stopTest = useCallback(async () => {
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+
     cancelledRef.current = true;
     stopSpeech();
 
-    if (recordingStarted) {
-      await finalizeManualCapture();
-      return;
-    }
+    try {
+      if (recordingStarted) {
+        await finalizeManualCapture();
+        return;
+      }
 
-    stopRunTimer();
-    setPhase("idle");
-    setStatusText(t("tests:common.cancelled"));
-    setCountdownText("");
+      stopRunTimer();
+      setPhase("idle");
+      setStatusText(t("tests:common.cancelled"));
+      setCountdownText("");
+    } finally {
+      stoppingRef.current = false;
+    }
   }, [finalizeManualCapture, recordingStarted, t]);
+
+  const protection = useProtectedTestRun({
+    isRunning: phase === "running",
+    testName: "tug",
+    navigation: nav,
+    onBeforeExitBlocked: () => {
+      console.log("[tug] saída bloqueada durante o teste");
+    },
+  });
+
+  const handleStopPress = useCallback(async () => {
+    await protection.guardedStop(stopTest);
+  }, [protection, stopTest]);
 
   useEffect(() => {
     return () => {
@@ -302,7 +339,8 @@ export default function TugTestScreen() {
   };
 
   const showStopButton = phase === "countdown" || phase === "running";
-  const showGoToResults = phase === "finished" && !!result && !!jsonUri;
+  const hasLocalAttempt = phase === "finished" && !!result && !!jsonUri;
+  const interrupted = statusText === t("tests:common.stopped");
 
   return (
     <Screen style={{ justifyContent: "space-between" }}>
@@ -315,55 +353,43 @@ export default function TugTestScreen() {
 
         <T style={{ fontSize: 18, opacity: 0.8, marginBottom: 12, textAlign: "center" }}>{statusText}</T>
 
-        {(phase === "running" || phase === "finished") && (
-          <View style={{ width: "100%", marginBottom: 16 }}>
-            <T style={{ textAlign: "center", fontSize: 28, fontWeight: "900", marginBottom: 10 }}>
-              {fmtElapsed(elapsedMs)}
-            </T>
-
-            <View
-              style={{
-                height: 14,
-                borderRadius: 999,
-                backgroundColor: "#D6DCEC",
-                overflow: "hidden",
-              }}
-            >
-              <View
-                style={{
-                  width: phase === "finished" ? "100%" : "35%",
-                  height: "100%",
-                  backgroundColor: "#0B5FFF",
-                }}
-              />
-            </View>
-
-            <T style={{ textAlign: "center", opacity: 0.7, marginTop: 8 }}>
-              {phase === "running"
-                ? t("tests:tug.detectedTimeHintRunning")
-                : t("tests:tug.detectedTimeHintFinished")}
-            </T>
-          </View>
-        )}
+        <TestCollectionRunProgress
+          visible={phase === "running" || phase === "finished"}
+          finished={phase === "finished"}
+          interrupted={interrupted}
+          interruptedTitle={t("tests:common.stopped")}
+          timerText={fmtElapsed(elapsedMs)}
+          progress={phase === "finished" ? 1 : 0.35}
+          showProgressBar={phase === "running"}
+          captionText={
+            phase === "running"
+              ? t("tests:tug.detectedTimeHintRunning")
+              : t("tests:tug.detectedTimeHintFinished")
+          }
+        />
 
         <TestCollectionHeroImage testKey="tug" style={{ marginBottom: 20 }} />
 
-        {!showStopButton ? (
-          <ThemedButton title={t("tests:common.startTest")} onPress={startTest} style={{ minWidth: 220 }} />
-        ) : (
-          <ThemedButton
-            title={t("tests:common.stopTest")}
-            variant="danger"
-            onPress={stopTest}
-            style={{ minWidth: 220 }}
-          />
-        )}
+        <TestCollectionAttemptActions
+          hasLocalAttempt={hasLocalAttempt}
+          showActiveControl={showStopButton}
+          activeControlTitle={t("tests:common.stopTest")}
+          onActiveControlPress={handleStopPress}
+          activeControlDisabled={!protection.canStopManually && phase === "running"}
+          onStart={startTest}
+          onRestart={startTest}
+          onGoToResults={goToResults}
+          goToResultsLabel={t("tests:common.goToResults")}
+          showGoToResults={hasLocalAttempt}
+        />
       </View>
 
-      <TestCollectionGoToResultsRow
-        visible={showGoToResults}
-        title={t("tests:common.goToResults")}
-        onPress={goToResults}
+      <TestRunLockOverlay
+        visible={phase === "running"}
+        locked={protection.locked}
+        tapCount={protection.tapCount}
+        onLockTap={protection.handleLockTap}
+        canStopManually={protection.canStopManually}
       />
     </Screen>
   );

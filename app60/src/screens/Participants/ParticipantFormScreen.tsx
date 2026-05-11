@@ -12,12 +12,15 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { useTranslation } from "react-i18next";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Screen, T } from "../../components/Themed";
 import { ThemedInput } from "../../components/ThemedInput";
 import { ThemedButton } from "../../components/ThemedButton";
-import { DateField } from "../../components/DateField";
+import { DateOfBirthInput } from "../../components/DateOfBirthInput";
+import { formatApiDate, isValidDob, parseApiDate } from "../../lib/dateOfBirth";
 
 import type { AuthUser } from "../../models/auth";
 import type { BiologicalSex, Participant } from "../../models/types";
@@ -105,8 +108,11 @@ export function ParticipantFormScreen() {
   const { theme } = useTheme();
   const { t, i18n } = useTranslation(["participants", "common"]);
   const { mode = "create", participant } = (route.params ?? {}) as Params;
+  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
 
   const isEdit = mode === "edit";
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const identityRef = useRef<TextInput>(null);
   const cepRef = useRef<TextInput>(null);
@@ -117,10 +123,27 @@ export function ParticipantFormScreen() {
   const cityRef = useRef<TextInput>(null);
   const ufRef = useRef<TextInput>(null);
 
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const [name, setName] = useState("");
   const [nationality, setNationality] = useState("BR");
   const [identity, setIdentity] = useState("");
-  const [dob, setDob] = useState<Date>(new Date("2000-01-01"));
+  const [dob, setDob] = useState<Date | null>(null);
   const [biologicalSex, setBiologicalSex] = useState<BiologicalSex | undefined>(undefined);
 
   const [cep, setCep] = useState("");
@@ -133,6 +156,7 @@ export function ParticipantFormScreen() {
 
   const [loadingCep, setLoadingCep] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dobTextValid, setDobTextValid] = useState(true);
   const [nationalityModalOpen, setNationalityModalOpen] = useState(false);
 
   const [me, setMe] = useState<AuthUser | null>(null);
@@ -171,7 +195,7 @@ export function ParticipantFormScreen() {
       .toUpperCase();
     setNationality(pNat);
     setIdentity(pNat === "BR" ? formatCPF(participant.cpf ?? "") : String(participant.cpf ?? ""));
-    setDob(new Date(participant.dob ?? "2000-01-01"));
+    setDob(participant.dob ? parseApiDate(participant.dob) : null);
     setBiologicalSex(participant.biologicalSex);
 
     setCep(pNat === "BR" ? formatCEP(participant.cep ?? "") : String(participant.cep ?? ""));
@@ -260,11 +284,23 @@ export function ParticipantFormScreen() {
     return null;
   };
 
+  const formError = validate();
+  const dobReady = !!dob && isValidDob(dob) && dobTextValid;
+  const canSave = !formError && dobReady && !(isSuperAdmin && !isEdit && !selectedInstitutionId);
+
   const onSave = async () => {
     try {
       const err = validate();
       if (err) {
         Alert.alert(t("participants:form.alerts.saveTitle"), err);
+        return;
+      }
+
+      if (!dob || !isValidDob(dob)) {
+        Alert.alert(
+          t("participants:form.alerts.saveTitle"),
+          t("participants:form.validation.birthDateInvalid", "Informe uma data de nascimento válida.")
+        );
         return;
       }
 
@@ -283,7 +319,7 @@ export function ParticipantFormScreen() {
         name: name.trim(),
         nationality: nat,
         cpf: isBr ? normalizeDigits(identity) : identity.normalize("NFKC").trim(),
-        dob: dob.toISOString().slice(0, 10),
+        dob: formatApiDate(dob),
         biologicalSex,
         cep: (isBr ? normalizeDigits(cep) : cep.trim()) || undefined,
         address: {
@@ -338,7 +374,7 @@ export function ParticipantFormScreen() {
                   const pNat = String(p.nationality ?? "BR").trim().toUpperCase();
                   setNationality(pNat);
                   setIdentity(pNat === "BR" ? formatCPF(p.cpf_normalized ?? "") : String(p.cpf_normalized ?? ""));
-                  setDob(new Date(p.birth_date ?? "2000-01-01"));
+                  setDob(p.birth_date ? parseApiDate(p.birth_date) : null);
                   setBiologicalSex(
                     p.sex === "M" || p.sex === "Masculino"
                       ? "Masculino"
@@ -372,16 +408,24 @@ export function ParticipantFormScreen() {
     }
   };
 
+  const saveBarHeight = 72;
+  const footerBottom = keyboardHeight > 0 ? Math.max(0, keyboardHeight - insets.bottom) : 0;
+
   return (
     <Screen>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? headerHeight : 0}
       >
         <ScrollView
+          style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: 28 }}
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{
+            paddingBottom: saveBarHeight + footerBottom + 16,
+          }}
         >
           <T style={{ fontSize: 20, fontWeight: "900" }}>
             {isEdit ? t("participants:form.editTitle") : t("participants:form.createTitle")}
@@ -425,7 +469,16 @@ export function ParticipantFormScreen() {
             textContentType="name"
           />
 
-          <DateField label={t("common:labels.birthDate")} value={dob} onChange={setDob} />
+          <DateOfBirthInput
+            label={t("common:labels.birthDate")}
+            value={dob}
+            onChange={setDob}
+            invalidMessage={t(
+              "participants:form.validation.birthDateInvalid",
+              "Informe uma data de nascimento válida."
+            )}
+            onValidityChange={setDobTextValid}
+          />
 
           <View style={{ marginBottom: 12 }}>
             <T style={{ fontWeight: "800", marginBottom: 8, color: theme.colors.text }}>
@@ -585,19 +638,32 @@ export function ParticipantFormScreen() {
           />
 
           <View style={{ height: 10 }} />
-
-          <ThemedButton
-            title={saving ? t("participants:form.saving") : t("participants:form.save")}
-            onPress={onSave}
-            disabled={saving}
-            style={{ paddingVertical: 12, borderRadius: 10 }}
-          />
-
-          <View style={{ height: 12 }} />
           <T style={{ color: theme.colors.muted, fontSize: 12 }}>
             {t("participants:form.sexHint")}
           </T>
         </ScrollView>
+
+        <View
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: footerBottom,
+            paddingTop: 8,
+            paddingBottom: keyboardHeight > 0 ? 8 : Platform.OS === "ios" ? 12 : 8,
+            backgroundColor: theme.colors.bg,
+            borderTopWidth: keyboardHeight > 0 ? 1 : 0,
+            borderTopColor: theme.colors.border,
+          }}
+        >
+          <ThemedButton
+            title={saving ? t("participants:form.saving") : t("participants:form.save")}
+            onPress={onSave}
+            variant={canSave ? "primary" : "inactive"}
+            disabled={saving || !canSave}
+            style={{ paddingVertical: 12, borderRadius: 10 }}
+          />
+        </View>
       </KeyboardAvoidingView>
 
       <Modal

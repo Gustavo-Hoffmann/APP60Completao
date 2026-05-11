@@ -14,6 +14,7 @@ const TEST_TYPES = z.enum([
   "SL30S",
   "UTT",
   "IVCF20",
+  "FESI",
   "ACT_SEDENTARY",
 ]);
 

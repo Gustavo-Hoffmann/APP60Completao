@@ -17,6 +17,19 @@ export function meRouter(pool: Pool) {
         institution_name = q.rows[0]?.name ?? null;
       }
 
+      const profile = await pool.query<{
+        cpf: string | null;
+        birth_date: string | null;
+      }>(
+        `SELECT cpf_normalized AS cpf, birth_date
+         FROM app_users
+         WHERE id = $1
+         LIMIT 1`,
+        [u.id]
+      );
+
+      const row = profile.rows[0];
+
       res.json({
         id: u.id,
         email: u.email,
@@ -25,6 +38,8 @@ export function meRouter(pool: Pool) {
         institution_id: u.primary_institution_id,
         institution_name,
         is_active: u.is_active,
+        cpf: row?.cpf ?? null,
+        birth_date: row?.birth_date ?? null,
       });
     } catch (e) {
       console.error(e);

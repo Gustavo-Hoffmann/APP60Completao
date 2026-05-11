@@ -1,4 +1,4 @@
-import type { ExpoConfig, ConfigContext } from "expo/config";
+import type { ConfigContext } from "expo/config";
 
 type AppVariant = "development" | "staging";
 
@@ -18,7 +18,7 @@ function withSuffix(base: string, variant: AppVariant): string {
   return base.endsWith(".staging") ? base : `${base}.staging`;
 }
 
-export default ({ config }: ConfigContext): ExpoConfig => {
+export default ({ config }: ConfigContext) => {
   const variant = getVariant();
 
   const baseBundleIdentifier = config.ios?.bundleIdentifier ?? "br.ufpr.app60";
@@ -42,8 +42,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
-
-    newArchEnabled: false,
 
     name: variant === "staging" ? "SeniorSense+ Staging" : config.name ?? "app60",
 

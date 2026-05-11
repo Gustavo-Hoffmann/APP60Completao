@@ -7,7 +7,9 @@ import Svg, { Circle, Line, Path, Text as SvgText } from "react-native-svg";
 
 import { T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
+import { ParticipantInfoCard } from "../components/ParticipantInfoCard";
 import { useAuth } from "../../../contexts/AuthContext";
+import { showCloudUploadFailure } from "../../../services/tests/uploadSyncErrors";
 import type { Participant } from "../../../models/types";
 import type { NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import { IMU22 } from "../nativeImuSampleLayout";
@@ -109,8 +111,8 @@ export default function TugResultScreen() {
         t("tests:common.upload.doneTitle"),
         t("tests:common.upload.doneBody", { session: sent.sessionNumber, path: sent.path })
       );
-    } catch (e: any) {
-      Alert.alert(t("tests:common.upload.errorTitle"), e?.message ?? t("tests:common.upload.errorBody"));
+    } catch (e: unknown) {
+      showCloudUploadFailure(t, e);
     } finally {
       setUploading(false);
     }
@@ -124,11 +126,7 @@ export default function TugResultScreen() {
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
       >
-        <ParticipantCard
-          name={participant?.name ?? "—"}
-          age={age != null ? `${age} ${t("tests:common.yearsSuffix")}` : "—"}
-          sex={displaySex}
-        />
+        <ParticipantInfoCard participant={participant} />
 
         <InfoCard
           title={t("tests:common.resultsTitle")}

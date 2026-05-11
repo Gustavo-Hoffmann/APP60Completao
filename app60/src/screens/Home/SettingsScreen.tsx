@@ -4,20 +4,36 @@ import { useTranslation } from "react-i18next";
 import { Screen, T } from "../../components/Themed";
 import { ThemedInput } from "../../components/ThemedInput";
 import { ThemedButton } from "../../components/ThemedButton";
-import { DateField } from "../../components/DateField";
+import { DateOfBirthInput } from "../../components/DateOfBirthInput";
 import { LanguageSwitcher } from "../../components/LanguageSwitcher";
 import { useAuth } from "../../contexts/AuthContext";
 import type { Role } from "../../models/auth";
+import { normalizeDigits } from "../../models/utils";
 import { isValidCPF } from "../../models/validators";
+import { formatApiDate, isValidDob, parseApiDate } from "../../lib/dateOfBirth";
+
+function formatCPF(raw: string) {
+  const d = normalizeDigits(raw).slice(0, 11);
+  const a = d.slice(0, 3);
+  const b = d.slice(3, 6);
+  const c = d.slice(6, 9);
+  const e = d.slice(9, 11);
+
+  if (d.length <= 3) return a;
+  if (d.length <= 6) return `${a}.${b}`;
+  if (d.length <= 9) return `${a}.${b}.${c}`;
+  return `${a}.${b}.${c}-${e}`;
+}
 
 export function SettingsScreen({ navigation }: any) {
   const { user, update, logout } = useAuth();
   const { t } = useTranslation(["settings", "common", "errors", "home"]);
 
   const [name, setName] = useState("");
-  const [dob, setDob] = useState(new Date(1990, 0, 1));
+  const [dob, setDob] = useState<Date | null>(null);
   const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState("");
+  const [dobTextValid, setDobTextValid] = useState(true);
 
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -25,8 +41,8 @@ export function SettingsScreen({ navigation }: any) {
   useEffect(() => {
     if (!user) return;
     setName(user.name ?? "");
-    setDob(new Date(user.birth_date ?? "1990-01-01"));
-    setCpf(user.cpf ?? "");
+    setDob(user.birth_date ? parseApiDate(user.birth_date) : null);
+    setCpf(user.cpf ? formatCPF(user.cpf) : "");
     setEmail(user.email ?? "");
   }, [user]);
 
@@ -35,11 +51,14 @@ export function SettingsScreen({ navigation }: any) {
       if (!name.trim()) throw new Error(t("settings:validation.nameRequired"));
       if (!email.trim()) throw new Error(t("settings:validation.emailRequired"));
       if (cpf.trim() && !isValidCPF(cpf)) throw new Error(t("settings:validation.cpfInvalid"));
+      if (dob && !isValidDob(dob)) {
+        throw new Error(t("settings:validation.birthDateInvalid", "Data de nascimento inválida."));
+      }
 
       await update(
         {
           name: name.trim(),
-          dob: dob.toISOString().slice(0, 10),
+          dob: dob ? formatApiDate(dob) : "",
           cpf: cpf.trim(),
           email: email.trim(),
         },
@@ -90,8 +109,18 @@ export function SettingsScreen({ navigation }: any) {
           <View style={{ height: 18 }} />
 
           <ThemedInput label={t("common:labels.name")} value={name} onChangeText={setName} />
-          <DateField label={t("common:labels.birthDate")} value={dob} onChange={setDob} />
-          <ThemedInput label={t("common:labels.cpf")} value={cpf} onChangeText={setCpf} />
+          <DateOfBirthInput
+            label={t("common:labels.birthDate")}
+            value={dob}
+            onChange={setDob}
+            invalidMessage={t("settings:validation.birthDateInvalid", "Data de nascimento inválida.")}
+            onValidityChange={setDobTextValid}
+          />
+          <ThemedInput
+            label={t("common:labels.cpf")}
+            value={cpf}
+            onChangeText={(value) => setCpf(formatCPF(value))}
+          />
           <ThemedInput
             label={t("common:labels.email")}
             value={email}
@@ -116,7 +145,7 @@ export function SettingsScreen({ navigation }: any) {
           />
 
           <View style={{ height: 8 }} />
-          <ThemedButton title={t("common:actions.save")} onPress={onSave} />
+          <ThemedButton title={t("common:actions.save")} onPress={onSave} disabled={!dobTextValid} />
           <View style={{ height: 12 }} />
           <ThemedButton title={t("settings:logout")} onPress={onLogout} />
           <View style={{ height: 12 }} />

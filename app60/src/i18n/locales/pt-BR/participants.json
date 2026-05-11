@@ -70,7 +70,7 @@
     "registered": "Cadastrados",
     "testTag": "EXEMPLO",
     "exampleDescription": "Maria Silva • sujeito exemplo fixo para testar fluxo/export.",
-    "empty": "Nenhum participante real cadastrado ainda. Só tem a Maria Silva travada em cima.",
+    "empty": "Nenhum participante cadastrado ainda.",
     "loadError": "Falha ao carregar participantes.",
     "listTitle": "Participantes"
   }

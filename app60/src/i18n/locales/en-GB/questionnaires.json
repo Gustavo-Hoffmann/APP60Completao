@@ -305,7 +305,8 @@
       "thStatus": "Status",
       "here": "Here",
       "dash": "—",
-      "perItemTitle": "Score per item"
+      "perItemTitle": "Score per item",
+      "missingParticipant": "The participant was not passed to the result screen. Pass the participant object in navigation."
     },
     "scale": {
       "1": "Not at all concerned",

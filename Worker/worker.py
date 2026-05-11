@@ -20,6 +20,8 @@ from psycopg.types.json import Json
 from marcha_runtime import process_marcha_csv
 from sl30s_runtime import process_sl30s_csv
 from ivcf20_runtime import process_ivcf20_file
+from fesi_runtime import process_fesi_file
+from act_sedentary_runtime import process_act_sedentary_file
 
 
 # ===========================================================
@@ -417,6 +419,34 @@ def process_ivcf20(session_row: Dict[str, Any], raw_path: str) -> Dict[str, Any]
     }
 
 
+def process_fesi(session_row: Dict[str, Any], raw_path: str) -> Dict[str, Any]:
+    result = process_fesi_file(raw_path)
+    metrics = result["metrics"]
+    log(
+        "[FESI] Resumo pronto "
+        f"| score={metrics.get('score_total')} "
+        f"class={metrics.get('classification_label')}"
+    )
+    return {
+        "metrics": metrics,
+        "extra_payload": {
+            "plot_json": None,
+        },
+    }
+
+
+def process_act_sedentary(session_row: Dict[str, Any], raw_path: str) -> Dict[str, Any]:
+    result = process_act_sedentary_file(raw_path)
+    metrics = result["metrics"]
+    log("[ACT_SEDENTARY] Resumo pronto")
+    return {
+        "metrics": metrics,
+        "extra_payload": {
+            "plot_json": None,
+        },
+    }
+
+
 TEST_PROCESSORS = {
     "MARCHA": process_marcha,
     "TUG": process_tug,
@@ -424,6 +454,8 @@ TEST_PROCESSORS = {
     "LOS": process_los,
     "UTT": process_utt,
     "IVCF20": process_ivcf20,
+    "FESI": process_fesi,
+    "ACT_SEDENTARY": process_act_sedentary,
 }
 
 

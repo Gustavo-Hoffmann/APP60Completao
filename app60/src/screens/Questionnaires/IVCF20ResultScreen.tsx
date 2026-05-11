@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
+  Platform,
   ScrollView,
+  StyleSheet,
   View,
   useWindowDimensions,
-  StyleSheet,
-  Alert,
 } from "react-native";
+import * as Sharing from "expo-sharing";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path, Line, Circle, Text as SvgText } from "react-native-svg";
 import { useTranslation } from "react-i18next";
@@ -16,8 +18,10 @@ import { useTheme } from "../../contexts/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
 import type { Participant } from "../../models/types";
 import { QuestionnaireParticipantCard } from "../../components/questionnaires/QuestionnaireParticipantCard";
+import { showCloudUploadFailure } from "../../services/tests/uploadSyncErrors";
 import {
   getNextSessionNumber,
+  saveIvcf20JsonToCache,
   uploadIvcf20ResultToCollection,
   type Ivcf20CategoryScore,
   type Ivcf20Classification,
@@ -205,7 +209,7 @@ function PizzaDomainsChart({
 
 export function IVCF20ResultScreen({ route, navigation }: any) {
   const { theme } = useTheme();
-  const { t } = useTranslation(["questionnaires", "common"]);
+  const { t } = useTranslation(["questionnaires", "common", "tests", "errors"]);
   const { isGuest } = useAuth();
   const { width } = useWindowDimensions();
   const [uploading, setUploading] = useState(false);
@@ -294,6 +298,45 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
     return { labels, values, raw };
   }, [blocksArr]);
 
+  const handleShareJson = async () => {
+    try {
+      if (!participant?.id) {
+        Alert.alert(
+          t("questionnaires:ivcf20.result.uploadErrorTitle"),
+          t("questionnaires:ivcf20.result.uploadMissingParticipant")
+        );
+        return;
+      }
+
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert(t("tests:common.share.title"), t("tests:common.share.unavailable"));
+        return;
+      }
+
+      const sessionNumberToUse =
+        nextSessionNumber ?? (await getNextSessionNumber(String(participant.id), "IVCF20"));
+
+      const saved = await saveIvcf20JsonToCache({
+        participant,
+        sessionNumber: sessionNumberToUse,
+        scoreTotal: Number(scoreTotal ?? 0),
+        classification: { key: clsKey, label: clsDisplayLabel },
+        blockScores: blocksArr,
+        answers,
+        meta,
+      });
+
+      await Sharing.shareAsync(saved.uri, {
+        mimeType: "application/json",
+        dialogTitle: t("tests:common.share.jsonDialog"),
+        UTI: Platform.OS === "ios" ? "public.json" : undefined,
+      });
+    } catch (e: any) {
+      Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.share.error"));
+    }
+  };
+
   const handleUploadCloud = async () => {
     try {
       if (uploading) return;
@@ -324,18 +367,14 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
       setNextSessionNumber(sent.sessionNumber + 1);
 
       Alert.alert(
-        t("questionnaires:ivcf20.result.uploadOkTitle"),
-        t("questionnaires:ivcf20.result.uploadOkBody", {
-          name: participant?.name ?? participantName ?? dash,
+        t("tests:common.upload.doneTitle"),
+        t("tests:common.upload.doneBody", {
           session: sent.sessionNumber,
           path: sent.path,
         })
       );
-    } catch (e: any) {
-      Alert.alert(
-        t("questionnaires:ivcf20.result.uploadErrorTitle"),
-        e?.message ?? t("questionnaires:ivcf20.result.uploadFailBody")
-      );
+    } catch (e: unknown) {
+      showCloudUploadFailure(t, e);
     } finally {
       setUploading(false);
     }
@@ -373,7 +412,6 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
               subtitle={t("questionnaires:ivcf20.result.title")}
               dob={participant?.dob ?? null}
               sex={participant?.biologicalSex}
-              id={participant?.id ?? null}
             />
           </View>
 
@@ -488,14 +526,17 @@ export function IVCF20ResultScreen({ route, navigation }: any) {
             ))}
           </View>
 
+          <View style={styles.card}>
+            <ThemedButton
+              title={`${t("tests:common.share.jsonButton")}${nextSessionNumber ? ` • S${nextSessionNumber}` : ""}`}
+              onPress={handleShareJson}
+            />
+          </View>
+
           {!isGuest && (
             <View style={styles.card}>
               <ThemedButton
-                title={
-                  uploading
-                    ? t("questionnaires:ivcf20.result.uploading")
-                    : t("questionnaires:ivcf20.result.upload")
-                }
+                title={uploading ? t("tests:common.upload.sending") : t("tests:common.upload.button")}
                 onPress={handleUploadCloud}
               />
             </View>

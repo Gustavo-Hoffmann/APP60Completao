@@ -48,13 +48,11 @@ export function QuestionnaireParticipantCard({
   subtitle,
   dob,
   sex,
-  id,
 }: {
   name: string;
   subtitle?: string;
   dob?: string | null;
   sex?: unknown;
-  id?: string | null;
 }) {
   const { t } = useTranslation(["questionnaires", "tests", "common"]);
 
@@ -68,7 +66,6 @@ export function QuestionnaireParticipantCard({
         : String(sex ?? "").trim() || "—";
 
   const ageLabel = age != null ? t("questionnaires:resultParticipantCard.ageYears", { n: age }) : "—";
-  const idLabel = String(id ?? "").trim() || "—";
 
   return (
     <View style={styles.card}>
@@ -87,10 +84,6 @@ export function QuestionnaireParticipantCard({
       <View style={styles.pillRow}>
         <StatPill label={t("questionnaires:resultParticipantCard.pills.age")} value={ageLabel} />
         <StatPill label={t("questionnaires:resultParticipantCard.pills.sex")} value={sexLabel} />
-      </View>
-
-      <View style={[styles.pillRow, { marginTop: 10 }]}>
-        <StatPill label={t("questionnaires:resultParticipantCard.pills.id")} value={idLabel} />
       </View>
     </View>
   );

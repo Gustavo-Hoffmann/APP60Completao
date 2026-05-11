@@ -1,8 +1,5 @@
-import React, { useState } from "react";
-import { Pressable, View, Text } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { useTheme } from "../contexts/ThemeContext";
-import { formatDate } from "../i18n/formatters";
+import React from "react";
+import { DateOfBirthInput } from "./DateOfBirthInput";
 
 export function DateField({
   label,
@@ -10,43 +7,8 @@ export function DateField({
   onChange,
 }: {
   label: string;
-  value: Date;
-  onChange: (d: Date) => void;
+  value: Date | null;
+  onChange: (d: Date | null) => void;
 }) {
-  const { theme } = useTheme();
-  const [show, setShow] = useState(false);
-
-  return (
-    <View style={{ marginBottom: 12 }}>
-      <Text style={{ color: theme.colors.muted, marginBottom: 6, fontWeight: "700" }}>
-        {label}
-      </Text>
-
-      <Pressable
-        onPress={() => setShow(true)}
-        style={{
-          backgroundColor: theme.colors.card,
-          borderRadius: 12,
-          paddingHorizontal: 12,
-          paddingVertical: 12,
-          borderWidth: 1,
-          borderColor: theme.colors.border,
-        }}
-      >
-        <Text style={{ color: theme.colors.text, fontWeight: "700" }}>{formatDate(value)}</Text>
-      </Pressable>
-
-      {show && (
-        <DateTimePicker
-          value={value}
-          mode="date"
-          display="default"
-          onChange={(_, d) => {
-            setShow(false);
-            if (d) onChange(d);
-          }}
-        />
-      )}
-    </View>
-  );
+  return <DateOfBirthInput label={label} value={value} onChange={onChange} />;
 }

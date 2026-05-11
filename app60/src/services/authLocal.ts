@@ -8,9 +8,15 @@ async function fetchMe(): Promise<AuthUser> {
     id: string;
     email: string;
     name: string;
+    full_name?: string | null;
     role: AuthUser["role"];
     institution_id: string | null;
     is_active: boolean;
+    cpf?: string | null;
+    cpf_normalized?: string | null;
+    birth_date?: string | null;
+    dob?: string | null;
+    date_of_birth?: string | null;
   }>("/api/me");
 
   if (!data.is_active) {
@@ -20,10 +26,12 @@ async function fetchMe(): Promise<AuthUser> {
   return {
     id: data.id,
     email: data.email,
-    name: data.name,
+    name: data.name ?? data.full_name ?? "",
     role: data.role,
     institution_id: data.institution_id,
     is_active: data.is_active,
+    cpf: data.cpf ?? data.cpf_normalized ?? null,
+    birth_date: data.birth_date ?? data.dob ?? data.date_of_birth ?? null,
   };
 }
 

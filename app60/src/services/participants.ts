@@ -58,7 +58,7 @@ function mapRowToParticipant(row: ParticipantRow): Participant {
     name: row.full_name,
     nationality: nat,
     cpf: row.cpf ?? "",
-    dob: row.birth_date ?? "2000-01-01",
+    dob: row.birth_date ?? "",
     biologicalSex: bio,
     cep: row.cep ?? undefined,
     address: {

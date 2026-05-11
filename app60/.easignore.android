@@ -1,0 +1,143 @@
+# =========================
+# EAS IGNORE - ANDROID BUILD
+# SeniorSense / app60
+# =========================
+
+# Ambientes locais
+.venv
+.venv/**
+venv
+venv/**
+.env
+.env.*
+!.env.example
+
+# Dependências locais
+node_modules
+node_modules/**
+node_modules_old
+node_modules_old/**
+
+# =========================
+# iOS - ignorar inteiro no build Android
+# =========================
+ios
+ios/**
+Pods
+Pods/**
+_ios_ignored
+_ios_ignored/**
+
+# Arquivos/projetos iOS soltos
+*.xcworkspace
+*.xcodeproj
+*.xcarchive
+DerivedData
+DerivedData/**
+
+# =========================
+# Android - manter código nativo, ignorar só build/cache
+# =========================
+android/build
+android/build/**
+android/app/build
+android/app/build/**
+android/.gradle
+android/.gradle/**
+android/.idea
+android/.idea/**
+android/local.properties
+
+# =========================
+# Expo / Metro / caches
+# =========================
+.expo
+.expo/**
+.expo-shared
+.expo-shared/**
+.metro-cache
+.metro-cache/**
+.cache
+.cache/**
+
+# =========================
+# Builds/exportações locais
+# =========================
+dist
+dist/**
+build
+build/**
+web-build
+web-build/**
+coverage
+coverage/**
+
+# =========================
+# Pastas fora do app mobile
+# =========================
+API
+API/**
+Worker
+Worker/**
+app60web
+app60web/**
+Beckup
+Beckup/**
+Backup
+Backup/**
+backup
+backup/**
+
+# =========================
+# Git / editor / sistema
+# =========================
+.git
+.git/**
+.github
+.github/**
+.vscode
+.vscode/**
+.idea
+.idea/**
+.DS_Store
+
+# =========================
+# Logs
+# =========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Arquivos grandes/desnecessários
+# =========================
+*.csv
+*.xlsx
+*.xls
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.joblib
+*.pkl
+*.pickle
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# =========================
+# Testes / docs locais
+# =========================
+docs
+docs/**
+test
+test/**
+tests
+tests/**
+__tests__
+__tests__/**

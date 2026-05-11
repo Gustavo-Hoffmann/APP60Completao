@@ -149,7 +149,7 @@ export function participantsRouter(pool: Pool) {
            JOIN collections c ON c.id = cr.collection_id
            WHERE c.participant_id = ANY($1::uuid[])
              AND (${vis.sql})
-            AND c.test_type::text IN ('MARCHA','SL30S','IVCF20','ACT_SEDENTARY')
+            AND c.test_type::text IN ('MARCHA','SL30S','IVCF20','FESI','ACT_SEDENTARY')
            ORDER BY c.session_number ASC`,
           [ids, ...vis.params]
         );
@@ -212,7 +212,7 @@ export function participantsRouter(pool: Pool) {
          JOIN collections c ON c.id = cr.collection_id
          WHERE c.participant_id = $1
            AND (${vis.sql})
-          AND c.test_type::text IN ('MARCHA','SL30S','IVCF20','ACT_SEDENTARY')
+          AND c.test_type::text IN ('MARCHA','SL30S','IVCF20','FESI','ACT_SEDENTARY')
          ORDER BY c.session_number ASC`,
         [id, ...vis.params]
       );

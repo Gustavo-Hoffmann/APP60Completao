@@ -15,20 +15,17 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { useTranslation } from "react-i18next";
 
 import { Screen, T } from "../../../components/Themed";
-import { ThemedButton } from "../../../components/ThemedButton";
-import {
-  TestCollectionGoToResultsRow,
-  TestCollectionHeader,
-  TestCollectionHeroImage,
-} from "../components/TestCollectionChrome";
-import { imuStart, imuStop, NativeImuStopResult } from "../../../services/sensors/nativeImu";
+import { TestCollectionAttemptActions } from "../components/TestCollectionAttemptActions";
+import { TestCollectionHeader, TestCollectionHeroImage } from "../components/TestCollectionChrome";
+import { TestCollectionRunProgress } from "../components/TestCollectionRunProgress";
+import { finalizeImuCaptureToCache } from "../helpers/finalizeImuCapture";
+import { TestRunLockOverlay } from "../components/TestRunLockOverlay";
+import { useProtectedTestRun } from "../hooks/useProtectedTestRun";
+import { imuClear, imuStart, NativeImuStopResult } from "../../../services/sensors/nativeImu";
 import type { Participant } from "../../../models/types";
 import { Routes } from "../../../navigation/routes";
 import { speakText, speakTextMinDuration, stopSpeech } from "../../../services/speech";
-import {
-  getNextSessionNumber,
-  saveUttJsonToCache,
-} from "../../../services/tests/uploadTestJson";
+import { saveUttJsonToCache } from "../../../services/tests/uploadTestJson";
 
 type Phase = "idle" | "countdown" | "running" | "finished";
 
@@ -144,6 +141,9 @@ export default function ElevacoesCalcanhares() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const runStartRef = useRef<number | null>(null);
   const recordingStartedRef = useRef(false);
+  const finishingRef = useRef(false);
+  const stoppingRef = useRef(false);
+  const startingRef = useRef(false);
   const participantKeyRef = useRef<string>("");
 
   const parsedBodyMassKg = parseMassKg(bodyMassInput);
@@ -299,6 +299,9 @@ export default function ElevacoesCalcanhares() {
 
   const finalizeCapture = useCallback(
     async (reason: "auto" | "manual") => {
+      if (finishingRef.current) return;
+      finishingRef.current = true;
+
       try {
         clearFinishTimeout();
         stopRunTimer();
@@ -310,18 +313,21 @@ export default function ElevacoesCalcanhares() {
           return;
         }
 
-        const r = await imuStop();
         const pForTest = participantForTest();
         if (!pForTest) {
           throw new Error(t("errors:titles.error"));
         }
 
-        const nextSession = await getNextSessionNumber(String(pForTest.id), "UTT");
-        const saved = await saveUttJsonToCache(r, pForTest, nextSession);
+        const savedCapture = await finalizeImuCaptureToCache({
+          participant: pForTest,
+          testType: "UTT",
+          saveToCache: saveUttJsonToCache,
+          emptySamplesMessage: t("tests:common.failedToFinish"),
+        });
 
-        setResult(r);
-        setJsonUri(saved.uri);
-        setJsonSessionNumber(nextSession);
+        setResult(savedCapture.result);
+        setJsonUri(savedCapture.uri);
+        setJsonSessionNumber(savedCapture.sessionNumber);
         setPhase("finished");
         setRecordingStarted(false);
         recordingStartedRef.current = false;
@@ -342,16 +348,27 @@ export default function ElevacoesCalcanhares() {
         stopRunTimer();
         setStatusText(t("tests:common.failedToFinish"));
         Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToFinish"));
+      } finally {
+        finishingRef.current = false;
       }
     },
-    [participant, t]
+    [participantForTest, t]
   );
 
   const startTest = useCallback(async () => {
+    if (startingRef.current) return;
+    if (phase === "countdown" || phase === "running") return;
+    startingRef.current = true;
+
     try {
-      if (!ensureAnthropometryReady()) return;
+      if (!ensureAnthropometryReady()) {
+        startingRef.current = false;
+        return;
+      }
 
       cancelledRef.current = false;
+      finishingRef.current = false;
+      stoppingRef.current = false;
       clearFinishTimeout();
       clearTimerInterval();
       runStartRef.current = null;
@@ -383,16 +400,17 @@ export default function ElevacoesCalcanhares() {
       setCountdownText("2");
       const speechTwoPromise = speakTextMinDuration(t("tests:common.speech.two"), 1000);
 
+      try {
+        imuClear();
+      } catch {
+        /* native clear not available */
+      }
       await imuStart(SAMPLE_HZ);
       recordingStartedRef.current = true;
       setRecordingStarted(true);
       setPhase("running");
       setStatusText(t("tests:common.collecting"));
       startRunTimer();
-
-      finishTimeoutRef.current = setTimeout(() => {
-        finalizeCapture("auto");
-      }, RECORD_MS);
 
       await speechTwoPromise;
       if (cancelledRef.current) return;
@@ -415,24 +433,48 @@ export default function ElevacoesCalcanhares() {
       setStatusText(t("tests:common.failedToStart"));
       setCountdownText("");
       Alert.alert(t("errors:titles.error"), e?.message ?? t("tests:common.failedToStart"));
+    } finally {
+      startingRef.current = false;
     }
-  }, [ensureAnthropometryReady, finalizeCapture, t]);
+  }, [ensureAnthropometryReady, phase, t]);
 
   const stopTest = useCallback(async () => {
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+
     cancelledRef.current = true;
     stopSpeech();
     clearFinishTimeout();
 
-    if (recordingStartedRef.current) {
-      await finalizeCapture("manual");
-      return;
-    }
+    try {
+      if (recordingStartedRef.current) {
+        await finalizeCapture("manual");
+        return;
+      }
 
-    stopRunTimer();
-    setPhase("idle");
-    setStatusText(t("tests:common.cancelled"));
-    setCountdownText("");
+      stopRunTimer();
+      setPhase("idle");
+      setStatusText(t("tests:common.cancelled"));
+      setCountdownText("");
+    } finally {
+      stoppingRef.current = false;
+    }
   }, [finalizeCapture, t]);
+
+  const protection = useProtectedTestRun({
+    isRunning: phase === "running",
+    durationMs: RECORD_MS,
+    testName: "elevacao-calcanhares",
+    navigation: nav,
+    onAutoFinish: () => finalizeCapture("auto"),
+    onBeforeExitBlocked: () => {
+      console.log("[elevacao-calcanhares] saída bloqueada durante o teste");
+    },
+  });
+
+  const handleStopPress = useCallback(async () => {
+    await protection.guardedStop(stopTest);
+  }, [protection, stopTest]);
 
   useEffect(() => {
     return () => {
@@ -456,23 +498,15 @@ export default function ElevacoesCalcanhares() {
   };
 
   const showFinishButton = phase === "countdown" || phase === "running";
-  const showGoToResults = phase === "finished" && !!result && !!jsonUri;
+  const hasLocalAttempt = phase === "finished" && !!result && !!jsonUri;
+  const interrupted = statusText === t("tests:common.stopped");
 
   const progress = Math.min(elapsedMs / RECORD_MS, 1);
   const remainingMs = Math.max(RECORD_MS - elapsedMs, 0);
 
-  const anthropometryExtra =
-    parsedBodyMassKg != null || parsedHeightCm != null
-      ? `${t("tests:common.massLabel")}: ${formatMassDisplay(parsedBodyMassKg)} · ${t("tests:common.heightLabel")}: ${formatHeightDisplay(parsedHeightCm)}`
-      : undefined;
-
   return (
     <Screen style={{ justifyContent: "space-between" }}>
-      <TestCollectionHeader
-        title={t("tests:elevacaoCalcanhares.title")}
-        participant={participant}
-        participantLineExtra={anthropometryExtra}
-      />
+      <TestCollectionHeader title={t("tests:elevacaoCalcanhares.title")} participant={participant} />
 
       <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
         {!!countdownText && (
@@ -481,40 +515,30 @@ export default function ElevacoesCalcanhares() {
 
         <T style={{ fontSize: 18, opacity: 0.8, marginBottom: 12, textAlign: "center" }}>{statusText}</T>
 
-        {(phase === "running" || phase === "finished") && (
-          <View style={{ width: "100%", marginBottom: 16 }}>
-            <T style={{ textAlign: "center", fontSize: 28, fontWeight: "900", marginBottom: 10 }}>
-              {fmtMs(remainingMs)}
-            </T>
-
-            <View
-              style={{
-                height: 14,
-                borderRadius: 999,
-                backgroundColor: "#D6DCEC",
-                overflow: "hidden",
-              }}
-            >
-              <View
-                style={{
-                  width: `${progress * 100}%`,
-                  height: "100%",
-                  backgroundColor: "#0B5FFF",
-                }}
-              />
-            </View>
-
-            <T style={{ textAlign: "center", opacity: 0.7, marginTop: 8 }}>
-              {t("tests:common.percentDone", { value: Math.round(progress * 100) })}
-            </T>
-          </View>
-        )}
+        <TestCollectionRunProgress
+          visible={phase === "running" || phase === "finished"}
+          finished={phase === "finished"}
+          interrupted={interrupted}
+          interruptedTitle={t("tests:common.stopped")}
+          timerText={fmtMs(remainingMs)}
+          progress={progress}
+          percentLabel={t("tests:common.percentDone", { value: Math.round(progress * 100) })}
+        />
 
         <TestCollectionHeroImage testKey="elevacao_calcanhares" style={{ marginBottom: 20 }} />
 
-        {!showFinishButton ? (
-          <View style={{ alignItems: "center", gap: 12, width: "100%" }}>
-            <ThemedButton title={t("tests:common.startTest")} onPress={startTest} style={{ minWidth: 220 }} />
+        <TestCollectionAttemptActions
+          hasLocalAttempt={hasLocalAttempt}
+          showActiveControl={showFinishButton}
+          activeControlTitle={t("tests:common.finishTest")}
+          onActiveControlPress={handleStopPress}
+          activeControlDisabled={!protection.canStopManually && phase === "running"}
+          onStart={startTest}
+          onRestart={startTest}
+          onGoToResults={goToResults}
+          goToResultsLabel={t("tests:common.goToResults")}
+          showGoToResults={hasLocalAttempt}
+          extraIdleContent={
             <Pressable style={styles.secondaryButton} onPress={() => setAnthropometryModalVisible(true)}>
               <T style={styles.secondaryButtonText}>
                 {anthropometryConfirmed
@@ -522,21 +546,16 @@ export default function ElevacoesCalcanhares() {
                   : t("tests:sentarLevantar.anthropometry.openForm")}
               </T>
             </Pressable>
-          </View>
-        ) : (
-          <ThemedButton
-            title={t("tests:common.finishTest")}
-            variant="danger"
-            onPress={stopTest}
-            style={{ minWidth: 220 }}
-          />
-        )}
+          }
+        />
       </View>
 
-      <TestCollectionGoToResultsRow
-        visible={showGoToResults}
-        title={t("tests:common.goToResults")}
-        onPress={goToResults}
+      <TestRunLockOverlay
+        visible={phase === "running"}
+        locked={protection.locked}
+        tapCount={protection.tapCount}
+        onLockTap={protection.handleLockTap}
+        canStopManually={protection.canStopManually}
       />
 
       <Modal

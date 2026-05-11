@@ -16,8 +16,9 @@ export type SupportedTestType =
   | "SL30S"
   | "UTT"
   | "IVCF20"
+  | "FESI"
   | "ACT_SEDENTARY";
-type SensorCsvTestType = Exclude<SupportedTestType, "IVCF20" | "ACT_SEDENTARY">;
+type SensorCsvTestType = Exclude<SupportedTestType, "IVCF20" | "FESI" | "ACT_SEDENTARY">;
 
 export type Ivcf20Classification = {
   key: "robusto" | "prefragil" | "fragil";
@@ -88,6 +89,37 @@ export type ActivitySedentaryJsonPayload = {
   sampling_hz: number;
   questionnaire: {
     summary: Record<string, unknown>;
+    answers?: Record<string, unknown>;
+    meta?: Record<string, unknown>;
+  };
+};
+
+export type FesiClassification = {
+  key: "baixa" | "moderada" | "alta";
+  label: string;
+};
+
+export type FesiItemScore = {
+  key: string;
+  number: number;
+  score: number;
+};
+
+export type FesiJsonPayload = {
+  schema_version: 1;
+  test_type: "FESI";
+  participant_id: string;
+  participant_name?: string;
+  session_number: number;
+  session_label: string;
+  performed_at: string;
+  platform: string;
+  sampling_hz: number;
+  questionnaire: {
+    score_total: number;
+    mean_score: number;
+    classification: FesiClassification;
+    item_scores: FesiItemScore[];
     answers?: Record<string, unknown>;
     meta?: Record<string, unknown>;
   };
@@ -430,6 +462,20 @@ function buildLocalIvcf20Filename(participant: Participant, sessionNumber: numbe
   const pname = safeSlug(participant?.name ?? "sem_nome");
   const stamp = fileStamp();
   return `ivcf20_${pname}_${pidShort}_S${sessionNumber}_${stamp}.json`;
+}
+
+function buildLocalFesiFilename(participant: Participant, sessionNumber: number) {
+  const pidShort = safeSlug(String(participant?.id ?? "sem_participante")).slice(0, 12);
+  const pname = safeSlug(participant?.name ?? "sem_nome");
+  const stamp = fileStamp();
+  return `fesi_${pname}_${pidShort}_S${sessionNumber}_${stamp}.json`;
+}
+
+function buildLocalActivitySedentaryFilename(participant: Participant, sessionNumber: number) {
+  const pidShort = safeSlug(String(participant?.id ?? "sem_participante")).slice(0, 12);
+  const pname = safeSlug(participant?.name ?? "sem_nome");
+  const stamp = fileStamp();
+  return `act_sedentary_${pname}_${pidShort}_S${sessionNumber}_${stamp}.json`;
 }
 
 function toOptionalText(value: unknown): string | null {
@@ -1099,6 +1145,48 @@ async function uploadActivitySedentaryJsonToCollectionInternal(
   }
 }
 
+export function buildActivitySedentaryJsonPayload(
+  data: {
+    participant: Participant;
+    sessionNumber: number;
+    summary: Record<string, unknown>;
+    answers?: Record<string, unknown>;
+    meta?: Record<string, unknown>;
+  },
+  performedAt = new Date()
+): ActivitySedentaryJsonPayload {
+  return {
+    schema_version: 1,
+    test_type: "ACT_SEDENTARY",
+    participant_id: String(data.participant.id),
+    participant_name: data.participant.name,
+    session_number: data.sessionNumber,
+    session_label: `S${data.sessionNumber}`,
+    performed_at: performedAt.toISOString(),
+    platform: Platform.OS,
+    sampling_hz: 0,
+    questionnaire: {
+      summary: data.summary ?? {},
+      answers: data.answers,
+      meta: data.meta,
+    },
+  };
+}
+
+export async function saveActivitySedentaryJsonToCache(data: {
+  participant: Participant;
+  sessionNumber: number;
+  summary: Record<string, unknown>;
+  answers?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
+}): Promise<{ uri: string; filename: string; payload: ActivitySedentaryJsonPayload }> {
+  const payload = buildActivitySedentaryJsonPayload(data);
+  const filename = buildLocalActivitySedentaryFilename(data.participant, data.sessionNumber);
+  const json = JSON.stringify(payload, null, 2);
+  const saved = await saveTextToCache(json, filename);
+  return { uri: saved.uri, filename: saved.filename, payload };
+}
+
 export async function uploadActivitySedentaryResultToCollection(data: {
   participant: Participant;
   summary: Record<string, unknown>;
@@ -1110,22 +1198,159 @@ export async function uploadActivitySedentaryResultToCollection(data: {
     data.sessionNumber ??
     (await getNextSessionNumber(String(data.participant.id), "ACT_SEDENTARY"));
 
-  const payload: ActivitySedentaryJsonPayload = {
+  const payload = buildActivitySedentaryJsonPayload({
+    participant: data.participant,
+    sessionNumber: guessedSessionNumber,
+    summary: data.summary ?? {},
+    answers: data.answers,
+    meta: data.meta,
+  });
+
+  return uploadActivitySedentaryJsonToCollectionInternal(payload, data.participant);
+}
+
+export function buildFesiJsonPayload(
+  data: {
+    participant: Participant;
+    sessionNumber: number;
+    scoreTotal: number;
+    meanScore: number;
+    classification: FesiClassification;
+    itemScores: FesiItemScore[];
+    answers?: Record<string, unknown>;
+    meta?: Record<string, unknown>;
+  },
+  performedAt = new Date()
+): FesiJsonPayload {
+  return {
     schema_version: 1,
-    test_type: "ACT_SEDENTARY",
+    test_type: "FESI",
     participant_id: String(data.participant.id),
     participant_name: data.participant.name,
-    session_number: guessedSessionNumber,
-    session_label: `S${guessedSessionNumber}`,
-    performed_at: new Date().toISOString(),
+    session_number: data.sessionNumber,
+    session_label: `S${data.sessionNumber}`,
+    performed_at: performedAt.toISOString(),
     platform: Platform.OS,
     sampling_hz: 0,
     questionnaire: {
-      summary: data.summary ?? {},
+      score_total: Number(data.scoreTotal ?? 0),
+      mean_score: Number(data.meanScore ?? 0),
+      classification: data.classification,
+      item_scores: data.itemScores,
       answers: data.answers,
       meta: data.meta,
     },
   };
+}
 
-  return uploadActivitySedentaryJsonToCollectionInternal(payload, data.participant);
+export async function saveFesiJsonToCache(data: {
+  participant: Participant;
+  sessionNumber: number;
+  scoreTotal: number;
+  meanScore: number;
+  classification: FesiClassification;
+  itemScores: FesiItemScore[];
+  answers?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
+}): Promise<{ uri: string; filename: string; payload: FesiJsonPayload }> {
+  const payload = buildFesiJsonPayload(data);
+  const filename = buildLocalFesiFilename(data.participant, data.sessionNumber);
+  const json = JSON.stringify(payload, null, 2);
+  const saved = await saveTextToCache(json, filename);
+  return { uri: saved.uri, filename: saved.filename, payload };
+}
+
+async function uploadFesiJsonToCollectionInternal(
+  payload: FesiJsonPayload,
+  participant: Participant
+) {
+  const performedAt = payload.performed_at || new Date().toISOString();
+
+  const firstGuessSessionNumber =
+    payload.session_number || (await getNextSessionNumber(String(participant.id), "FESI"));
+
+  const reserved = await reserveTestSessionWithRetry({
+    testType: "FESI",
+    participant,
+    sessionNumber: firstGuessSessionNumber,
+    samplingHz: payload.sampling_hz ?? 0,
+    performedAt,
+    fileExtension: "json",
+    contentType: "application/json",
+  });
+
+  const finalSessionNumber = reserved.session_number;
+  const finalPayload: FesiJsonPayload = {
+    ...payload,
+    session_number: finalSessionNumber,
+    session_label: `S${finalSessionNumber}`,
+    participant_id: String(participant.id),
+    participant_name: participant.name,
+    platform: Platform.OS,
+    performed_at: performedAt,
+    sampling_hz: payload.sampling_hz ?? 0,
+  };
+
+  const path = reserved.rawS3Key;
+  const body = JSON.stringify(finalPayload);
+  const binary = new TextEncoder().encode(body);
+
+  try {
+    const put = await fetch(reserved.uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: binary as unknown as BodyInit,
+    });
+
+    if (!put.ok) {
+      throw new Error(`Falha no upload S3 (${put.status}).`);
+    }
+
+    await finalizeReservedSession({
+      sessionId: reserved.id,
+    });
+
+    return {
+      sessionNumber: finalSessionNumber,
+      path,
+      payload: finalPayload,
+    };
+  } catch (error) {
+    await removeFromStorageIfExists(path);
+    await failReservedSession(
+      reserved.id,
+      error instanceof Error ? error.message : "Falha no upload do JSON."
+    );
+    await deleteSessionIfExists(reserved.id);
+    throw error;
+  }
+}
+
+export async function uploadFesiResultToCollection(data: {
+  participant: Participant;
+  scoreTotal: number;
+  meanScore: number;
+  classification: FesiClassification;
+  itemScores: FesiItemScore[];
+  answers?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
+  sessionNumber?: number;
+}) {
+  const guessedSessionNumber =
+    data.sessionNumber ?? (await getNextSessionNumber(String(data.participant.id), "FESI"));
+
+  const payload = buildFesiJsonPayload({
+    participant: data.participant,
+    sessionNumber: guessedSessionNumber,
+    scoreTotal: data.scoreTotal,
+    meanScore: data.meanScore,
+    classification: data.classification,
+    itemScores: data.itemScores,
+    answers: data.answers,
+    meta: data.meta,
+  });
+
+  return uploadFesiJsonToCollectionInternal(payload, data.participant);
 }
