@@ -186,3 +186,44 @@ html.dark .app-content .recharts-cartesian-grid line {
 html.dark .app-content .chart-section-icon {
   color: #dbeafe !important;
 }
+
+@layer components {
+  .dual-range-input {
+    pointer-events: none;
+    height: 1rem;
+    appearance: none;
+    background: transparent;
+  }
+
+  .dual-range-input::-webkit-slider-runnable-track {
+    height: 0.25rem;
+    background: transparent;
+  }
+
+  .dual-range-input::-webkit-slider-thumb {
+    pointer-events: auto;
+    appearance: none;
+    height: 1rem;
+    width: 1rem;
+    border-radius: 9999px;
+    background: #2563eb;
+    border: 2px solid #ffffff;
+    margin-top: -0.375rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+  }
+
+  .dual-range-input::-moz-range-track {
+    height: 0.25rem;
+    background: transparent;
+  }
+
+  .dual-range-input::-moz-range-thumb {
+    pointer-events: auto;
+    height: 1rem;
+    width: 1rem;
+    border-radius: 9999px;
+    background: #2563eb;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+  }
+}

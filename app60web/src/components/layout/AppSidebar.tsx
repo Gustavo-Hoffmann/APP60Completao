@@ -4,10 +4,13 @@ import {
   Info,
   Landmark,
   LayoutDashboard,
+  Menu,
   School,
   UserCircle2,
   Users,
+  X,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { routes } from "../../navigation/routes";
@@ -66,7 +69,7 @@ const items: SidebarItem[] = [
     to: routes.myInstitution,
     labelKey: "navigation:sidebar.myInstitution",
     icon: School,
-    roles: ["GESTOR"],
+    roles: ["GESTOR", "SUPERVISOR"],
   },
 ];
 
@@ -82,48 +85,43 @@ function getInitials(name?: string) {
     .join("");
 }
 
-export function AppSidebar({ isDark }: Props) {
+function SidebarBody({
+  isDark,
+  visibleItems,
+  onNavigate,
+  hideLogo = false,
+}: {
+  isDark: boolean;
+  visibleItems: SidebarItem[];
+  onNavigate?: () => void;
+  hideLogo?: boolean;
+}) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation(["navigation"]);
 
-  const visibleItems = items.filter((item) => {
-    if (!user?.role) return false;
-    return item.roles.includes(user.role);
-  });
-
   return (
-    <aside
-      className={[
-        "hidden w-72 shrink-0 border-r lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col",
-        isDark
-          ? "border-slate-800 bg-slate-900"
-          : "border-slate-200 bg-white",
-      ].join(" ")}
-    >
-      <div className="px-5 py-5">
-        <img
-          src={isDark ? "/logo-seniorsense-dark.png" : "/logo-seniorsense.png"}
-          alt="SeniorSense 60+"
-          className="h-35 w-auto max-w-full object-contain object-left"
-        />
-        <div
-          className={[
-            "mt-2 text-xs",
-            isDark ? "text-slate-400" : "text-slate-500",
-          ].join(" ")}
-        >
+    <>
+      {!hideLogo ? (
+        <div className="px-5 py-5">
+          <img
+            src={isDark ? "/logo-seniorsense-dark.png" : "/logo-seniorsense.png"}
+            alt="SeniorSense 60+"
+            className="h-35 w-auto max-w-full object-contain object-left"
+          />
         </div>
-      </div>
+      ) : null}
 
-      <nav className="flex-1 space-y-1 px-3 pb-6">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-6">
         {visibleItems.map((item) => {
           const Icon = item.icon;
+          const label = t(item.labelKey);
           return (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.to === routes.dashboard}
+              onClick={onNavigate}
               className={({ isActive }) =>
                 [
                   "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition",
@@ -138,7 +136,7 @@ export function AppSidebar({ isDark }: Props) {
               }
             >
               <Icon className="h-5 w-5 shrink-0 opacity-90" />
-              {t(item.labelKey)}
+              {label}
             </NavLink>
           );
         })}
@@ -147,6 +145,7 @@ export function AppSidebar({ isDark }: Props) {
       <div className="px-4 pb-4">
         <NavLink
           to={routes.knowledgeBase}
+          onClick={onNavigate}
           className={({ isActive }) =>
             [
               "flex items-center gap-3 rounded-2xl px-3 py-[5px] text-xs font-semibold transition",
@@ -173,7 +172,10 @@ export function AppSidebar({ isDark }: Props) {
       >
         <button
           type="button"
-          onClick={() => navigate(routes.myProfile)}
+          onClick={() => {
+            onNavigate?.();
+            navigate(routes.myProfile);
+          }}
           className={[
             "flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left text-sm transition",
             isDark
@@ -203,6 +205,101 @@ export function AppSidebar({ isDark }: Props) {
           <UserCircle2 className="h-5 w-5 shrink-0 opacity-70" />
         </button>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function AppSidebar({ isDark }: Props) {
+  const { user } = useAuth();
+  const { t } = useTranslation(["navigation"]);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const visibleItems = items.filter((item) => {
+    if (!user?.role) return false;
+    return item.roles.includes(user.role);
+  });
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileOpen]);
+
+  const closeMobileMenu = () => setMobileOpen(false);
+
+  const shellClass = [
+    "flex h-full flex-col",
+    isDark ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white",
+  ].join(" ");
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        aria-label={t("navigation:sidebar.openMenu")}
+        className={[
+          "fixed bottom-5 left-5 z-40 flex h-14 w-14 items-center justify-center rounded-full border shadow-lg transition lg:hidden",
+          isDark
+            ? "border-slate-700 bg-slate-900 text-white hover:bg-slate-800"
+            : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
+        ].join(" ")}
+      >
+        <Menu className="h-6 w-6" />
+      </button>
+
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            aria-label={t("navigation:sidebar.closeMenu")}
+            className="absolute inset-0 bg-slate-950/45"
+            onClick={closeMobileMenu}
+          />
+          <aside
+            className={[
+              "absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r shadow-2xl",
+              shellClass,
+            ].join(" ")}
+          >
+            <div className="flex items-center justify-end px-4 pt-4">
+              <button
+                type="button"
+                onClick={closeMobileMenu}
+                aria-label={t("navigation:sidebar.closeMenu")}
+                className={[
+                  "rounded-xl border p-2 transition",
+                  isDark
+                    ? "border-slate-700 text-slate-200 hover:bg-slate-800"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50",
+                ].join(" ")}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <SidebarBody
+              isDark={isDark}
+              visibleItems={visibleItems}
+              onNavigate={closeMobileMenu}
+              hideLogo
+            />
+          </aside>
+        </div>
+      ) : null}
+
+      <aside
+        className={[
+          "hidden w-72 shrink-0 border-r lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col",
+          shellClass,
+        ].join(" ")}
+      >
+        <SidebarBody isDark={isDark} visibleItems={visibleItems} />
+      </aside>
+    </>
   );
 }

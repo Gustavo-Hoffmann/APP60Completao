@@ -193,6 +193,7 @@
     "subtitle": "Detailed participant data.",
     "backToParticipants": "Back to participants",
     "editParticipant": "Edit participant",
+    "personalInfoTitle": "Participant details",
     "exampleBadge": "Example subject",
     "ageYears": "{{years}} years",
     "fields": {
@@ -471,6 +472,7 @@
       "initialPassword": "Could not generate initial password.",
       "selectSupervisor": "Select the assessor supervisor.",
       "invalidInstitution": "Invalid institution for this registration.",
+      "invalidRole": "Select a role allowed for your profile.",
       "createFailed": "Error creating user."
     },
     "success": "User created successfully."
@@ -557,7 +559,7 @@
     "subtitle": "Team structure and users linked to your institution",
     "orgChart": "Org chart",
     "createUser": "Create user",
-    "loading": "Loading team and participants...",
+    "loading": "Loading team...",
     "loadError": "Error loading data.",
     "errorTitle": "Error",
     "zoomOut": "Zoom out",
@@ -569,6 +571,8 @@
     "inactive": "Inactive",
     "openEvaluator": "Open assessor {{name}}",
     "vacantEvaluator": "Vacant assessor",
-    "emptySlot": "Not registered yet"
+    "emptySlot": "Not registered yet",
+    "enrollments": "Enrollments",
+    "collections": "Collections"
   }
 }

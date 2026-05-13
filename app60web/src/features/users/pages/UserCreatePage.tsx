@@ -3,14 +3,20 @@ import { useEffect, useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import { ptBR } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import "react-datepicker/dist/react-datepicker.css";
 
 import { AppHeader } from "../../../components/layout/AppHeader";
 import { useAuth } from "../../../contexts/AuthContext";
 import { apiJson } from "../../../lib/api/client";
-import { creatableRolesForAdmin, creatableRolesForSuperAdmin } from "../../../lib/auth/permissions";
+import {
+  creatableRolesForAdmin,
+  creatableRolesForGestor,
+  creatableRolesForSuperAdmin,
+  creatableRolesForSupervisor,
+  roleRequiresInstitution,
+} from "../../../lib/auth/permissions";
 import { routes } from "../../../navigation/routes";
 import type { Role } from "../../../types/auth";
 
@@ -209,10 +215,11 @@ function SelectField(
 export function UserCreatePage() {
   const { t, i18n } = useTranslation(["modules", "navigation"]);
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
 
   const [form, setForm] = useState<FormState>({
-    role: "GESTOR",
+    role: "AVALIADOR",
     name: "",
     email: "",
     cpf: "",
@@ -249,16 +256,25 @@ export function UserCreatePage() {
   const isSuperAdminUser = user?.role === "SUPER_ADMIN";
   const isAdminUser = user?.role === "ADMIN";
   const isManagerUser = user?.role === "GESTOR";
-  const needsInstitutionSelection = isSuperAdminUser;
-  const needsSupervisorSelection = form.role === "AVALIADOR";
+  const isSupervisorUser = user?.role === "SUPERVISOR";
+  const isMyInstitutionFlow = location.pathname.startsWith(routes.myInstitution);
+  const needsInstitutionSelection =
+    (isSuperAdminUser || isAdminUser) && roleRequiresInstitution(form.role);
+  const needsSupervisorSelection = form.role === "AVALIADOR" && !isSupervisorUser;
   const isBrazil = form.country === "BR";
 
   const allowedRoles = useMemo((): Role[] => {
     if (isSuperAdminUser) return creatableRolesForSuperAdmin();
     if (isAdminUser) return creatableRolesForAdmin();
-    if (isManagerUser) return ["SUPERVISOR", "AVALIADOR"];
+    if (isManagerUser) return creatableRolesForGestor();
+    if (isSupervisorUser) return creatableRolesForSupervisor();
     return [];
-  }, [isSuperAdminUser, isAdminUser, isManagerUser]);
+  }, [isSuperAdminUser, isAdminUser, isManagerUser, isSupervisorUser]);
+
+  const selectedRole = useMemo((): Role | "" => {
+    if (!allowedRoles.length) return "";
+    return allowedRoles.includes(form.role) ? form.role : allowedRoles[0]!;
+  }, [allowedRoles, form.role]);
 
   useEffect(() => {
     async function loadCountriesAndStates() {
@@ -287,7 +303,7 @@ export function UserCreatePage() {
 
   useEffect(() => {
     async function loadInstitutions() {
-      if (!isSuperAdminUser) {
+      if (!needsInstitutionSelection) {
         setInstitutions([]);
         return;
       }
@@ -302,7 +318,7 @@ export function UserCreatePage() {
       }
     }
     void loadInstitutions();
-  }, [isSuperAdminUser]);
+  }, [needsInstitutionSelection]);
 
   useEffect(() => {
     async function loadSupervisors() {
@@ -329,7 +345,15 @@ export function UserCreatePage() {
   }, [needsSupervisorSelection]);
 
   useEffect(() => {
-    if ((user?.role === "ADMIN" || user?.role === "GESTOR") && user.institution_id) {
+    if (!allowedRoles.length) return;
+    setForm((prev) => {
+      if (allowedRoles.includes(prev.role)) return prev;
+      return { ...prev, role: allowedRoles[0]! };
+    });
+  }, [allowedRoles]);
+
+  useEffect(() => {
+    if (user?.role === "GESTOR" && user.institution_id) {
       setForm((p) => ({ ...p, institutionId: user.institution_id! }));
     }
   }, [user?.role, user?.institution_id]);
@@ -396,8 +420,14 @@ export function UserCreatePage() {
     setError(null);
     setSuccess(null);
 
+    const roleToCreate = selectedRole;
+    if (!roleToCreate || !allowedRoles.includes(roleToCreate)) {
+      setError(t("modules:userCreate.errors.invalidRole"));
+      return;
+    }
+
     if (
-      !form.role ||
+      !roleToCreate ||
       !form.name.trim() ||
       !form.email.trim() ||
       !form.cpf.trim() ||
@@ -425,14 +455,17 @@ export function UserCreatePage() {
       return;
     }
 
-    if (needsSupervisorSelection && !form.supervisorId) {
+    if (roleToCreate === "AVALIADOR" && needsSupervisorSelection && !form.supervisorId) {
       setError(t("modules:userCreate.errors.selectSupervisor"));
       return;
     }
 
-    const institutionId =
-      isSuperAdminUser ? form.institutionId : user?.institution_id ?? "";
-    if (!institutionId) {
+    const institutionId = roleRequiresInstitution(roleToCreate)
+      ? isSuperAdminUser || isAdminUser
+        ? form.institutionId
+        : user?.institution_id ?? ""
+      : undefined;
+    if (roleRequiresInstitution(roleToCreate) && !institutionId) {
       setError(t("modules:userCreate.errors.invalidInstitution"));
       return;
     }
@@ -446,10 +479,10 @@ export function UserCreatePage() {
           email: form.email.trim().toLowerCase(),
           password: initialPassword,
           fullName: form.name.trim(),
-          role: form.role,
-          institutionId,
+          role: roleToCreate,
+          ...(institutionId ? { institutionId } : {}),
           supervisorId:
-            form.role === "AVALIADOR" && form.supervisorId ? form.supervisorId : undefined,
+            roleToCreate === "AVALIADOR" && form.supervisorId ? form.supervisorId : undefined,
           cpf: onlyDigits(form.cpf),
           phone: form.phone.trim(),
           country: form.country,
@@ -462,12 +495,12 @@ export function UserCreatePage() {
       setSuccess(t("modules:userCreate.success"));
 
       setForm({
-        role: isSuperAdminUser ? "ADMIN" : isAdminUser ? "GESTOR" : "SUPERVISOR",
+        role: isSuperAdminUser ? "ADMIN" : isAdminUser ? "GESTOR" : isSupervisorUser ? "AVALIADOR" : "SUPERVISOR",
         name: "",
         email: "",
         cpf: "",
         birthDate: "",
-        institutionId: isSuperAdminUser ? "" : user?.institution_id ?? "",
+        institutionId: "",
         phone: "",
         country: "BR",
         city: "",
@@ -483,6 +516,9 @@ export function UserCreatePage() {
       setSubmitting(false);
     }
   }
+
+  const cancelRoute =
+    isMyInstitutionFlow && (isManagerUser || isSupervisorUser) ? routes.myInstitution : routes.users;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -663,7 +699,8 @@ export function UserCreatePage() {
               <div>
                 <FieldLabel required>{t("modules:userForm.role")}</FieldLabel>
                 <SelectField
-                  value={form.role}
+                  key={allowedRoles.join("-")}
+                  value={selectedRole}
                   onChange={(e) => updateField("role", e.target.value as RoleOption)}
                 >
                   {allowedRoles.map((role) => (
@@ -721,7 +758,7 @@ export function UserCreatePage() {
             <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-end">
               <button
                 type="button"
-                onClick={() => navigate(routes.users)}
+                onClick={() => navigate(cancelRoute)}
                 className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 {t("modules:userForm.actions.cancel")}

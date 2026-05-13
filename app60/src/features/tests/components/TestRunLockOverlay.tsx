@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 export type TestRunLockOverlayProps = {
@@ -31,51 +31,62 @@ export function TestRunLockOverlay({
   const unlockedTitle = unlockedMessage ?? t("tests:common.lockOverlay.unlockedTitle");
 
   return (
-    <View pointerEvents="box-none" style={styles.wrapper}>
-      <View pointerEvents="none" style={styles.backdrop} />
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      hardwareAccelerated
+      onRequestClose={() => {
+        /* lock overlay is dismissed only by completing the tap sequence */
+      }}
+    >
+      <View pointerEvents="box-none" style={styles.wrapper}>
+        <View pointerEvents="none" style={styles.backdrop} />
 
-      <View pointerEvents="box-none" style={styles.center}>
-        <View pointerEvents="auto" style={styles.card}>
-          <Pressable
-            onPress={onLockTap}
-            hitSlop={16}
-            accessibilityRole="button"
-            accessibilityLabel={
-              locked
-                ? t("tests:common.lockOverlay.a11yLocked")
-                : t("tests:common.lockOverlay.a11yUnlocked")
-            }
-            style={({ pressed }) => [
-              styles.lockButton,
-              locked ? styles.lockButtonLocked : styles.lockButtonUnlocked,
-              pressed && styles.lockButtonPressed,
-            ]}
-          >
-            <Text style={styles.lockIcon}>{locked ? "🔒" : "🔓"}</Text>
-          </Pressable>
+        <View pointerEvents="box-none" style={styles.center}>
+          <View pointerEvents="auto" style={styles.card}>
+            <Pressable
+              onPress={onLockTap}
+              hitSlop={16}
+              accessibilityRole="button"
+              accessibilityLabel={
+                locked
+                  ? t("tests:common.lockOverlay.a11yLocked")
+                  : t("tests:common.lockOverlay.a11yUnlocked")
+              }
+              style={({ pressed }) => [
+                styles.lockButton,
+                locked ? styles.lockButtonLocked : styles.lockButtonUnlocked,
+                pressed && styles.lockButtonPressed,
+              ]}
+            >
+              <Text style={styles.lockIcon}>{locked ? "🔒" : "🔓"}</Text>
+            </Pressable>
 
-          <View style={styles.textBlock} pointerEvents="none">
-            {locked ? (
-              <>
-                <Text style={styles.title}>{title}</Text>
-                <Text style={styles.subtitle}>{t("tests:common.lockOverlay.subtitle")}</Text>
-                <Text style={styles.counter}>
-                  {t("tests:common.lockOverlay.counter", {
-                    current: safeTapCount,
-                    total: REQUIRED_TAPS,
-                  })}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.title}>{unlockedTitle}</Text>
-                <Text style={styles.subtitle}>{t("tests:common.lockOverlay.unlockedSubtitle")}</Text>
-              </>
-            )}
+            <View style={styles.textBlock} pointerEvents="none">
+              {locked ? (
+                <>
+                  <Text style={styles.title}>{title}</Text>
+                  <Text style={styles.subtitle}>{t("tests:common.lockOverlay.subtitle")}</Text>
+                  <Text style={styles.counter}>
+                    {t("tests:common.lockOverlay.counter", {
+                      current: safeTapCount,
+                      total: REQUIRED_TAPS,
+                    })}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.title}>{unlockedTitle}</Text>
+                  <Text style={styles.subtitle}>{t("tests:common.lockOverlay.unlockedSubtitle")}</Text>
+                </>
+              )}
+            </View>
           </View>
         </View>
       </View>
-    </View>
+    </Modal>
   );
 }
 
@@ -86,7 +97,7 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(15, 23, 42, 0.62)",
+    backgroundColor: "rgba(15, 23, 42, 0.72)",
   },
   center: {
     ...StyleSheet.absoluteFillObject,

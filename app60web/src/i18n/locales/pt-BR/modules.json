@@ -193,6 +193,7 @@
     "subtitle": "Dados detalhados do participante.",
     "backToParticipants": "Voltar para participantes",
     "editParticipant": "Editar participante",
+    "personalInfoTitle": "Dados do participante",
     "exampleBadge": "Sujeito exemplo",
     "ageYears": "{{years}} anos",
     "fields": {
@@ -471,6 +472,7 @@
       "initialPassword": "Não foi possível gerar a senha inicial.",
       "selectSupervisor": "Selecione o supervisor do avaliador.",
       "invalidInstitution": "Instituição inválida para o cadastro.",
+      "invalidRole": "Selecione um papel permitido para o seu perfil.",
       "createFailed": "Erro ao cadastrar usuário."
     },
     "success": "Usuário criado com sucesso."
@@ -557,7 +559,7 @@
     "subtitle": "Estrutura da equipe e usuários vinculados à sua instituição",
     "orgChart": "Organograma",
     "createUser": "Cadastrar usuário",
-    "loading": "Carregando equipe e participantes...",
+    "loading": "Carregando equipe...",
     "loadError": "Erro ao carregar dados.",
     "errorTitle": "Erro",
     "zoomOut": "Diminuir zoom",
@@ -569,6 +571,8 @@
     "inactive": "Inativo",
     "openEvaluator": "Abrir avaliador {{name}}",
     "vacantEvaluator": "Avaliador vago",
-    "emptySlot": "Ainda não cadastrados"
+    "emptySlot": "Ainda não cadastrados",
+    "enrollments": "Cadastros",
+    "collections": "Coletas"
   }
 }

@@ -7,7 +7,9 @@
     "questionnaires": "Questionnaires",
     "tests": "Tests",
     "myInstitution": "My institution",
-    "knowledgeBase": "Knowledge base"
+    "knowledgeBase": "Knowledge base",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
   },
   "role": {
     "SUPER_ADMIN": "Super Admin",

@@ -42,6 +42,7 @@ type EditableUser = {
   city: string | null;
   state: string | null;
   birth_date: string | null;
+  created_by_id?: string | null;
 };
 
 type InstitutionRow = {
@@ -287,6 +288,8 @@ export function UserEditPage() {
   const isAdmin = currentUser?.role === "ADMIN";
   const isSuperAdminUser = currentUser?.role === "SUPER_ADMIN";
   const isManagerUser = currentUser?.role === "GESTOR";
+  const isSupervisorUser = currentUser?.role === "SUPERVISOR";
+  const isMyInstitutionFlow = location.pathname.startsWith(routes.myInstitution);
   const isBrazil = form.country === "BR";
 
   const pageTitle = isOwnProfile ? t("modules:userEdit.myProfileTitle") : t("modules:userEdit.editTitle");
@@ -403,6 +406,12 @@ export function UserEditPage() {
     return initialData.primary_institution_id === currentUser.institution_id;
   }, [initialData, currentUser]);
 
+  const supervisorManagesEvaluator = useMemo(() => {
+    if (!initialData || !currentUser || !isSupervisorUser) return false;
+    if (initialData.role !== "AVALIADOR") return false;
+    return sameInstitution && initialData.created_by_id === currentUser.id;
+  }, [initialData, currentUser, isSupervisorUser, sameInstitution]);
+
   const canChangeRole = useMemo(() => {
     if (!initialData || !currentUser) return false;
     if (isOwnProfile) return false;
@@ -434,6 +443,9 @@ export function UserEditPage() {
     if (isManagerUser && sameInstitution) {
       return initialData.role === "SUPERVISOR" || initialData.role === "AVALIADOR";
     }
+    if (supervisorManagesEvaluator) {
+      return true;
+    }
     return false;
   }, [
     currentUser,
@@ -442,14 +454,25 @@ export function UserEditPage() {
     isSuperAdminUser,
     isAdmin,
     isManagerUser,
+    supervisorManagesEvaluator,
     sameInstitution,
   ]);
 
   const canEditThisProfile =
-    isOwnProfile || isSuperAdminUser || (isAdmin && sameInstitution) || (isManagerUser && sameInstitution);
+    isOwnProfile ||
+    isSuperAdminUser ||
+    (isAdmin && sameInstitution) ||
+    (isManagerUser && sameInstitution) ||
+    supervisorManagesEvaluator;
 
   const backRoute =
-    !isOwnProfile && isManagerUser ? routes.myInstitution : isOwnProfile ? routes.dashboard : routes.users;
+    !isOwnProfile && isMyInstitutionFlow && (isManagerUser || isSupervisorUser)
+      ? routes.myInstitution
+      : !isOwnProfile && isManagerUser
+        ? routes.myInstitution
+        : isOwnProfile
+          ? routes.dashboard
+          : routes.users;
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [field]: value }));

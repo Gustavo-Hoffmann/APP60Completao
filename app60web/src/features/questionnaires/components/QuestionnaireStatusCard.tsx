@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 
-import { Card } from "../../../components/ui/Card";
 import type { FesiClassification, IvcfClassification } from "../../../types/participant";
 
 type QuestionnaireStatusCardProps = {
@@ -10,6 +9,7 @@ type QuestionnaireStatusCardProps = {
   date?: string | null;
   emptyLabel: string;
   tone?: "neutral" | "good" | "warn" | "bad" | "info";
+  collected?: boolean;
   onClick?: () => void;
 };
 
@@ -74,14 +74,21 @@ export function QuestionnaireStatusCard({
   date,
   emptyLabel,
   tone = "neutral",
+  collected = false,
   onClick,
 }: QuestionnaireStatusCardProps) {
   const { t } = useTranslation("modules");
   const styles = toneClasses(tone);
+  const shellClass = [
+    "block w-full rounded-2xl border p-5 text-left shadow-sm transition",
+    collected ? "border-blue-300 bg-blue-50/70" : styles.wrap,
+    onClick ? "hover:-translate-y-0.5 hover:shadow-md" : "",
+  ].join(" ");
+  const titleClass = collected ? "text-slate-900" : styles.title;
 
   const content = (
     <>
-      <div className={`text-xs font-bold uppercase tracking-[0.18em] ${styles.title}`}>
+      <div className={`text-xs font-bold uppercase tracking-[0.18em] ${titleClass}`}>
         {title}
       </div>
       <div className="mt-3 flex items-start justify-between gap-4">
@@ -102,15 +109,11 @@ export function QuestionnaireStatusCard({
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className="block w-full text-left">
-        <Card
-          className={`w-full p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${styles.wrap}`}
-        >
-          {content}
-        </Card>
+      <button type="button" onClick={onClick} className={shellClass}>
+        {content}
       </button>
     );
   }
 
-  return <Card className={`w-full p-5 shadow-sm ${styles.wrap}`}>{content}</Card>;
+  return <div className={shellClass}>{content}</div>;
 }

@@ -3,7 +3,6 @@ import {
   Alert,
   FlatList,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -12,9 +11,7 @@ import {
   View,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { useTranslation } from "react-i18next";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Screen, T } from "../../components/Themed";
 import { ThemedInput } from "../../components/ThemedInput";
@@ -108,11 +105,8 @@ export function ParticipantFormScreen() {
   const { theme } = useTheme();
   const { t, i18n } = useTranslation(["participants", "common"]);
   const { mode = "create", participant } = (route.params ?? {}) as Params;
-  const headerHeight = useHeaderHeight();
-  const insets = useSafeAreaInsets();
 
   const isEdit = mode === "edit";
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const identityRef = useRef<TextInput>(null);
   const cepRef = useRef<TextInput>(null);
@@ -122,23 +116,6 @@ export function ParticipantFormScreen() {
   const neighRef = useRef<TextInput>(null);
   const cityRef = useRef<TextInput>(null);
   const ufRef = useRef<TextInput>(null);
-
-  useEffect(() => {
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const showSub = Keyboard.addListener(showEvent, (event) => {
-      setKeyboardHeight(event.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      setKeyboardHeight(0);
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
 
   const [name, setName] = useState("");
   const [nationality, setNationality] = useState("BR");
@@ -168,7 +145,7 @@ export function ParticipantFormScreen() {
   const nat = nationality.trim().toUpperCase();
   const isBr = nat === "BR";
 
-  const isSuperAdmin = me?.role === "SUPER_ADMIN";
+  const picksInstitutionOnCreate = me?.role === "SUPER_ADMIN" || me?.role === "ADMIN";
   const selectedInstitution = institutions.find((x) => x.id === selectedInstitutionId) ?? null;
   const selectedInstitutionLabel = selectedInstitution
     ? `${selectedInstitution.name}${selectedInstitution.unit ? ` — ${selectedInstitution.unit}` : ""}`
@@ -220,7 +197,7 @@ export function ParticipantFormScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isSuperAdmin || isEdit) return;
+    if (!picksInstitutionOnCreate || isEdit) return;
     let active = true;
     (async () => {
       try {
@@ -235,7 +212,7 @@ export function ParticipantFormScreen() {
     return () => {
       active = false;
     };
-  }, [isSuperAdmin, isEdit, selectedInstitutionId]);
+  }, [picksInstitutionOnCreate, isEdit, selectedInstitutionId]);
 
   const onFetchCep = async () => {
     if (!isBr) return;
@@ -286,7 +263,7 @@ export function ParticipantFormScreen() {
 
   const formError = validate();
   const dobReady = !!dob && isValidDob(dob) && dobTextValid;
-  const canSave = !formError && dobReady && !(isSuperAdmin && !isEdit && !selectedInstitutionId);
+  const canSave = !formError && dobReady && !(picksInstitutionOnCreate && !isEdit && !selectedInstitutionId);
 
   const onSave = async () => {
     try {
@@ -304,7 +281,7 @@ export function ParticipantFormScreen() {
         return;
       }
 
-      if (isSuperAdmin && !isEdit && !selectedInstitutionId) {
+      if (picksInstitutionOnCreate && !isEdit && !selectedInstitutionId) {
         Alert.alert(
           t("participants:form.alerts.saveTitle"),
           t("participants:form.validation.institutionRequired", "Selecione a instituição.")
@@ -339,7 +316,7 @@ export function ParticipantFormScreen() {
         institutionId?: string;
         confirmLinkExisting?: boolean;
       };
-      if (isSuperAdmin && !isEdit && selectedInstitutionId) extra.institutionId = selectedInstitutionId;
+      if (picksInstitutionOnCreate && !isEdit && selectedInstitutionId) extra.institutionId = selectedInstitutionId;
       if (confirmLinkExisting) extra.confirmLinkExisting = true;
 
       await upsertParticipant(extra);
@@ -409,31 +386,25 @@ export function ParticipantFormScreen() {
   };
 
   const saveBarHeight = 72;
-  const footerBottom = keyboardHeight > 0 ? Math.max(0, keyboardHeight - insets.bottom) : 0;
 
   return (
     <Screen>
-      <KeyboardAvoidingView
+      <ScrollView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? headerHeight : 0}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={{
+          paddingBottom: saveBarHeight + 16,
+        }}
       >
-        <ScrollView
-          style={{ flex: 1 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          contentContainerStyle={{
-            paddingBottom: saveBarHeight + footerBottom + 16,
-          }}
-        >
           <T style={{ fontSize: 20, fontWeight: "900" }}>
             {isEdit ? t("participants:form.editTitle") : t("participants:form.createTitle")}
           </T>
 
           <View style={{ height: 14 }} />
 
-          {isSuperAdmin && !isEdit ? (
+          {picksInstitutionOnCreate && !isEdit ? (
             <View style={{ marginBottom: 12 }}>
               <T style={{ fontWeight: "800", marginBottom: 8, color: theme.colors.text }}>
                 {t("participants:form.fields.institution", "Instituição")}
@@ -641,30 +612,28 @@ export function ParticipantFormScreen() {
           <T style={{ color: theme.colors.muted, fontSize: 12 }}>
             {t("participants:form.sexHint")}
           </T>
-        </ScrollView>
+      </ScrollView>
 
-        <View
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: footerBottom,
-            paddingTop: 8,
-            paddingBottom: keyboardHeight > 0 ? 8 : Platform.OS === "ios" ? 12 : 8,
-            backgroundColor: theme.colors.bg,
-            borderTopWidth: keyboardHeight > 0 ? 1 : 0,
-            borderTopColor: theme.colors.border,
-          }}
-        >
-          <ThemedButton
-            title={saving ? t("participants:form.saving") : t("participants:form.save")}
-            onPress={onSave}
-            variant={canSave ? "primary" : "inactive"}
-            disabled={saving || !canSave}
-            style={{ paddingVertical: 12, borderRadius: 10 }}
-          />
-        </View>
-      </KeyboardAvoidingView>
+      <View
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          paddingTop: 8,
+          paddingBottom: Platform.OS === "ios" ? 12 : 8,
+          paddingHorizontal: 16,
+          backgroundColor: theme.colors.bg,
+        }}
+      >
+        <ThemedButton
+          title={saving ? t("participants:form.saving") : t("participants:form.save")}
+          onPress={onSave}
+          variant={canSave ? "primary" : "inactive"}
+          disabled={saving || !canSave}
+          style={{ paddingVertical: 12, borderRadius: 10 }}
+        />
+      </View>
 
       <Modal
         visible={nationalityModalOpen}

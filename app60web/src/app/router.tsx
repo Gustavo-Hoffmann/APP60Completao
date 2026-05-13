@@ -99,7 +99,7 @@ export const router = createBrowserRouter([
           { path: routes.knowledgeBase.slice(1), element: <KnowledgeBasePage /> },
           { path: routes.myProfile.slice(1), element: <UserEditPage /> },
           {
-            element: <RequireRole allowedRoles={["GESTOR"]} />,
+            element: <RequireRole allowedRoles={["GESTOR", "SUPERVISOR"]} />,
             children: [
               { path: routes.myInstitution.slice(1), element: <MyInstitutionPage /> },
               { path: routes.myInstitutionUserCreate.slice(1), element: <UserCreatePage /> },

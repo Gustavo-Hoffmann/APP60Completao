@@ -4,8 +4,12 @@ import type { Pool } from "pg";
 import {
   canCreateUsers,
   canListUsers,
-  creatableRolesByActor,
-  isSuperAdmin,
+  canMigrateUsers,
+  canActorCreateRole,
+  institutionIdOrThrow,
+  isGlobalOperator,
+  normalizeAppRole,
+  roleRequiresInstitution,
 } from "../lib/authz.js";
 import {
   cognitoCreateUserWithPassword,
@@ -37,7 +41,10 @@ const createSchema = z.object({
   email: z.string().email(),
   password: z.string().refine(isPasswordPolicyCompliant, passwordPolicyMessage),
   fullName: z.string().min(2),
-  role: z.enum(["ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"]),
+  role: z.preprocess(
+    (value) => (typeof value === "string" ? value.trim().toUpperCase() : value),
+    z.enum(["ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"])
+  ),
   institutionId: z.string().uuid().optional(),
   supervisorId: z.string().uuid().optional(),
   cpf: z.string().optional(),
@@ -57,6 +64,7 @@ const patchSchema = z.object({
   state: z.string().optional(),
   birth_date: z.string().optional(),
   role: z.enum(["ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"]).optional(),
+  institutionId: z.string().uuid().optional().nullable(),
   is_active: z.boolean().optional(),
 });
 
@@ -73,7 +81,7 @@ export function usersRouter(pool: Pool, cfg: AppConfig) {
     const activeOnly = req.query.active !== "false";
     try {
       let q;
-      if (isSuperAdmin(u)) {
+      if (isGlobalOperator(u)) {
         q = await pool.query(
           `SELECT id, email, full_name, role::text AS role, primary_institution_id, is_active, created_at,
                   cpf_normalized AS cpf, phone, country, city, state, birth_date,
@@ -89,10 +97,31 @@ export function usersRouter(pool: Pool, cfg: AppConfig) {
            ORDER BY created_at ASC`,
           [activeOnly]
         );
+      } else if (normalizeAppRole(u.role) === "SUPERVISOR") {
+        q = await pool.query(
+          `SELECT id, email, full_name, role::text AS role, primary_institution_id, is_active, created_at,
+                  cpf_normalized AS cpf, phone, country, city, state, birth_date, created_by_id,
+                  (SELECT se.supervisor_user_id
+                     FROM supervision_edges se
+                    WHERE se.evaluator_user_id = app_users.id
+                      AND se.institution_id = app_users.primary_institution_id
+                      AND se.valid_to IS NULL
+                    ORDER BY se.valid_from DESC
+                    LIMIT 1) AS supervisor_id
+           FROM app_users
+           WHERE primary_institution_id = $1
+             AND ($2::boolean IS FALSE OR is_active = true)
+             AND (
+               id = $3
+               OR (role = 'AVALIADOR' AND created_by_id = $3)
+             )
+           ORDER BY created_at ASC`,
+          [u.primary_institution_id, activeOnly, u.id]
+        );
       } else {
         q = await pool.query(
           `SELECT id, email, full_name, role::text AS role, primary_institution_id, is_active, created_at,
-                  cpf_normalized AS cpf, phone, country, city, state, birth_date,
+                  cpf_normalized AS cpf, phone, country, city, state, birth_date, created_by_id,
                   (SELECT se.supervisor_user_id
                      FROM supervision_edges se
                     WHERE se.evaluator_user_id = app_users.id
@@ -114,13 +143,58 @@ export function usersRouter(pool: Pool, cfg: AppConfig) {
     }
   });
 
+  r.get("/org-metrics", async (req, res) => {
+    const u = req.authUser as AuthedUser;
+    if (!canListUsers(u) || isGlobalOperator(u)) {
+      res.status(403).json({ error: "Sem permissão." });
+      return;
+    }
+    try {
+      const inst = institutionIdOrThrow(u);
+      const [enrollmentsQ, collectionsQ] = await Promise.all([
+        pool.query<{ user_id: string; count: number }>(
+          `SELECT requested_by_user_id AS user_id, COUNT(*)::int AS count
+           FROM participant_institution_history
+           WHERE institution_id = $1
+             AND valid_to IS NULL
+             AND requested_by_user_id IS NOT NULL
+           GROUP BY requested_by_user_id`,
+          [inst]
+        ),
+        pool.query<{ user_id: string; count: number }>(
+          `SELECT performed_by_user_id AS user_id, COUNT(*)::int AS count
+           FROM collections
+           WHERE institution_id_at_collection = $1
+             AND performed_by_user_id IS NOT NULL
+           GROUP BY performed_by_user_id`,
+          [inst]
+        ),
+      ]);
+
+      const byUserId: Record<string, { enrollments: number; collections: number }> = {};
+      for (const row of enrollmentsQ.rows) {
+        byUserId[row.user_id] = { enrollments: row.count, collections: 0 };
+      }
+      for (const row of collectionsQ.rows) {
+        const current = byUserId[row.user_id] ?? { enrollments: 0, collections: 0 };
+        current.collections = row.count;
+        byUserId[row.user_id] = current;
+      }
+
+      res.json({ byUserId });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Erro ao carregar métricas da equipe." });
+    }
+  });
+
   r.get("/:id", async (req, res) => {
     const actor = req.authUser as AuthedUser;
     const targetId = req.params.id;
     try {
       const t = await pool.query(
         `SELECT id, email, full_name, role::text AS role, primary_institution_id, is_active, created_at,
-                cpf_normalized AS cpf, phone, country, city, state, birth_date
+                cpf_normalized AS cpf, phone, country, city, state, birth_date, created_by_id
          FROM app_users WHERE id = $1`,
         [targetId]
       );
@@ -133,10 +207,17 @@ export function usersRouter(pool: Pool, cfg: AppConfig) {
         target.primary_institution_id &&
         actor.primary_institution_id &&
         target.primary_institution_id === actor.primary_institution_id;
+      const supervisorManagesEvaluator =
+        actor.role === "SUPERVISOR" &&
+        String(target.role) === "AVALIADOR" &&
+        target.created_by_id === actor.id &&
+        sameInstitution;
+
       const canView =
         actor.id === targetId ||
-        isSuperAdmin(actor) ||
-        ((actor.role === "ADMIN" || actor.role === "GESTOR") && sameInstitution);
+        isGlobalOperator(actor) ||
+        ((actor.role === "ADMIN" || actor.role === "GESTOR") && sameInstitution) ||
+        supervisorManagesEvaluator;
       if (!canView) {
         res.status(403).json({ error: "Sem permissão." });
         return;
@@ -160,29 +241,25 @@ export function usersRouter(pool: Pool, cfg: AppConfig) {
       return;
     }
     const body = parsed.data;
-    const allowed = creatableRolesByActor(actor);
-    if (!allowed.includes(body.role)) {
+    const targetRole = normalizeAppRole(body.role);
+    if (!targetRole || !canActorCreateRole(actor, targetRole)) {
       res.status(403).json({ error: "Não pode criar este papel." });
       return;
     }
 
     let institutionId: string | null = body.institutionId ?? null;
-    if (actor.role === "ADMIN" && !body.institutionId) {
+    if (!roleRequiresInstitution(targetRole)) {
+      institutionId = null;
+    } else if (normalizeAppRole(actor.role) === "GESTOR" || normalizeAppRole(actor.role) === "SUPERVISOR") {
       institutionId = actor.primary_institution_id;
-    }
-    if (actor.role === "GESTOR") {
-      institutionId = actor.primary_institution_id;
-    }
-    if (!institutionId) {
+    } else if (!institutionId) {
       res.status(400).json({ error: "institutionId é obrigatório." });
       return;
     }
 
-    if (actor.role === "GESTOR") {
-      if (body.role === "ADMIN" || body.role === "GESTOR") {
-        res.status(403).json({ error: "Gestor não pode criar ADMIN/GESTOR." });
-        return;
-      }
+    if (normalizeAppRole(actor.role) === "GESTOR" && (targetRole === "ADMIN" || targetRole === "GESTOR")) {
+      res.status(403).json({ error: "Gestor não pode criar ADMIN/GESTOR." });
+      return;
     }
 
     const cpfNorm = body.cpf ? onlyDigits(body.cpf) : null;
@@ -191,7 +268,7 @@ export function usersRouter(pool: Pool, cfg: AppConfig) {
       return;
     }
 
-    if (body.role === "AVALIADOR" && body.supervisorId) {
+    if (targetRole === "AVALIADOR" && body.supervisorId) {
       const sup = await pool.query(
         `SELECT id FROM app_users WHERE id = $1 AND role = 'SUPERVISOR' AND primary_institution_id = $2 AND is_active = true`,
         [body.supervisorId, institutionId]
@@ -225,7 +302,7 @@ export function usersRouter(pool: Pool, cfg: AppConfig) {
           sub,
           body.email.trim().toLowerCase(),
           body.fullName.trim(),
-          body.role,
+          targetRole,
           institutionId,
           cpfNorm,
           body.phone?.trim() || null,
@@ -238,11 +315,18 @@ export function usersRouter(pool: Pool, cfg: AppConfig) {
       );
       const row = ins.rows[0];
 
-      if (body.role === "AVALIADOR" && body.supervisorId) {
+      const supervisorForEdge =
+        targetRole === "AVALIADOR"
+          ? normalizeAppRole(actor.role) === "SUPERVISOR"
+            ? actor.id
+            : body.supervisorId ?? null
+          : null;
+
+      if (supervisorForEdge) {
         await client.query(
           `INSERT INTO supervision_edges (institution_id, supervisor_user_id, evaluator_user_id)
            VALUES ($1, $2, $3)`,
-          [institutionId, body.supervisorId, row.id]
+          [institutionId, supervisorForEdge, row.id]
         );
       }
 
@@ -286,11 +370,17 @@ export function usersRouter(pool: Pool, cfg: AppConfig) {
         target.primary_institution_id &&
         actor.primary_institution_id &&
         target.primary_institution_id === actor.primary_institution_id;
+      const supervisorManagesEvaluator =
+        actor.role === "SUPERVISOR" &&
+        String(target.role) === "AVALIADOR" &&
+        target.created_by_id === actor.id &&
+        sameInstitution;
 
       const canEdit =
         actor.id === targetId ||
-        isSuperAdmin(actor) ||
-        ((actor.role === "ADMIN" || actor.role === "GESTOR") && sameInstitution);
+        isGlobalOperator(actor) ||
+        ((actor.role === "ADMIN" || actor.role === "GESTOR") && sameInstitution) ||
+        supervisorManagesEvaluator;
 
       if (!canEdit) {
         res.status(403).json({ error: "Sem permissão para editar." });
@@ -307,16 +397,27 @@ export function usersRouter(pool: Pool, cfg: AppConfig) {
             res.status(403).json({ error: "Gestor só pode alterar papel de Supervisor/Avaliador." });
             return;
           }
-        } else {
-          if (!isSuperAdmin(actor) && actor.role !== "ADMIN") {
-            res.status(403).json({ error: "Sem permissão para alterar papel." });
-            return;
-          }
-          if (actor.role === "ADMIN" && parsed.data.role === "ADMIN") {
-            res.status(403).json({ error: "Não pode promover a ADMIN." });
-            return;
-          }
+        } else if (!canMigrateUsers(actor)) {
+          res.status(403).json({ error: "Sem permissão para alterar papel." });
+          return;
+        } else if (actor.role === "ADMIN" && parsed.data.role === "ADMIN") {
+          res.status(403).json({ error: "Não pode promover a ADMIN." });
+          return;
         }
+      }
+
+      const nextRole = parsed.data.role ?? String(target.role);
+      let nextInstitutionId: string | null | undefined = parsed.data.institutionId;
+      if (nextInstitutionId !== undefined && !canMigrateUsers(actor)) {
+        res.status(403).json({ error: "Sem permissão para alterar instituição." });
+        return;
+      }
+      if (parsed.data.role && !roleRequiresInstitution(parsed.data.role)) {
+        nextInstitutionId = null;
+      }
+      if (nextInstitutionId !== undefined && nextRole !== "ADMIN" && !nextInstitutionId) {
+        res.status(400).json({ error: "institutionId é obrigatório para este papel." });
+        return;
       }
 
       if (parsed.data.is_active === false && actor.id === targetId) {
@@ -360,6 +461,10 @@ export function usersRouter(pool: Pool, cfg: AppConfig) {
       if (b.role) {
         updates.push(`role = $${i++}::app_role`);
         vals.push(b.role);
+      }
+      if (nextInstitutionId !== undefined) {
+        updates.push(`primary_institution_id = $${i++}`);
+        vals.push(nextInstitutionId);
       }
       if (b.is_active !== undefined) {
         updates.push(`is_active = $${i++}`);

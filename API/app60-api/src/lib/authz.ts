@@ -1,4 +1,6 @@
 import type { AuthedUser } from "../middleware/auth.js";
+import type { Pool } from "pg";
+import { getSeniorSensePlusInstitutionId } from "./seniorsenseInstitution.js";
 
 export const ROLES = [
   "SUPER_ADMIN",
@@ -10,8 +12,30 @@ export const ROLES = [
 
 export type AppRole = (typeof ROLES)[number];
 
+export function normalizeAppRole(role: unknown): AppRole | null {
+  if (typeof role !== "string") return null;
+  const normalized = role.trim().toUpperCase();
+  return ROLES.includes(normalized as AppRole) ? (normalized as AppRole) : null;
+}
+
 export function isSuperAdmin(u: AuthedUser) {
   return u.role === "SUPER_ADMIN";
+}
+
+export function isAdmin(u: AuthedUser) {
+  return u.role === "ADMIN";
+}
+
+export function isPlatformStaff(u: AuthedUser) {
+  return isSuperAdmin(u) || isAdmin(u);
+}
+
+export function isGlobalOperator(u: AuthedUser) {
+  return isPlatformStaff(u) && !u.primary_institution_id;
+}
+
+export function roleRequiresInstitution(role: AppRole) {
+  return role !== "ADMIN";
 }
 
 export function institutionIdOrThrow(u: AuthedUser): string {
@@ -21,42 +45,77 @@ export function institutionIdOrThrow(u: AuthedUser): string {
   return u.primary_institution_id;
 }
 
+export async function resolveCollectionInstitutionId(
+  pool: Pool,
+  u: AuthedUser
+): Promise<string> {
+  if (u.primary_institution_id) {
+    return u.primary_institution_id;
+  }
+  if (isGlobalOperator(u)) {
+    return getSeniorSensePlusInstitutionId(pool);
+  }
+  throw new Error("Instituição não definida para o usuário.");
+}
+
 export function canListUsers(u: AuthedUser) {
-  return u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "GESTOR";
+  return (
+    isGlobalOperator(u) ||
+    u.role === "GESTOR" ||
+    u.role === "SUPERVISOR" ||
+    (u.role === "ADMIN" && !!u.primary_institution_id)
+  );
 }
 
 export function canCreateUsers(u: AuthedUser) {
-  return u.role === "SUPER_ADMIN" || u.role === "ADMIN" || u.role === "GESTOR";
+  return (
+    isGlobalOperator(u) ||
+    u.role === "GESTOR" ||
+    u.role === "SUPERVISOR" ||
+    (u.role === "ADMIN" && !!u.primary_institution_id)
+  );
 }
 
 export function canManageInstitutions(u: AuthedUser) {
-  return u.role === "SUPER_ADMIN" || u.role === "ADMIN";
+  return isGlobalOperator(u) || (u.role === "ADMIN" && !!u.primary_institution_id);
 }
 
-/** Participantes: leitura para qualquer papel com instituição ou super admin */
+/** Participantes: leitura para qualquer papel com instituição ou operador global */
 export function canReadParticipants(u: AuthedUser) {
-  return isSuperAdmin(u) || !!u.primary_institution_id;
+  return isGlobalOperator(u) || !!u.primary_institution_id;
 }
 
 export function canWriteParticipants(u: AuthedUser) {
   return (
-    isSuperAdmin(u) ||
-    u.role === "ADMIN" ||
+    isGlobalOperator(u) ||
     u.role === "GESTOR" ||
     u.role === "SUPERVISOR" ||
-    u.role === "AVALIADOR"
+    u.role === "AVALIADOR" ||
+    (u.role === "ADMIN" && !!u.primary_institution_id)
   );
 }
 
 export function creatableRolesByActor(actor: AuthedUser): AppRole[] {
-  if (actor.role === "SUPER_ADMIN") {
+  const actorRole = normalizeAppRole(actor.role);
+  if (actorRole === "SUPER_ADMIN") {
     return ["ADMIN", "GESTOR", "SUPERVISOR", "AVALIADOR"];
   }
-  if (actor.role === "ADMIN") {
+  if (actorRole === "ADMIN") {
     return ["GESTOR", "SUPERVISOR", "AVALIADOR"];
   }
-  if (actor.role === "GESTOR") {
+  if (actorRole === "GESTOR") {
     return ["SUPERVISOR", "AVALIADOR"];
   }
+  if (actorRole === "SUPERVISOR") {
+    return ["AVALIADOR"];
+  }
   return [];
+}
+
+export function canActorCreateRole(actor: AuthedUser, targetRole: AppRole) {
+  return creatableRolesByActor(actor).includes(targetRole);
+}
+
+export function canMigrateUsers(u: AuthedUser) {
+  return isGlobalOperator(u);
 }

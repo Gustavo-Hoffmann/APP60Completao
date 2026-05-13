@@ -5,8 +5,9 @@ import {
   canReadParticipants,
   canWriteParticipants,
   institutionIdOrThrow,
-  isSuperAdmin,
+  isGlobalOperator,
 } from "../lib/authz.js";
+import { getSeniorSensePlusInstitutionId } from "../lib/seniorsenseInstitution.js";
 import type { AuthedUser } from "../middleware/auth.js";
 
 function onlyDigits(s: string) {
@@ -26,10 +27,7 @@ function normalizeIdentityInternational(raw: string) {
 }
 
 function collectionVisibilityClause(u: AuthedUser, alias = "c", baseIdx = 2) {
-  if (isSuperAdmin(u)) {
-    return { sql: "TRUE", params: [] as unknown[] };
-  }
-  if (u.role === "ADMIN") {
+  if (isGlobalOperator(u)) {
     return { sql: "TRUE", params: [] as unknown[] };
   }
   const inst = u.primary_institution_id;
@@ -86,7 +84,7 @@ export function participantsRouter(pool: Pool) {
     }
     try {
       let q;
-      if (isSuperAdmin(u) || u.role === "ADMIN") {
+      if (isGlobalOperator(u)) {
         q = await pool.query(
           `SELECT id, full_name FROM app_users WHERE id = ANY($1::uuid[])`,
           [idList]
@@ -113,7 +111,7 @@ export function participantsRouter(pool: Pool) {
     }
     try {
       let rows;
-      if (isSuperAdmin(u) || u.role === "ADMIN") {
+      if (isGlobalOperator(u)) {
         const q = await pool.query(
           `SELECT p.id, p.nationality, p.cpf_normalized AS cpf, p.full_name, p.birth_date, p.sex,
                   p.cep, p.street, p.number, p.neighborhood, p.city, p.state, p.complement,
@@ -178,7 +176,7 @@ export function participantsRouter(pool: Pool) {
         return;
       }
       let createdByUserId: string | null = null;
-      if (!isSuperAdmin(u) && u.role !== "ADMIN") {
+      if (!isGlobalOperator(u)) {
         const inst = institutionIdOrThrow(u);
         const link = await pool.query(
           `SELECT COALESCE(requested_by_user_id, approved_by_user_id) AS requested_by_user_id
@@ -362,14 +360,8 @@ export function participantsRouter(pool: Pool) {
     }
 
     let inst: string;
-    if (isSuperAdmin(u)) {
-      if (!b.institutionId) {
-        res.status(400).json({ error: "institutionId é obrigatório para super administrador." });
-        return;
-      }
-      inst = b.institutionId;
-    } else if (u.role === "ADMIN" && b.institutionId) {
-      inst = b.institutionId;
+    if (isGlobalOperator(u)) {
+      inst = b.institutionId ?? (await getSeniorSensePlusInstitutionId(pool));
     } else {
       try {
         inst = institutionIdOrThrow(u);
@@ -397,7 +389,7 @@ export function participantsRouter(pool: Pool) {
           res.status(404).json({ error: "Participante não encontrado." });
           return;
         }
-        if (!isSuperAdmin(u) && u.role !== "ADMIN") {
+        if (!isGlobalOperator(u)) {
           const activeLink = await client.query(
             `SELECT 1 FROM participant_institution_history
              WHERE participant_id = $1 AND institution_id = $2 AND valid_to IS NULL`,
@@ -588,7 +580,7 @@ export function participantsRouter(pool: Pool) {
     const u = req.authUser as AuthedUser;
     const participantId = req.params.id;
     try {
-      if (isSuperAdmin(u) || u.role === "ADMIN") {
+      if (isGlobalOperator(u)) {
         const del = await pool.query(`DELETE FROM participants WHERE id = $1`, [participantId]);
         if (del.rowCount === 0) {
           res.status(404).json({ error: "Participante não encontrado." });

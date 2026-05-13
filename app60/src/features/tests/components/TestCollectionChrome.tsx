@@ -4,6 +4,7 @@ import {
   type ImageSourcePropType,
   type StyleProp,
   type ImageStyle,
+  type ViewStyle,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -11,6 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import { T } from "../../../components/Themed";
 import { ThemedButton } from "../../../components/ThemedButton";
+import { useTheme } from "../../../contexts/ThemeContext";
 import type { Participant } from "../../../models/types";
 import { formatParticipantCpf, formatParticipantName } from "./participantDisplay";
 
@@ -119,6 +121,40 @@ export function TestCollectionGoToResultsRow({
   return (
     <View style={{ width: "100%", marginTop: 12 }}>
       <ThemedButton title={title} onPress={onPress} style={{ alignSelf: "stretch" }} />
+    </View>
+  );
+}
+
+export function TestCollectionInfoCard({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { theme } = useTheme();
+
+  return (
+    <View
+      style={[
+        {
+          width: "100%",
+          backgroundColor: theme.colors.card,
+          borderRadius: 20,
+          paddingVertical: 18,
+          paddingHorizontal: 18,
+          borderWidth: 1,
+          borderColor: theme.colors.border,
+          shadowColor: "#0F172A",
+          shadowOpacity: theme.mode === "light" ? 0.06 : 0.2,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 2,
+        },
+        style,
+      ]}
+    >
+      {children}
     </View>
   );
 }

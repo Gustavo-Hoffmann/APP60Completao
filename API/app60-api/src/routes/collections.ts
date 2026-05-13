@@ -4,7 +4,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { Pool } from "pg";
 import type { AppConfig } from "../config.js";
-import { institutionIdOrThrow, isSuperAdmin } from "../lib/authz.js";
+import { institutionIdOrThrow, isGlobalOperator } from "../lib/authz.js";
 import type { AuthedUser } from "../middleware/auth.js";
 
 const TEST_TYPES = z.enum([
@@ -40,6 +40,30 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
     return !!q.rows[0];
   }
 
+  async function resolveParticipantInstitutionForCollection(
+    participantId: string,
+    u: AuthedUser
+  ): Promise<string | null> {
+    if (u.primary_institution_id) {
+      const linked = await assertParticipantInInstitution(participantId, u.primary_institution_id);
+      return linked ? u.primary_institution_id : null;
+    }
+
+    if (isGlobalOperator(u)) {
+      const q = await pool.query<{ institution_id: string }>(
+        `SELECT institution_id
+         FROM participant_institution_history
+         WHERE participant_id = $1 AND valid_to IS NULL
+         ORDER BY valid_from DESC
+         LIMIT 1`,
+        [participantId]
+      );
+      return q.rows[0]?.institution_id ?? null;
+    }
+
+    return null;
+  }
+
   async function resolveSupervisorId(
     evaluatorId: string,
     institutionId: string
@@ -58,7 +82,7 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
   const UPLOADING_TTL_INTERVAL = "30 minutes";
 
   function isAdminLike(u: AuthedUser) {
-    return isSuperAdmin(u) || u.role === "ADMIN";
+    return isGlobalOperator(u);
   }
 
   async function canReadCollectionRaw(
@@ -184,8 +208,14 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
       res.status(400).json({ error: "test_type inválido." });
       return;
     }
-    const inst = isSuperAdmin(u) ? null : institutionIdOrThrow(u);
-    if (inst && !(await assertParticipantInInstitution(participantId, inst))) {
+    let inst: string | null;
+    try {
+      inst = await resolveParticipantInstitutionForCollection(participantId, u);
+    } catch {
+      res.status(400).json({ error: "Coleta requer instituição do usuário." });
+      return;
+    }
+    if (!inst) {
       res.status(404).json({ error: "Participante não encontrado." });
       return;
     }
@@ -230,12 +260,14 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
       return;
     }
     const b = parsed.data;
-    const inst = isSuperAdmin(u) ? null : institutionIdOrThrow(u);
-    if (!inst) {
+    let inst: string | null;
+    try {
+      inst = await resolveParticipantInstitutionForCollection(b.participantId, u);
+    } catch {
       res.status(400).json({ error: "Coleta requer instituição do usuário." });
       return;
     }
-    if (!(await assertParticipantInInstitution(b.participantId, inst))) {
+    if (!inst) {
       res.status(404).json({ error: "Participante não vinculado à instituição." });
       return;
     }
@@ -341,7 +373,7 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
         res.status(404).json({ error: "Coleta não encontrada." });
         return;
       }
-      if (row.performed_by_user_id !== u.id && !isSuperAdmin(u)) {
+      if (row.performed_by_user_id !== u.id && !isGlobalOperator(u)) {
         res.status(403).json({ error: "Sem permissão." });
         return;
       }
@@ -370,7 +402,7 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
         res.status(404).json({ error: "Não encontrado." });
         return;
       }
-      if (row.performed_by_user_id !== u.id && !isSuperAdmin(u)) {
+      if (row.performed_by_user_id !== u.id && !isGlobalOperator(u)) {
         res.status(403).json({ error: "Sem permissão." });
         return;
       }
@@ -398,7 +430,7 @@ export function collectionsRouter(pool: Pool, cfg: AppConfig) {
         res.status(404).json({ error: "Não encontrado." });
         return;
       }
-      if (row.performed_by_user_id !== u.id && !isSuperAdmin(u)) {
+      if (row.performed_by_user_id !== u.id && !isGlobalOperator(u)) {
         res.status(403).json({ error: "Sem permissão." });
         return;
       }

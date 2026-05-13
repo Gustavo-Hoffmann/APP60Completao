@@ -153,13 +153,6 @@ export function ParticipantCreatePage() {
   }, [needsInstitutionPicker, user]);
 
   useEffect(() => {
-    if (isEdit || !user) return;
-    if (user.role === "ADMIN" && user.institution_id) {
-      setSelectedInstitutionId((prev) => prev || user.institution_id!);
-    }
-  }, [isEdit, user]);
-
-  useEffect(() => {
     if (!isEdit || !routeParticipantId) {
       setLoadingParticipant(false);
       return;

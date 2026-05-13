@@ -132,8 +132,14 @@ export function FESIResultScreen({ route, navigation }: any) {
         return;
       }
 
-      const sessionNumberToUse =
-        nextSessionNumber ?? (await getNextSessionNumber(String(participant.id), "FESI"));
+      let sessionNumberToUse = nextSessionNumber ?? 1;
+      if (nextSessionNumber == null) {
+        try {
+          sessionNumberToUse = await getNextSessionNumber(String(participant.id), "FESI");
+        } catch {
+          sessionNumberToUse = 1;
+        }
+      }
 
       const saved = await saveFesiJsonToCache({
         participant,

@@ -469,9 +469,17 @@ export function PhysicalActivitySedentaryResultScreen({ route, navigation }: any
         return;
       }
 
-      const sessionNumberToUse =
-        nextSessionNumber ??
-        (await getNextSessionNumber(String(effectiveParticipant.id), "ACT_SEDENTARY"));
+      let sessionNumberToUse = nextSessionNumber ?? 1;
+      if (nextSessionNumber == null) {
+        try {
+          sessionNumberToUse = await getNextSessionNumber(
+            String(effectiveParticipant.id),
+            "ACT_SEDENTARY"
+          );
+        } catch {
+          sessionNumberToUse = 1;
+        }
+      }
 
       const saved = await saveActivitySedentaryJsonToCache({
         participant: effectiveParticipant,

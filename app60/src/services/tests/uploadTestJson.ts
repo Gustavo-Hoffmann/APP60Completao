@@ -3,11 +3,23 @@ import { Platform } from "react-native";
 
 import { apiFetch, apiJson } from "../apiClient";
 import { isGuestMode } from "../guestSession";
+import { GUEST_PARTICIPANT_ID, TEST_PARTICIPANT_ID } from "../participants";
 import type { Participant } from "../../models/types";
 import type { NativeImuStopResult } from "../sensors/nativeImu";
 
 const SAMPLING_HZ = 60;
 const MAX_SESSION_INSERT_RETRIES = 6;
+
+function assertCloudParticipantId(participantId: string) {
+  if (
+    !participantId ||
+    participantId === TEST_PARTICIPANT_ID ||
+    participantId === GUEST_PARTICIPANT_ID ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(participantId)
+  ) {
+    throw new Error("Participante não encontrado.");
+  }
+}
 
 export type SupportedTestType =
   | "MARCHA"
@@ -550,6 +562,8 @@ export async function getNextSessionNumber(
 ): Promise<number> {
   if (isGuestMode()) return 1;
 
+  assertCloudParticipantId(participantId);
+
   const dbTestType = getDbTestType(testType);
 
   const data = await apiJson<{ sessionNumber: number }>(
@@ -567,6 +581,7 @@ async function reserveTestSessionWithRetry(args: {
   fileExtension?: string;
   contentType?: string;
 }): Promise<ReservedSessionRow> {
+  assertCloudParticipantId(String(args.participant.id ?? ""));
   const dbTestType = getDbTestType(args.testType);
   const participantFields = getParticipantSessionFields(args.participant);
   let nextSessionNumber = args.sessionNumber;

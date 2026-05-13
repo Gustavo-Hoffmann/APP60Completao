@@ -135,9 +135,49 @@ pnpm-debug.log*
 # =========================
 docs
 docs/**
-test
-test/**
-tests
-tests/**
+/test
+/test/**
+/tests
+/tests/**
 __tests__
 __tests__/**
+
+# Force include app source
+!src/
+!src/**
+!src/features/
+!src/features/**
+!src/features/tests/
+!src/features/tests/**
+!src/features/tests/sentar-levantar/
+!src/features/tests/sentar-levantar/**
+
+# Force include app assets
+!assets/
+!assets/**
+!assets/tests/
+!assets/tests/**
+!assets/tests/sentar-levantar.jpeg
+
+# Force include app assets - keep this at the very end
+!assets
+!assets/
+!assets/**
+!assets/tests
+!assets/tests/
+!assets/tests/**
+!assets/tests/sentar-levantar.jpeg
+
+# Force include app source tests/features - keep this at the very end
+!src
+!src/
+!src/**
+!src/features
+!src/features/
+!src/features/**
+!src/features/tests
+!src/features/tests/
+!src/features/tests/**
+!src/features/tests/sentar-levantar
+!src/features/tests/sentar-levantar/
+!src/features/tests/sentar-levantar/**

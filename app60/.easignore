@@ -1,70 +1,42 @@
 # =========================
-# Python / local env
+# EAS IGNORE - ANDROID BUILD
+# SeniorSense / app60
 # =========================
+
+# Ambientes locais
 .venv
 .venv/**
-__pycache__
-__pycache__/**
-*.pyc
+venv
+venv/**
+.env
+.env.*
+!.env.example
 
-
-# =========================
-# Node
-# =========================
+# Dependências locais
 node_modules
 node_modules/**
 node_modules_old
 node_modules_old/**
 
-
 # =========================
-# Expo / EAS local
+# iOS - ignorar inteiro no build Android
 # =========================
-.expo
-.expo/**
-.expo-shared
-.expo-shared/**
-dist
-dist/**
-web-build
-web-build/**
-build
-build/**
-coverage
-coverage/**
-
-
-# =========================
-# iOS - pods/build/cache
-# =========================
-ios/Pods
-ios/Pods/**
-ios/Pods*
-ios/Pods*/**
-
-ios/build
-ios/build/**
-ios/DerivedData
-ios/DerivedData/**
-ios/*.xcarchive
-
-# Cópias duplicadas criadas pelo macOS/Finder
-ios/* 2
-ios/* 2/**
-ios/**/* 2
-ios/**/* 2/**
-
-# Frameworks gigantes que não devem ir no tarball
-ios/**/*.xcframework
-ios/**/*.xcframework/**
-
-# Backup manual antigo
+ios
+ios/**
+Pods
+Pods/**
 _ios_ignored
 _ios_ignored/**
 
+# Arquivos/projetos iOS soltos
+*.xcworkspace
+*.xcodeproj
+*.xcarchive
+DerivedData
+DerivedData/**
 
 # =========================
-# Android - build/cache
+# Android - manter código nativo, ignorar só build/cache
 # =========================
 android/build
 android/build/**
@@ -72,10 +44,36 @@ android/app/build
 android/app/build/**
 android/.gradle
 android/.gradle/**
-
+android/.idea
+android/.idea/**
+android/local.properties
 
 # =========================
-# Monorepo / pastas fora do app mobile
+# Expo / Metro / caches
+# =========================
+.expo
+.expo/**
+.expo-shared
+.expo-shared/**
+.metro-cache
+.metro-cache/**
+.cache
+.cache/**
+
+# =========================
+# Builds/exportações locais
+# =========================
+dist
+dist/**
+build
+build/**
+web-build
+web-build/**
+coverage
+coverage/**
+
+# =========================
+# Pastas fora do app mobile
 # =========================
 API
 API/**
@@ -83,11 +81,6 @@ Worker
 Worker/**
 app60web
 app60web/**
-
-
-# =========================
-# Backups
-# =========================
 Beckup
 Beckup/**
 Backup
@@ -95,14 +88,40 @@ Backup/**
 backup
 backup/**
 
+# =========================
+# Git / editor / sistema
+# =========================
+.git
+.git/**
+.github
+.github/**
+.vscode
+.vscode/**
+.idea
+.idea/**
+.DS_Store
 
 # =========================
-# Arquivos pesados / dados / modelos
+# Logs
+# =========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Arquivos grandes/desnecessários
 # =========================
 *.csv
 *.xlsx
 *.xls
 *.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
 *.joblib
 *.pkl
 *.pickle
@@ -110,14 +129,55 @@ backup/**
 *.mov
 *.avi
 *.mkv
-*.log
-
 
 # =========================
-# Editor / sistema
+# Testes / docs locais
 # =========================
-.DS_Store
-.vscode
-.vscode/**
-.idea
-.idea/**
+docs
+docs/**
+/test
+/test/**
+/tests
+/tests/**
+__tests__
+__tests__/**
+
+# Force include app source
+!src/
+!src/**
+!src/features/
+!src/features/**
+!src/features/tests/
+!src/features/tests/**
+!src/features/tests/sentar-levantar/
+!src/features/tests/sentar-levantar/**
+
+# Force include app assets
+!assets/
+!assets/**
+!assets/tests/
+!assets/tests/**
+!assets/tests/sentar-levantar.jpeg
+
+# Force include app assets - keep this at the very end
+!assets
+!assets/
+!assets/**
+!assets/tests
+!assets/tests/
+!assets/tests/**
+!assets/tests/sentar-levantar.jpeg
+
+# Force include app source tests/features - keep this at the very end
+!src
+!src/
+!src/**
+!src/features
+!src/features/
+!src/features/**
+!src/features/tests
+!src/features/tests/
+!src/features/tests/**
+!src/features/tests/sentar-levantar
+!src/features/tests/sentar-levantar/
+!src/features/tests/sentar-levantar/**

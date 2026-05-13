@@ -71,11 +71,11 @@ function formatOptionalNumber(value?: number | null, decimals = 1) {
 
 function DetailItem({ label, value }: { label: string; value?: string | number | null }) {
   return (
-    <Card className="p-4 shadow-sm">
+    <Card className="h-full p-3 shadow-sm">
       <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
         {label}
       </div>
-      <div className="mt-2 text-sm font-semibold text-slate-800">{formatDisplayValue(value)}</div>
+      <div className="mt-1.5 text-sm font-semibold text-slate-800">{formatDisplayValue(value)}</div>
     </Card>
   );
 }
@@ -857,6 +857,16 @@ export function ParticipantDetailPage() {
 
     const fromIdx = Math.max(0, ordered.indexOf(fromValue));
     const toIdx = Math.max(0, ordered.indexOf(toValue));
+    const startIdx = Math.min(fromIdx, toIdx);
+    const endIdx = Math.max(fromIdx, toIdx);
+
+    const setRange = (nextFrom: number, nextTo: number) => {
+      if (test === "2mst") setTwoMstMetricRange({ from: nextFrom, to: nextTo });
+      else setSl30sMetricRange({ from: nextFrom, to: nextTo });
+    };
+
+    const tickPercent = (idx: number) =>
+      ordered.length <= 1 ? 50 : (idx / (ordered.length - 1)) * 100;
 
     return (
       <div className="flex items-start gap-3">
@@ -919,43 +929,76 @@ export function ParticipantDetailPage() {
               </div>
 
               <div className="mt-4">
-                <div className="relative h-8">
-                  <input
-                    type="range"
-                    min={0}
-                    max={ordered.length - 1}
-                    step={1}
-                    value={Math.min(fromIdx, toIdx)}
-                    onChange={(e) => {
-                      const nextFromIdx = Number(e.target.value);
-                      const nextFrom = ordered[nextFromIdx];
-                      const nextTo = ordered[Math.max(nextFromIdx, Math.max(fromIdx, toIdx))];
-                      if (test === "2mst") setTwoMstMetricRange({ from: nextFrom, to: nextTo });
-                      else setSl30sMetricRange({ from: nextFrom, to: nextTo });
-                    }}
-                    className="absolute inset-x-0 top-1/2 h-1 w-full -translate-y-1/2 accent-blue-600 dark:accent-blue-200"
-                  />
-                  <input
-                    type="range"
-                    min={0}
-                    max={ordered.length - 1}
-                    step={1}
-                    value={Math.max(fromIdx, toIdx)}
-                    onChange={(e) => {
-                      const nextToIdx = Number(e.target.value);
-                      const nextFromIdx = Math.min(Math.min(fromIdx, toIdx), nextToIdx);
-                      const nextFrom = ordered[nextFromIdx];
-                      const nextTo = ordered[nextToIdx];
-                      if (test === "2mst") setTwoMstMetricRange({ from: nextFrom, to: nextTo });
-                      else setSl30sMetricRange({ from: nextFrom, to: nextTo });
-                    }}
-                    className="absolute inset-x-0 top-1/2 h-1 w-full -translate-y-1/2 accent-blue-600 dark:accent-blue-200"
-                  />
-                </div>
+                <div className="relative px-1 pt-3 pb-12">
+                  <div className="pointer-events-none absolute inset-x-1 top-1/2 h-1 -translate-y-1/2 rounded-full bg-slate-200" />
 
-                <div className="mt-2 flex justify-between text-xs font-semibold text-slate-600">
-                  <span>{formatTickLabel(ordered[Math.min(fromIdx, toIdx)])}</span>
-                  <span>{formatTickLabel(ordered[Math.max(fromIdx, toIdx)])}</span>
+                  {ordered.map((sessionId, idx) => {
+                    const inRange = idx >= startIdx && idx <= endIdx;
+                    return (
+                      <div
+                        key={`tick-${sessionId}-${idx}`}
+                        className="pointer-events-none absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
+                        style={{ left: `${tickPercent(idx)}%` }}
+                      >
+                        <div
+                          className={`w-px rounded-full ${inRange ? "h-3 bg-blue-600" : "h-2 bg-slate-400"}`}
+                        />
+                      </div>
+                    );
+                  })}
+
+                  <div
+                    className="pointer-events-none absolute top-1/2 z-10 h-0.5 -translate-y-1/2 rounded-full bg-blue-500"
+                    style={{
+                      left: `${tickPercent(startIdx)}%`,
+                      width: `${Math.max(0, tickPercent(endIdx) - tickPercent(startIdx))}%`,
+                    }}
+                  />
+
+                  <input
+                    type="range"
+                    min={0}
+                    max={ordered.length - 1}
+                    step={1}
+                    value={startIdx}
+                    onChange={(e) => {
+                      const nextStartIdx = Number(e.target.value);
+                      const nextFrom = ordered[Math.min(nextStartIdx, endIdx)];
+                      const nextTo = ordered[endIdx];
+                      setRange(nextFrom, nextTo);
+                    }}
+                    className="dual-range-input absolute inset-x-0 top-1/2 z-20 w-full -translate-y-1/2 accent-blue-600 dark:accent-blue-200"
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={ordered.length - 1}
+                    step={1}
+                    value={endIdx}
+                    onChange={(e) => {
+                      const nextEndIdx = Number(e.target.value);
+                      const nextFrom = ordered[startIdx];
+                      const nextTo = ordered[Math.max(nextEndIdx, startIdx)];
+                      setRange(nextFrom, nextTo);
+                    }}
+                    className="dual-range-input absolute inset-x-0 top-1/2 z-30 w-full -translate-y-1/2 accent-blue-600 dark:accent-blue-200"
+                  />
+
+                  {ordered.map((sessionId, idx) => {
+                    const isEndpoint = idx === startIdx || idx === endIdx;
+                    return (
+                      <span
+                        key={`label-${sessionId}-${idx}`}
+                        className={[
+                          "absolute top-full mt-3 max-w-[4.75rem] -translate-x-1/2 text-center text-[10px] font-semibold leading-tight",
+                          isEndpoint ? "text-blue-700" : "text-slate-500",
+                        ].join(" ")}
+                        style={{ left: `${tickPercent(idx)}%` }}
+                      >
+                        {formatTickLabel(sessionId)}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             </Card>
@@ -1163,75 +1206,90 @@ export function ParticipantDetailPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,420px)] lg:items-stretch">
-          <div className="grid grid-cols-2 gap-4">
-            <DetailItem label={t("participantDetail.fields.nationality")} value={nat} />
-            <DetailItem label={identityLabel} value={participant.cpf} />
-            <DetailItem label={t("participantDetail.fields.birthDate")} value={dobLabel} />
-            <DetailItem
-              label={t("participantDetail.fields.ageSex")}
-              value={`${
-                participant.age
-                  ? t("participantDetail.ageYears", { count: participant.age, years: participant.age })
-                  : "—"
-              } • ${participant.sex}`}
-            />
-            <DetailItem label={t("participantDetail.fields.cityState")} value={cityState} />
-            <DetailItem label={t("participantDetail.fields.createdBy")} value={createdByName} />
-          </div>
+        <section>
+          <Card className="p-6 shadow-sm">
+            <div className="mb-5 flex items-center gap-2">
+              <UserRound size={18} className="text-blue-700" />
+              <h2 className="text-lg font-black text-slate-900">{t("participantDetail.personalInfoTitle")}</h2>
+            </div>
 
-          <div className="grid gap-3 content-start">
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-              {t("participantDetail.questionnairesTitle")}
-            </p>
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+              <DetailItem label={t("participantDetail.fields.nationality")} value={nat} />
+              <DetailItem label={identityLabel} value={participant.cpf} />
+              <DetailItem label={t("participantDetail.fields.birthDate")} value={dobLabel} />
+              <DetailItem
+                label={t("participantDetail.fields.ageSex")}
+                value={`${
+                  participant.age
+                    ? t("participantDetail.ageYears", { count: participant.age, years: participant.age })
+                    : "—"
+                } • ${participant.sex}`}
+              />
+              <DetailItem label={t("participantDetail.fields.cityState")} value={cityState} />
+              <DetailItem label={t("participantDetail.fields.createdBy")} value={createdByName} />
+            </div>
+          </Card>
+        </section>
 
-            <QuestionnaireStatusCard
-              title={t("questionnaires.instruments.ivcf20.shortTitle")}
-              score={participant.ivcfScore}
-              badge={participant.ivcfClass ?? null}
-              date={lastIvcfSession?.date}
-              emptyLabel={t("participantDetail.noProcessedCollection")}
-              tone={ivcfTone(participant.ivcfClass)}
-              onClick={
-                hasIvcf
-                  ? () => handleQuestionnaireCardClick("IVCF20", "ivcf20-section", hasIvcf)
-                  : undefined
-              }
-            />
+        <section>
+          <Card className="p-6 shadow-sm">
+            <div className="mb-5 flex items-center gap-2">
+              <ClipboardList size={18} className="text-blue-700" />
+              <h2 className="text-lg font-black text-slate-900">{t("participantDetail.questionnairesTitle")}</h2>
+            </div>
 
-            <QuestionnaireStatusCard
-              title={t("questionnaires.instruments.fesi.shortTitle")}
-              score={participant.fesiScore}
-              badge={participant.fesiClass ?? null}
-              date={lastFesiSession?.date}
-              emptyLabel={t("participantDetail.noProcessedCollection")}
-              tone={fesiTone(participant.fesiClass)}
-              onClick={
-                hasFesi
-                  ? () => handleQuestionnaireCardClick("FESI", "fesi-section", hasFesi)
-                  : undefined
-              }
-            />
+            <div className="grid gap-3 md:grid-cols-3">
+              <QuestionnaireStatusCard
+                title={t("questionnaires.instruments.ivcf20.shortTitle")}
+                score={participant.ivcfScore}
+                badge={participant.ivcfClass ?? null}
+                date={lastIvcfSession?.date}
+                emptyLabel={t("participantDetail.noProcessedCollection")}
+                tone={ivcfTone(participant.ivcfClass)}
+                collected={hasIvcf}
+                onClick={
+                  hasIvcf
+                    ? () => handleQuestionnaireCardClick("IVCF20", "ivcf20-section", hasIvcf)
+                    : undefined
+                }
+              />
 
-            <QuestionnaireStatusCard
-              title={t("questionnaires.instruments.actSedentary.shortTitle")}
-              score={participant.actSedentaryLabel ?? "—"}
-              badge={lastActSedentarySession?.summary.activityKey ?? null}
-              date={lastActSedentarySession?.date}
-              emptyLabel={t("participantDetail.noProcessedCollection")}
-              tone="info"
-              onClick={
-                hasActSedentary
-                  ? () =>
-                      handleQuestionnaireCardClick(
-                        "ACT_SEDENTARY",
-                        "act-sedentary-section",
-                        hasActSedentary,
-                      )
-                  : undefined
-              }
-            />
-          </div>
+              <QuestionnaireStatusCard
+                title={t("questionnaires.instruments.fesi.shortTitle")}
+                score={participant.fesiScore}
+                badge={participant.fesiClass ?? null}
+                date={lastFesiSession?.date}
+                emptyLabel={t("participantDetail.noProcessedCollection")}
+                tone={fesiTone(participant.fesiClass)}
+                collected={hasFesi}
+                onClick={
+                  hasFesi
+                    ? () => handleQuestionnaireCardClick("FESI", "fesi-section", hasFesi)
+                    : undefined
+                }
+              />
+
+              <QuestionnaireStatusCard
+                title={t("questionnaires.instruments.actSedentary.shortTitle")}
+                score={participant.actSedentaryLabel ?? "—"}
+                badge={lastActSedentarySession?.summary.activityKey ?? null}
+                date={lastActSedentarySession?.date}
+                emptyLabel={t("participantDetail.noProcessedCollection")}
+                tone="info"
+                collected={hasActSedentary}
+                onClick={
+                  hasActSedentary
+                    ? () =>
+                        handleQuestionnaireCardClick(
+                          "ACT_SEDENTARY",
+                          "act-sedentary-section",
+                          hasActSedentary,
+                        )
+                    : undefined
+                }
+              />
+            </div>
+          </Card>
         </section>
 
         {showIvcfDetails ? (

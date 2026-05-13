@@ -16,7 +16,11 @@ import { useTranslation } from "react-i18next";
 
 import { Screen, T } from "../../../components/Themed";
 import { TestCollectionAttemptActions } from "../components/TestCollectionAttemptActions";
-import { TestCollectionHeader, TestCollectionHeroImage } from "../components/TestCollectionChrome";
+import {
+  TestCollectionHeader,
+  TestCollectionHeroImage,
+  TestCollectionInfoCard,
+} from "../components/TestCollectionChrome";
 import { TestCollectionRunProgress } from "../components/TestCollectionRunProgress";
 import { finalizeImuCaptureToCache } from "../helpers/finalizeImuCapture";
 import { TestRunLockOverlay } from "../components/TestRunLockOverlay";
@@ -506,26 +510,30 @@ export default function ElevacoesCalcanhares() {
 
   return (
     <Screen style={{ justifyContent: "space-between" }}>
-      <TestCollectionHeader title={t("tests:elevacaoCalcanhares.title")} participant={participant} />
+      <View style={{ alignItems: "center", justifyContent: "center", flex: 1, gap: 16 }}>
+        <TestCollectionInfoCard>
+          <TestCollectionHeader title={t("tests:elevacaoCalcanhares.title")} participant={participant} />
 
-      <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
-        {!!countdownText && (
-          <T style={{ fontSize: 42, fontWeight: "900", marginBottom: 12, textAlign: "center" }}>{countdownText}</T>
-        )}
+          {!!countdownText && (
+            <T style={{ fontSize: 42, fontWeight: "900", marginTop: 12, textAlign: "center" }}>{countdownText}</T>
+          )}
 
-        <T style={{ fontSize: 18, opacity: 0.8, marginBottom: 12, textAlign: "center" }}>{statusText}</T>
+          <T style={{ fontSize: 18, opacity: 0.8, marginTop: 12, marginBottom: 12, textAlign: "center" }}>
+            {statusText}
+          </T>
 
-        <TestCollectionRunProgress
-          visible={phase === "running" || phase === "finished"}
-          finished={phase === "finished"}
-          interrupted={interrupted}
-          interruptedTitle={t("tests:common.stopped")}
-          timerText={fmtMs(remainingMs)}
-          progress={progress}
-          percentLabel={t("tests:common.percentDone", { value: Math.round(progress * 100) })}
-        />
+          <TestCollectionRunProgress
+            visible={phase === "running" || phase === "finished"}
+            finished={phase === "finished"}
+            interrupted={interrupted}
+            interruptedTitle={t("tests:common.stopped")}
+            timerText={fmtMs(remainingMs)}
+            progress={progress}
+            percentLabel={t("tests:common.percentDone", { value: Math.round(progress * 100) })}
+          />
+        </TestCollectionInfoCard>
 
-        <TestCollectionHeroImage testKey="elevacao_calcanhares" style={{ marginBottom: 20 }} />
+        <TestCollectionHeroImage testKey="elevacao_calcanhares" />
 
         <TestCollectionAttemptActions
           hasLocalAttempt={hasLocalAttempt}
@@ -551,7 +559,7 @@ export default function ElevacoesCalcanhares() {
       </View>
 
       <TestRunLockOverlay
-        visible={phase === "running"}
+        visible={phase === "running" && protection.locked}
         locked={protection.locked}
         tapCount={protection.tapCount}
         onLockTap={protection.handleLockTap}

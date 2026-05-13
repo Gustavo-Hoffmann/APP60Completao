@@ -67,5 +67,10 @@ yarn-error.*
 *.key
 *.mobileprovision
 
-# Duplicated/temp files
-*package-lock 2.jsonapp60/node_modules_old/
+# Duplicated/temp files (local backups — never commit)
+*package-lock*2.json
+app60/node_modules_old/
+_ios_ignored_TEMP/
+node_modules_old_TEMP/
+android-test-build/
+app60/eas-archive-check/

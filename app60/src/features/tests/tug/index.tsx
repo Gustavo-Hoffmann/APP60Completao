@@ -5,7 +5,11 @@ import { useTranslation } from "react-i18next";
 
 import { Screen, T } from "../../../components/Themed";
 import { TestCollectionAttemptActions } from "../components/TestCollectionAttemptActions";
-import { TestCollectionHeader, TestCollectionHeroImage } from "../components/TestCollectionChrome";
+import {
+  TestCollectionHeader,
+  TestCollectionHeroImage,
+  TestCollectionInfoCard,
+} from "../components/TestCollectionChrome";
 import { TestCollectionRunProgress } from "../components/TestCollectionRunProgress";
 import { saveImuResultToCache } from "../helpers/finalizeImuCapture";
 import { TestRunLockOverlay } from "../components/TestRunLockOverlay";
@@ -344,31 +348,35 @@ export default function TugTestScreen() {
 
   return (
     <Screen style={{ justifyContent: "space-between" }}>
-      <TestCollectionHeader title={t("tests:tug.title")} participant={participant} />
+      <View style={{ alignItems: "center", justifyContent: "center", flex: 1, gap: 16 }}>
+        <TestCollectionInfoCard>
+          <TestCollectionHeader title={t("tests:tug.title")} participant={participant} />
 
-      <View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
-        {!!countdownText && (
-          <T style={{ fontSize: 42, fontWeight: "900", marginBottom: 12, textAlign: "center" }}>{countdownText}</T>
-        )}
+          {!!countdownText && (
+            <T style={{ fontSize: 42, fontWeight: "900", marginTop: 12, textAlign: "center" }}>{countdownText}</T>
+          )}
 
-        <T style={{ fontSize: 18, opacity: 0.8, marginBottom: 12, textAlign: "center" }}>{statusText}</T>
+          <T style={{ fontSize: 18, opacity: 0.8, marginTop: 12, marginBottom: 12, textAlign: "center" }}>
+            {statusText}
+          </T>
 
-        <TestCollectionRunProgress
-          visible={phase === "running" || phase === "finished"}
-          finished={phase === "finished"}
-          interrupted={interrupted}
-          interruptedTitle={t("tests:common.stopped")}
-          timerText={fmtElapsed(elapsedMs)}
-          progress={phase === "finished" ? 1 : 0.35}
-          showProgressBar={phase === "running"}
-          captionText={
-            phase === "running"
-              ? t("tests:tug.detectedTimeHintRunning")
-              : t("tests:tug.detectedTimeHintFinished")
-          }
-        />
+          <TestCollectionRunProgress
+            visible={phase === "running" || phase === "finished"}
+            finished={phase === "finished"}
+            interrupted={interrupted}
+            interruptedTitle={t("tests:common.stopped")}
+            timerText={fmtElapsed(elapsedMs)}
+            progress={phase === "finished" ? 1 : 0.35}
+            showProgressBar={phase === "running"}
+            captionText={
+              phase === "running"
+                ? t("tests:tug.detectedTimeHintRunning")
+                : t("tests:tug.detectedTimeHintFinished")
+            }
+          />
+        </TestCollectionInfoCard>
 
-        <TestCollectionHeroImage testKey="tug" style={{ marginBottom: 20 }} />
+        <TestCollectionHeroImage testKey="tug" />
 
         <TestCollectionAttemptActions
           hasLocalAttempt={hasLocalAttempt}
@@ -385,7 +393,7 @@ export default function TugTestScreen() {
       </View>
 
       <TestRunLockOverlay
-        visible={phase === "running"}
+        visible={phase === "running" && protection.locked}
         locked={protection.locked}
         tapCount={protection.tapCount}
         onLockTap={protection.handleLockTap}

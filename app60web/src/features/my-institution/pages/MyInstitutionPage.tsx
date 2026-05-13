@@ -25,14 +25,12 @@ type UserRow = {
   role: Role;
   is_active: boolean;
   created_at?: string | null;
+  created_by_id?: string | null;
   /** Preenchido para AVALIADOR quando existe vínculo em supervision_edges. */
   supervisor_id?: string | null;
 };
 
-type ParticipantRow = {
-  id: string;
-  full_name: string;
-};
+type OrgMetrics = Record<string, { enrollments: number; collections: number }>;
 
 function roleLabel(role: Role) {
   if (role === "SUPER_ADMIN") return "Super Admin";
@@ -161,22 +159,18 @@ function GestorForkSvg({
 }
 
 function TreeCircle({
-  size,
   icon: Icon,
   filled,
   onClick,
   ariaLabel,
 }: {
-  size: "lg" | "md" | "sm";
   icon: LucideIcon;
   filled: boolean;
   onClick?: () => void;
   ariaLabel: string;
 }) {
-  const dim = size === "lg" ? "h-[5.5rem] w-[5.5rem]" : size === "md" ? "h-20 w-20" : "h-14 w-14";
-  const iconSz = size === "lg" ? 34 : size === "md" ? 28 : 22;
-
-  const shell = `${dim} flex shrink-0 items-center justify-center rounded-full shadow-[0_10px_28px_rgba(0,75,135,0.22)] ring-4 ring-white/70 dark:ring-slate-900/60`;
+  const shell =
+    "flex h-28 w-28 shrink-0 items-center justify-center rounded-full shadow-[0_12px_32px_rgba(0,75,135,0.24)] ring-4 ring-white/80 dark:ring-slate-900/60";
 
   if (!filled) {
     return (
@@ -184,7 +178,7 @@ function TreeCircle({
         className={`${shell} border-2 border-dashed border-slate-300 bg-white text-slate-300 dark:border-slate-600 dark:bg-slate-950`}
         aria-hidden
       >
-        <Icon size={iconSz} strokeWidth={1.75} />
+        <Icon size={36} strokeWidth={1.75} />
       </div>
     );
   }
@@ -196,35 +190,33 @@ function TreeCircle({
       onClick={onClick}
       className={`${shell} cursor-pointer bg-gradient-to-br from-[#004B87] to-[#008BB0] text-white transition hover:brightness-110 active:brightness-95`}
     >
-      <Icon size={iconSz} strokeWidth={1.75} />
+      <Icon size={36} strokeWidth={1.75} />
     </button>
   );
 }
 
-function ParticipantPill({
-  participant,
-  onOpen,
-  emptyLabel,
+function EvaluatorStats({
+  enrollments,
+  collections,
+  enrollmentsLabel,
+  collectionsLabel,
 }: {
-  participant: ParticipantRow | null;
-  onOpen: () => void;
-  emptyLabel: string;
+  enrollments: number;
+  collections: number;
+  enrollmentsLabel: string;
+  collectionsLabel: string;
 }) {
-  if (!participant) {
-    return (
-      <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-3 py-2 text-center text-xs font-semibold text-slate-500 shadow-sm dark:border-slate-600 dark:bg-slate-950 dark:text-slate-400">
-        {emptyLabel}
-      </div>
-    );
-  }
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-bold text-slate-900 shadow-sm transition hover:border-blue-400 dark:border-slate-700 dark:bg-black dark:text-white dark:hover:border-blue-500"
-    >
-      {participant.full_name}
-    </button>
+    <div className="mt-3 w-full rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2.5 text-left shadow-sm dark:border-slate-700 dark:bg-slate-950/70">
+      <div className="flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300">
+        <span className="font-semibold">{enrollmentsLabel}</span>
+        <span className="text-sm font-extrabold tabular-nums text-slate-900 dark:text-white">{enrollments}</span>
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300">
+        <span className="font-semibold">{collectionsLabel}</span>
+        <span className="text-sm font-extrabold tabular-nums text-slate-900 dark:text-white">{collections}</span>
+      </div>
+    </div>
   );
 }
 
@@ -237,7 +229,7 @@ export function MyInstitutionPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
-  const [participants, setParticipants] = useState<ParticipantRow[]>([]);
+  const [orgMetrics, setOrgMetrics] = useState<OrgMetrics>({});
   const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
@@ -245,17 +237,17 @@ export function MyInstitutionPage() {
       try {
         setLoading(true);
         setError(null);
-        const [usersRes, partRes] = await Promise.all([
+        const [usersRes, metricsRes] = await Promise.all([
           apiJson<UserRow[]>("/api/users"),
-          apiJson<{ participants?: ParticipantRow[] }>("/api/participants").catch(() => ({ participants: [] })),
+          apiJson<{ byUserId?: OrgMetrics }>("/api/users/org-metrics").catch(() => ({ byUserId: {} })),
         ]);
         setUsers(usersRes ?? []);
-        setParticipants(sortByName(partRes.participants ?? []));
+        setOrgMetrics(metricsRes.byUserId ?? {});
       } catch (err) {
         console.error(err);
         setError(err instanceof Error ? err.message : t("myInstitution.loadError"));
         setUsers([]);
-        setParticipants([]);
+        setOrgMetrics({});
       } finally {
         setLoading(false);
       }
@@ -263,9 +255,11 @@ export function MyInstitutionPage() {
     void load();
   }, [t]);
 
+  const isSupervisorUser = user?.role === "SUPERVISOR";
+
   const tree = useMemo(() => {
     const filtered = (users ?? []).filter((u) => u.role !== "SUPER_ADMIN" && u.role !== "ADMIN");
-    const gestores = sortByName(filtered.filter((u) => u.role === "GESTOR"));
+    const gestores = isSupervisorUser ? [] : sortByName(filtered.filter((u) => u.role === "GESTOR"));
     const supervisores = sortByName(filtered.filter((u) => u.role === "SUPERVISOR"));
     const avaliadores = sortByName(filtered.filter((u) => u.role === "AVALIADOR"));
 
@@ -280,7 +274,27 @@ export function MyInstitutionPage() {
 
     const columns: SupColumn[] = [];
 
-    if (supervisores.length === 0) {
+    if (isSupervisorUser && user) {
+      const myEvaluators = sortByName(
+        avaliadores.filter((evaluator) => evaluator.created_by_id === user.id)
+      );
+      const selfSupervisor =
+        supervisores.find((supervisor) => supervisor.id === user.id) ??
+        ({
+          id: user.id,
+          full_name: user.name,
+          email: user.email,
+          role: "SUPERVISOR",
+          is_active: user.is_active ?? true,
+          created_at: null,
+        } satisfies UserRow);
+      const slotCount = Math.max(1, myEvaluators.length);
+      const evalSlots: (UserRow | null)[] = Array.from(
+        { length: slotCount },
+        (_, index) => myEvaluators[index] ?? null
+      );
+      columns.push({ supervisor: selfSupervisor, evalSlots, slotCount });
+    } else if (supervisores.length === 0) {
       const slotCount = Math.max(1, avaliadores.length);
       const evalSlots: (UserRow | null)[] = Array.from(
         { length: slotCount },
@@ -308,7 +322,7 @@ export function MyInstitutionPage() {
     const colWidths: number[] = [];
     const columnCenters: number[] = [];
     columns.forEach((c, i) => {
-      const w = Math.max(220, c.slotCount * 104);
+      const w = Math.max(240, c.slotCount * 132);
       colWidths.push(w);
       columnCenters.push(x + w / 2);
       x += w;
@@ -316,15 +330,6 @@ export function MyInstitutionPage() {
     });
     /** Largura real da faixa de colunas (sem “esticar” artificialmente), para o centro bater com o SVG. */
     const gridWidth = x > 0 ? x : 320;
-
-    const participantPairs: [ParticipantRow | null, ParticipantRow | null][][] = columns.map(() => []);
-    let pi = 0;
-    for (let c = 0; c < columns.length; c++) {
-      for (let i = 0; i < columns[c].slotCount; i++) {
-        participantPairs[c].push([participants[pi] ?? null, participants[pi + 1] ?? null]);
-        pi += 2;
-      }
-    }
 
     const gestorBandMin = Math.max(320, gestores.length * 200);
     const canvasWidth = Math.max(gridWidth, gestorBandMin);
@@ -336,12 +341,11 @@ export function MyInstitutionPage() {
       gestores,
       columns,
       colWidths,
-      participantPairs,
       gridWidth,
       canvasWidth,
       centersOnCanvas,
     };
-  }, [users, participants]);
+  }, [users, user, isSupervisorUser]);
 
   const gestoresDisplay: UserRow[] =
     tree.gestores.length > 0
@@ -451,38 +455,34 @@ export function MyInstitutionPage() {
                 className="relative mx-auto w-max max-w-none origin-top pb-10"
                 style={{ transform: `scale(${zoom})`, minWidth: tree.canvasWidth }}
               >
-                {/* Gestor(es) — quantidade conforme cadastro */}
-                <div
-                  className="pointer-events-none mx-auto flex flex-wrap justify-center gap-x-10 gap-y-6 select-none"
-                  style={{ width: tree.canvasWidth }}
-                >
-                  {gestoresDisplay.length === 0 ? (
-                    <div className="max-w-md py-4 text-center text-sm font-semibold text-slate-600 dark:text-slate-400">
-                      {t("myInstitution.noManagers")}
-                    </div>
-                  ) : (
-                    gestoresDisplay.map((g) => (
-                      <div key={g.id} className="flex flex-col items-center">
-                        <div className="flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-full bg-gradient-to-br from-[#004B87] to-[#008BB0] text-white shadow-[0_12px_32px_rgba(0,75,135,0.28)] ring-4 ring-white/80 dark:ring-slate-900/70">
-                          <UserRound size={36} strokeWidth={1.75} />
-                        </div>
-                        <div className="mt-3 max-w-[220px] text-center">
-                          <div className="text-sm font-extrabold uppercase tracking-wide text-[#004B87] dark:text-[#5ec8e8]">
-                            {roleLabel("GESTOR")}
-                          </div>
-                          <div className="mt-1 text-lg font-extrabold text-slate-900 dark:text-white">
-                            {g.full_name}
-                          </div>
-                          <div className="mt-0.5 truncate text-sm text-slate-600 dark:text-slate-300">
-                            {g.email}
-                          </div>
-                        </div>
+                {!isSupervisorUser ? (
+                  <div
+                    className="pointer-events-none mx-auto flex flex-wrap justify-center gap-x-10 gap-y-6 select-none"
+                    style={{ width: tree.canvasWidth }}
+                  >
+                    {gestoresDisplay.length === 0 ? (
+                      <div className="max-w-md py-4 text-center text-sm font-semibold text-slate-600 dark:text-slate-400">
+                        {t("myInstitution.noManagers")}
                       </div>
-                    ))
-                  )}
-                </div>
+                    ) : (
+                      gestoresDisplay.map((g) => (
+                        <div key={g.id} className="flex flex-col items-center">
+                          <TreeCircle icon={UserRound} filled ariaLabel={g.full_name} />
+                          <div className="mt-3 max-w-[220px] text-center">
+                            <div className="text-sm font-extrabold uppercase tracking-wide text-[#004B87] dark:text-[#5ec8e8]">
+                              {roleLabel("GESTOR")}
+                            </div>
+                            <div className="mt-1 text-lg font-extrabold text-slate-900 dark:text-white">
+                              {g.full_name}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : null}
 
-                {tree.columns.length > 0 && (
+                {!isSupervisorUser && tree.columns.length > 0 && (
                   <GestorForkSvg
                     width={tree.canvasWidth}
                     centers={tree.centersOnCanvas}
@@ -506,7 +506,6 @@ export function MyInstitutionPage() {
                       >
                         <div className="flex w-full max-w-[320px] flex-col items-center text-center">
                           <TreeCircle
-                            size="md"
                             icon={Users}
                             filled={!!sup}
                             ariaLabel={
@@ -515,23 +514,25 @@ export function MyInstitutionPage() {
                                 : t("myInstitution.vacantSupervisor")
                             }
                             onClick={
-                              sup ? () => navigate(routes.myInstitutionUserEdit(sup.id)) : undefined
+                              sup
+                                ? () =>
+                                    navigate(
+                                      isSupervisorUser && sup.id === user?.id
+                                        ? routes.myProfile
+                                        : routes.myInstitutionUserEdit(sup.id)
+                                    )
+                                : undefined
                             }
                           />
-                          <div className="mt-2 px-1">
+                          <div className="mt-3 px-1">
                             <div className="text-xs font-extrabold uppercase tracking-wide text-[#004B87] dark:text-[#5ec8e8]">
                               {roleLabel("SUPERVISOR")}
                             </div>
                             {sup ? (
-                              <>
-                                <div className="mt-1 text-sm font-extrabold text-slate-900 dark:text-white">
-                                  {sup.full_name}
-                                  {!sup.is_active ? ` • ${t("myInstitution.inactive")}` : ""}
-                                </div>
-                                <div className="mt-1 break-all text-[11px] text-slate-600 dark:text-slate-400">
-                                  {sup.email}
-                                </div>
-                              </>
+                              <div className="mt-1 text-base font-extrabold leading-snug text-slate-900 dark:text-white">
+                                {sup.full_name}
+                                {!sup.is_active ? ` • ${t("myInstitution.inactive")}` : ""}
+                              </div>
                             ) : (
                               <div className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
                                 {t("myInstitution.emptySlot")}
@@ -549,14 +550,13 @@ export function MyInstitutionPage() {
                           }}
                         >
                           {branch.evalSlots.map((evaluator, evIdx) => {
-                            const [p0, p1] = tree.participantPairs[colIdx][evIdx] ?? [null, null];
+                            const metrics = evaluator ? orgMetrics[evaluator.id] : null;
                             return (
                               <div
                                 key={evaluator?.id ?? `slot-${colIdx}-${evIdx}`}
                                 className="flex min-w-0 flex-col items-center"
                               >
                                 <TreeCircle
-                                  size="sm"
                                   icon={ClipboardList}
                                   filled={!!evaluator}
                                   ariaLabel={
@@ -570,36 +570,28 @@ export function MyInstitutionPage() {
                                       : undefined
                                   }
                                 />
-                                <div className="mt-2 w-full px-0.5 text-center">
-                                  <div className="text-[10px] font-extrabold uppercase tracking-wide text-[#004B87] dark:text-[#5ec8e8]">
+                                <div className="mt-3 w-full px-1 text-center">
+                                  <div className="text-[11px] font-extrabold uppercase tracking-wide text-[#004B87] dark:text-[#5ec8e8]">
                                     {evaluator ? roleLabel(evaluator.role) : roleLabel("AVALIADOR")}
                                   </div>
-                                  <div className="mt-1 text-xs font-bold leading-snug text-slate-900 dark:text-white">
+                                  <div className="mt-1 text-sm font-bold leading-snug text-slate-900 dark:text-white">
                                     {evaluator?.full_name ?? "—"}
                                   </div>
-                                  {evaluator ? (
-                                    <div className="mt-1 truncate text-[10px] text-slate-600 dark:text-slate-400">
-                                      {evaluator.email}
-                                    </div>
-                                  ) : (
-                                    <div className="mt-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                                  {!evaluator ? (
+                                    <div className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                                       {t("myInstitution.emptySlot")}
                                     </div>
-                                  )}
+                                  ) : null}
                                 </div>
 
-                                <div className="mt-4 flex w-full flex-col gap-2">
-                                  <ParticipantPill
-                                    participant={p0}
-                                    onOpen={() => p0 && navigate(routes.participantDetail(p0.id))}
-                                    emptyLabel={t("myInstitution.emptySlot")}
+                                {evaluator ? (
+                                  <EvaluatorStats
+                                    enrollments={metrics?.enrollments ?? 0}
+                                    collections={metrics?.collections ?? 0}
+                                    enrollmentsLabel={t("myInstitution.enrollments")}
+                                    collectionsLabel={t("myInstitution.collections")}
                                   />
-                                  <ParticipantPill
-                                    participant={p1}
-                                    onOpen={() => p1 && navigate(routes.participantDetail(p1.id))}
-                                    emptyLabel={t("myInstitution.emptySlot")}
-                                  />
-                                </div>
+                                ) : null}
                               </div>
                             );
                           })}

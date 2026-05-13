@@ -9,7 +9,7 @@ import {
 } from "react";
 import { apiJson } from "../lib/api/client";
 import { getValidIdToken, signInWithPassword, signOutCognito } from "../lib/cognito/session";
-import type { AuthUser, SignInPayload } from "../types/auth";
+import type { AuthUser, Role, SignInPayload } from "../types/auth";
 
 type AuthContextType = {
   user: AuthUser | null;
@@ -22,6 +22,20 @@ type AuthContextType = {
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+function normalizeRole(role: string): Role {
+  const normalized = role.trim().toUpperCase();
+  switch (normalized) {
+    case "SUPER_ADMIN":
+    case "ADMIN":
+    case "GESTOR":
+    case "SUPERVISOR":
+    case "AVALIADOR":
+      return normalized;
+    default:
+      throw new Error("Perfil com papel inválido.");
+  }
+}
 
 async function fetchMe(): Promise<AuthUser> {
   const data = await apiJson<{
@@ -42,7 +56,7 @@ async function fetchMe(): Promise<AuthUser> {
     id: data.id,
     email: data.email,
     name: data.name,
-    role: data.role,
+    role: normalizeRole(String(data.role)),
     institution_id: data.institution_id,
     institution_name: data.institution_name,
     is_active: data.is_active,

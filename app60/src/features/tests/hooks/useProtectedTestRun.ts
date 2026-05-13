@@ -33,7 +33,6 @@ export type UseProtectedTestRunReturn = {
 const KEEP_AWAKE_TAG = "protected-test-run";
 
 const TAP_WINDOW_MS = 1200;
-const UNLOCK_GRACE_MS = 8000;
 const REQUIRED_TAPS = 3;
 
 type Timer = ReturnType<typeof setTimeout>;
@@ -106,7 +105,6 @@ export function useProtectedTestRun(
 
   const startedAtMsRef = useRef<number | null>(null);
   const tapWindowTimerRef = useRef<Timer | null>(null);
-  const relockTimerRef = useRef<Timer | null>(null);
   const elapsedTimerRef = useRef<Interval | null>(null);
   const autoFinishTimerRef = useRef<Timer | null>(null);
 
@@ -212,7 +210,6 @@ export function useProtectedTestRun(
 
   const cleanupProtection = useCallback(() => {
     clearTimer(tapWindowTimerRef);
-    clearTimer(relockTimerRef);
     clearTimer(autoFinishTimerRef);
     clearIntervalRef(elapsedTimerRef);
   }, []);
@@ -425,18 +422,10 @@ export function useProtectedTestRun(
 
       if (next >= REQUIRED_TAPS) {
         clearTimer(tapWindowTimerRef);
-        clearTimer(relockTimerRef);
 
+        // Após desbloquear, o cadeado sai da tela e permanece liberado
+        // até o fim do teste (manual ou por tempo). Não há mais relock.
         safeSetLocked(false);
-
-        relockTimerRef.current = setTimeout(() => {
-          relockTimerRef.current = null;
-          if (isRunningRef.current && !finishCalledRef.current) {
-            safeSetLocked(true);
-            safeSetTapCount(0);
-          }
-        }, UNLOCK_GRACE_MS);
-
         return 0;
       }
 
@@ -445,7 +434,6 @@ export function useProtectedTestRun(
   }, [safeSetLocked, safeSetTapCount]);
 
   const forceLock = useCallback(() => {
-    clearTimer(relockTimerRef);
     clearTimer(tapWindowTimerRef);
     safeSetLocked(true);
     safeSetTapCount(0);
@@ -469,7 +457,6 @@ export function useProtectedTestRun(
       }
       stopCalledRef.current = true;
 
-      clearTimer(relockTimerRef);
       clearTimer(tapWindowTimerRef);
 
       await cancelFinishNotification();

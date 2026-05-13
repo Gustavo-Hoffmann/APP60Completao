@@ -48,7 +48,10 @@ export function createAuthMiddleware(cfg: AppConfig, pool: Pool) {
         res.status(403).json({ error: "Usuário inativo ou não provisionado na base." });
         return;
       }
-      req.authUser = row as AuthedUser;
+      req.authUser = {
+        ...(row as AuthedUser),
+        role: String(row.role).trim().toUpperCase(),
+      };
       next();
     } catch (e) {
       console.error("JWT verify failed", e);
@@ -92,7 +95,10 @@ export function createOptionalAudienceAuthMiddleware(cfg: AppConfig, pool: Pool)
         res.status(403).json({ error: "Usuário inativo ou não provisionado na base." });
         return;
       }
-      req.authUser = row as AuthedUser;
+      req.authUser = {
+        ...(row as AuthedUser),
+        role: String(row.role).trim().toUpperCase(),
+      };
       next();
     } catch (e) {
       console.error("JWT verify failed", e);
